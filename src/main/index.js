@@ -11,6 +11,14 @@ const WORKSPACE_JSON = path.join(DSH_HOME, 'storages', 'workspace.json')
 const PROJCACHE_JSON = path.join(DSH_HOME, 'storages', 'session_projcache.json')
 const SESSIONS_ROOT = path.join(DSH_HOME, 'sessions')
 const DSH_PORT = 3080
+// 打包成 app 后从 Finder 启动时,PATH 只有系统默认(无 homebrew/node),
+// 导致 spawn('dsh') 找不到命令。这里给启动的子进程补上常见路径。
+const EXTRA_PATHS = ['/opt/homebrew/bin', '/usr/local/bin', '/opt/homebrew/sbin', '/usr/local/sbin']
+function spawnEnv() {
+  const existing = process.env.PATH || ''
+  const extra = EXTRA_PATHS.filter(p => !existing.includes(p)).join(':')
+  return { ...process.env, PATH: extra ? `${extra}:${existing}` : existing }
+}
 const SKILLS_DIR = path.join(DSH_HOME, 'skills')
 const HOME_PATCH = path.join(DSH_HOME, 'cordis.patch.yml')
 
@@ -42,6 +50,7 @@ function startDsh() {
     const child = spawn('dsh', ['web', '--no-open'], {
       detached: true,
       stdio: ['ignore', 'pipe', 'pipe'],
+      env: spawnEnv(),
     })
     let buffer = ''
     child.stdout?.on('data', (chunk) => {
@@ -60,7 +69,7 @@ function startDsh() {
 
 function killPort(port) {
   return new Promise((resolve) => {
-    exec(`lsof -ti tcp:${port}`, (err, stdout) => {
+    exec(`lsof -ti tcp:${port}`, { env: spawnEnv() }, (err, stdout) => {
       if (err || !String(stdout).trim()) return resolve()
       for (const pid of String(stdout).trim().split('\n')) {
         if (!pid.trim()) continue
@@ -300,8 +309,8 @@ async function extractArchive(src) {
   await rm(tmp, { recursive: true, force: true })
   await mkdir(tmp, { recursive: true })
   const l = src.toLowerCase()
-  if (l.endsWith('.zip')) execSync(`unzip -o -q "${src}" -d "${tmp}"`)
-  else if (l.endsWith('.tar.gz') || l.endsWith('.tgz')) execSync(`tar -xzf "${src}" -C "${tmp}"`)
+  if (l.endsWith('.zip')) execSync(`unzip -o -q "${src}" -d "${tmp}"`, { env: spawnEnv() })
+  else if (l.endsWith('.tar.gz') || l.endsWith('.tgz')) execSync(`tar -xzf "${src}" -C "${tmp}"`, { env: spawnEnv() })
   else throw new Error('不支持的压缩格式')
 
   const entries = await readdir(tmp)
