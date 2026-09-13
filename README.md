@@ -8,7 +8,7 @@ DeepSeek Harness 桌面控制器 —— 一个独立的 Electron 桌面应用,�
 - **会话管理**:按项目分组、折叠 / 展开、归档 / 还原 / 删除(改完自动重启 dsh 让网页端同步)
 - **Skills 管理**:新建 + 导入(`.zip` / `.tar.gz` / `.md` / 目录,兼容 Claude SKILL.md 格式)
 - **提示词管理**:编辑系统提示词(persona),dsh 热加载
-- **托盘常驻**:点 X 关窗不退出,驻留 macOS 菜单栏,防误关
+- **托盘常驻**:点 X 关窗不退出,驻留系统菜单栏 / 托盘(macOS / Windows),防误关
 
 ## 技术栈
 
@@ -24,10 +24,13 @@ npm run dev    # 开发模式(热更新)
 ## 打包
 
 ```bash
-npm run dist   # 生成 dist/mac-arm64/DSH Controller.app 与 dist/DSH Controller-0.1.0-arm64.dmg
+npm run dist   # 按当前平台打包
 ```
 
-> 说明:当前未做代码签名,首次打开需右键 App →「打开」;暂用默认 Electron 图标。
+- macOS:生成 `dist/mac-arm64/DSH Controller.app` 与 `dist/DSH Controller-0.1.0-arm64.dmg`
+- Windows:生成 `dist/DSH Controller Setup 0.1.0.exe`(NSIS 安装包)
+
+> 说明:当前未做代码签名,macOS 首次打开需右键 App →「打开」,Windows 安装时会提示 SmartScreen;暂用默认 Electron 图标。
 
 ## 数据存储
 
