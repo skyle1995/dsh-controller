@@ -56,6 +56,13 @@ export default function App() {
   useEffect(() => { void loadSkills() }, [loadSkills])
   useEffect(() => { void loadPrompt() }, [loadPrompt])
 
+  // 提示 4 秒后自动消失
+  useEffect(() => {
+    if (!notice) return
+    const t = setTimeout(() => setNotice(''), 4000)
+    return () => clearTimeout(t)
+  }, [notice])
+
   const act = async (fn) => {
     setBusy(true)
     try { await fn() } catch (e) { setError(String(e?.message ?? e)) }
