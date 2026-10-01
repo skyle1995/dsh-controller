@@ -16,6 +16,7 @@ export default function App() {
   const [showSkillForm, setShowSkillForm] = useState(false)
 
   const [prompt, setPrompt] = useState('')
+  const [detail, setDetail] = useState(null) // { sid, title, loading, data }
 
   const refresh = useCallback(async () => {
     try {
@@ -39,6 +40,16 @@ export default function App() {
 
   const loadPrompt = useCallback(async () => {
     try { setPrompt((await window.api.getPrompt()).persona) } catch (e) { setError(String(e?.message ?? e)) }
+  }, [])
+
+  const openDetail = useCallback(async (s) => {
+    setDetail({ sid: s.id, title: s.title, loading: true, data: null })
+    try {
+      const data = await window.api.getSessionDetail(s.id)
+      setDetail({ sid: s.id, title: s.title, loading: false, data })
+    } catch (e) {
+      setDetail({ sid: s.id, title: s.title, loading: false, data: { ok: false, error: String(e?.message ?? e) } })
+    }
   }, [])
 
   useEffect(() => { void refresh() }, [refresh])
@@ -185,7 +196,7 @@ export default function App() {
                       <span className="muted">({g.items.length})</span>
                       {g.path ? <span className="muted" style={{ fontWeight: 400 }}>{g.path}</span> : null}
                     </h2>
-                    {isCollapsed ? null : <SessionList items={g.items} mutate={mutate} />}
+                    {isCollapsed ? null : <SessionList items={g.items} mutate={mutate} onDetail={openDetail} />}
                   </section>
                 )
               })
@@ -207,11 +218,13 @@ export default function App() {
       /> : null}
 
       {tab === 'prompt' ? <PromptView prompt={prompt} setPrompt={setPrompt} onSave={savePrompt} busy={busy} /> : null}
+
+      {detail ? <DetailModal detail={detail} onClose={() => setDetail(null)} /> : null}
     </div>
   )
 }
 
-function SessionList({ items, mutate }) {
+function SessionList({ items, mutate, onDetail }) {
   return (
     <div className="session-list">
       {items.map(s => (
@@ -224,6 +237,7 @@ function SessionList({ items, mutate }) {
             <div className="session-id">{s.id}</div>
           </div>
           <div className="actions">
+            <button className="btn" onClick={() => onDetail(s)}>详情</button>
             {s.archived
               ? <button className="btn" onClick={() => mutate(() => window.api.unarchiveSession(s.id))}>还原</button>
               : <button className="btn" onClick={() => mutate(() => window.api.archiveSession(s.id))}>归档</button>}
@@ -287,5 +301,67 @@ function PromptView({ prompt, setPrompt, onSave, busy }) {
       <textarea className="textarea" rows={14} value={prompt} onChange={e => setPrompt(e.target.value)} placeholder="You are a coding agent..." />
       <button className="btn primary" onClick={onSave} disabled={busy}>保存提示词</button>
     </div>
+  )
+}
+
+function DetailModal({ detail, onClose }) {
+  return (
+    <div className="detail-overlay" onClick={onClose}>
+      <div className="detail-modal" onClick={e => e.stopPropagation()}>
+        <div className="detail-head">
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="detail-title">{detail.title || '会话详情'}</div>
+            <div className="muted">{detail.sid}</div>
+          </div>
+          <button className="btn" onClick={onClose}>关闭</button>
+        </div>
+        <div className="detail-body">
+          {detail.loading ? <p className="empty">加载中…</p> : null}
+          {!detail.loading && detail.data && !detail.data.ok ? <p className="empty">{detail.data.error}</p> : null}
+          {!detail.loading && detail.data && detail.data.ok ? (
+            detail.data.messages.length === 0
+              ? <p className="empty">暂无对话内容(空会话)</p>
+              : (
+                <>
+                  {detail.data.truncated ? <p className="muted" style={{ margin: '0 0 10px' }}>仅显示最近 {detail.data.messages.length} 条 / 共 {detail.data.total} 条</p> : null}
+                  {detail.data.messages.map((m, i) => <Msg key={i} m={m} />)}
+                </>
+              )
+          ) : null}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function Msg({ m }) {
+  if (m.role === 'user') {
+    return (
+      <div className="msg msg-user">
+        <div className="msg-role">你</div>
+        <div className="msg-text">{m.text}</div>
+      </div>
+    )
+  }
+  if (m.role === 'assistant') {
+    return (
+      <div className="msg msg-assistant">
+        <div className="msg-role">AI</div>
+        {m.reasoning ? (
+          <details className="msg-reasoning">
+            <summary>思考过程</summary>
+            <div className="msg-text dim">{m.reasoning}</div>
+          </details>
+        ) : null}
+        {m.tools && m.tools.length ? <div className="msg-tools">工具:{m.tools.join(', ')}</div> : null}
+        {m.text ? <div className="msg-text">{m.text}</div> : null}
+      </div>
+    )
+  }
+  return (
+    <details className="msg msg-tool">
+      <summary>工具结果</summary>
+      <div className="msg-text mono">{m.text}</div>
+    </details>
   )
 }

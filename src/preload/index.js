@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('api', {
   archiveSession: (id) => ipcRenderer.invoke('sessions:archive', id),
   unarchiveSession: (id) => ipcRenderer.invoke('sessions:unarchive', id),
   deleteSession: (id) => ipcRenderer.invoke('sessions:delete', id),
+  getSessionDetail: (id) => ipcRenderer.invoke('sessions:detail', id),
   startDsh: () => ipcRenderer.invoke('dsh:start'),
   stopDsh: () => ipcRenderer.invoke('dsh:stop'),
   restartDsh: () => ipcRenderer.invoke('dsh:restart'),

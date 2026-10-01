@@ -6,6 +6,7 @@ import path from 'path'
 import os from 'os'
 import net from 'net'
 import zlib from 'zlib'
+import { decompress } from 'fzstd'
 
 const DSH_HOME = path.join(os.homedir(), '.dsh')
 const WORKSPACE_JSON = path.join(DSH_HOME, 'storages', 'workspace.json')
@@ -174,8 +175,10 @@ async function readTitles() {
         const sid = f.slice(0, -5)
         try {
           const rec = await readJson(path.join(PROJCACHE_SESSIONS_DIR, f))
-          const title = rec?.record?.rows?.title?.val
-          if (title) out[sid] = title
+          const rows = rec?.record?.rows ?? {}
+          // 空会话(从未发送过消息)title.val 为 null、sessionListMetadata.blank 为 true,
+          // 与「有历史但无标题」区分开,前端据此显示不同文案。
+          out[sid] = { title: rows.title?.val || null, blank: !!rows.sessionListMetadata?.val?.blank }
         } catch {}
       }
       return out
@@ -188,10 +191,16 @@ async function readTitles() {
     const out = {}
     for (const [sid, v] of Object.entries(pc?.tables?.sessions ?? {})) {
       const title = v?.rows?.title?.val
-      if (title) out[sid] = title
+      if (title) out[sid] = { title, blank: false }
     }
     return out
   } catch { return {} }
+}
+
+function titleOf(titles, sid) {
+  const t = titles[sid]
+  if (t?.title) return t.title
+  return t?.blank ? '(空会话)' : '(无标题)'
 }
 
 async function listSessions() {
@@ -207,7 +216,7 @@ async function listSessions() {
       seen.add(sid)
       sessions.push({
         id: sid,
-        title: titles[sid] ?? '(无标题)',
+        title: titleOf(titles, sid),
         workspaceTitle: w.title ?? '',
         workspacePath: w.path ?? '',
         archived: archived.has(sid),
@@ -217,7 +226,7 @@ async function listSessions() {
   // 归档但未计入任何工作区的会话(ungrouped)
   for (const sid of archived) {
     if (!seen.has(sid)) {
-      sessions.push({ id: sid, title: titles[sid] ?? '(无标题)', workspaceTitle: '', workspacePath: '', archived: true })
+      sessions.push({ id: sid, title: titleOf(titles, sid), workspaceTitle: '', workspacePath: '', archived: true })
     }
   }
   sessions.sort((a, b) => a.title.localeCompare(b.title, 'zh'))
@@ -273,7 +282,11 @@ async function deleteSession(id) {
   // 3) 删除会话目录
   const dir = await findSessionDir(id)
   if (dir) await rm(dir, { recursive: true, force: true })
-  // 4) 从 projcache 移除
+  // 4) 从 projcache 移除(新版逐会话文件 + 旧版聚合 json)
+  const projFile = path.join(PROJCACHE_SESSIONS_DIR, `${id}.json`)
+  if (existsSync(projFile)) {
+    try { await rm(projFile, { force: true }) } catch {}
+  }
   if (existsSync(PROJCACHE_JSON)) {
     try {
       const pc = await readJson(PROJCACHE_JSON)
@@ -286,11 +299,64 @@ async function deleteSession(id) {
   return { ok: true }
 }
 
+// ── 会话详情 ────────────────────────────────────────────────
+const MAX_DETAIL_MESSAGES = 400
+const MAX_DETAIL_TEXT = 8000
+const DETAIL_TYPES = new Set(['user/message', 'assistant/message', 'tool/result', 'session/title'])
+
+function contentText(content) {
+  if (typeof content === 'string') return content
+  if (!Array.isArray(content)) return ''
+  return content.filter(c => c?.type === 'text' && typeof c?.text === 'string').map(c => c.text).join('\n')
+}
+
+async function readSessionDetail(id) {
+  const dir = await findSessionDir(id)
+  if (!dir) return { ok: false, error: '会话目录不存在' }
+  const logFile = path.join(dir, 'session.jsonl.zstd')
+  if (!existsSync(logFile)) return { ok: false, error: '会话日志不存在' }
+  const text = new TextDecoder().decode(decompress(await readFile(logFile)))
+  const messages = []
+  let title = ''
+  for (const line of text.split('\n')) {
+    if (!line.trim()) continue
+    const type = /"type"\s*:\s*"([^"]+)"/.exec(line)?.[1]
+    if (!type || !DETAIL_TYPES.has(type)) continue
+    let e
+    try { e = JSON.parse(line) } catch { continue }
+    const d = e?.data ?? {}
+    if (type === 'session/title') {
+      if (d.title) title = d.title
+    } else if (type === 'user/message') {
+      const t = contentText(d.content)
+      if (t) messages.push({ role: 'user', text: t })
+    } else if (type === 'assistant/message') {
+      const content = d.message?.content ?? []
+      const t = contentText(content)
+      const tools = content.filter(c => c?.type === 'tool-call' && c?.name).map(c => c.name)
+      const reasoning = content.filter(c => c?.type === 'reasoning' && c?.text).map(c => c.text).join('\n')
+      if (t || tools.length) messages.push({ role: 'assistant', text: t, tools, reasoning })
+    } else if (type === 'tool/result') {
+      const content = d.message?.content ?? d.content ?? []
+      let t = ''
+      for (const c of content) t += (c?.type === 'tool-result' ? contentText(c.content) : contentText([c])) + '\n'
+      t = t.trim()
+      if (t) messages.push({ role: 'tool', text: t })
+    }
+  }
+  const total = messages.length
+  const truncated = total > MAX_DETAIL_MESSAGES
+  const list = (truncated ? messages.slice(-MAX_DETAIL_MESSAGES) : messages)
+    .map(m => ({ ...m, text: (m.text ?? '').slice(0, MAX_DETAIL_TEXT) }))
+  return { ok: true, title, total, truncated, messages: list }
+}
+
 // ── IPC ─────────────────────────────────────────────────────
 ipcMain.handle('sessions:list', () => listSessions())
 ipcMain.handle('sessions:archive', (_e, id) => archiveSession(id))
 ipcMain.handle('sessions:unarchive', (_e, id) => unarchiveSession(id))
 ipcMain.handle('sessions:delete', (_e, id) => deleteSession(id))
+ipcMain.handle('sessions:detail', (_e, id) => readSessionDetail(id))
 ipcMain.handle('dsh:start', () => startDsh())
 ipcMain.handle('dsh:stop', () => stopDsh())
 ipcMain.handle('dsh:restart', () => restartDsh())
