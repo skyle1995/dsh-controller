@@ -312,11 +312,11 @@ function contentText(content) {
 
 function zstdDecompress(file) {
   // 原生 zstd 解压比纯 JS fzstd 快约一个数量级(25MB 会话 fzstd 约 9s,原生 <0.5s)。
-  // 优先走系统 zstd;不存在时(如 Windows)退回纯 JS 兜底。
+  // exec 默认 utf8 编码,stdout 直接就是文本;zstd 不存在时(如 Windows)退回纯 JS fzstd。
   return new Promise((resolve) => {
     exec(`zstd -d -c "${file}"`, { env: spawnEnv(), maxBuffer: 1024 * 1024 * 1024 }, (err, stdout) => {
       if (!err) return resolve(stdout)
-      readFile(file).then(b => resolve(Buffer.from(decompress(b)))).catch(() => resolve(Buffer.alloc(0)))
+      readFile(file).then(b => resolve(new TextDecoder().decode(decompress(b)))).catch(() => resolve(''))
     })
   })
 }
@@ -326,7 +326,7 @@ async function readSessionDetail(id) {
   if (!dir) return { ok: false, error: '会话目录不存在' }
   const logFile = path.join(dir, 'session.jsonl.zstd')
   if (!existsSync(logFile)) return { ok: false, error: '会话日志不存在' }
-  const text = new TextDecoder().decode(await zstdDecompress(logFile))
+  const text = await zstdDecompress(logFile)
   const messages = []
   let title = ''
   for (const line of text.split('\n')) {
