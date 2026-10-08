@@ -377,7 +377,6 @@ function PackPanel() {
       <section className="card">
         <h2>说明</h2>
         <p className="muted">
-          技能包内容来自开源项目 zhaoxuya520/reverse-skill(MIT,提取自「无限破甲」内嵌资源)。
           安装后 dsh 会把该技能加入技能目录:遇到 APK / 二进制 / JS 加密 / 协议逆向等任务时,
           按技能描述路由进入包内 RULES.md 路由矩阵,并自举所需工具链。
         </p>
