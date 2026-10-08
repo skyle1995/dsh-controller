@@ -1,13 +1,15 @@
 # DSH Controller
 
-DeepSeek Harness 桌面控制器 —— 一个独立的 Electron 桌面应用,脱离终端管理 dsh 进程与其数据。
+DeepSeek Harness 桌面控制器 —— 一个独立的 Electron 桌面应用,在桌面端管理 dsh 服务进程。
 
 ## 功能
 
-- **dsh 进程管理**:一键启动 / 停止 / 重启 dsh,显示运行状态与端口,一键打开会话界面
-- **会话管理**:按项目分组、折叠 / 展开、归档 / 还原 / 删除(改完自动重启 dsh 让网页端同步)
-- **Skills 管理**:新建 + 导入(`.zip` / `.tar.gz` / `.md` / 目录,兼容 Claude SKILL.md 格式)
-- **提示词管理**:编辑系统提示词(persona),dsh 热加载
+- **dsh 服务管理**:一键启动 / 停止 / 重启,一键打开 Web 界面
+- **实时状态监控**:每 2 秒自动轮询运行状态(窗口聚焦时立即刷新)
+- **状态详情**:进程 PID、运行时长、CPU / 内存占用、Web UI 响应延迟、dsh 版本、监听端口、启动方式(本应用 / 外部进程)
+- **版本管理**:检测当前版本与 npm 最新版,一键安装 / 更新 / 卸载 dsh(npm 全局包 `@deepseek-ai/dsh`)
+- **插件中心**:浏览 [hub.ifunx.com/skyle1995/dsh-plugins](https://hub.ifunx.com/skyle1995/dsh-plugins) 插件仓库目录,一键安装 / 更新 / 卸载插件(等价于 `dsh plugin --profile web add/remove`,操作日志实时可见)
+- **事件记录**:记录本次会话内的服务启停事件
 - **托盘常驻**:点 X 关窗不退出,驻留系统菜单栏 / 托盘(macOS / Windows),防误关
 
 ## 技术栈
@@ -32,18 +34,7 @@ npm run dist   # 按当前平台打包
 
 > 说明:当前未做代码签名,macOS 首次打开需右键 App →「打开」,Windows 安装时会提示 SmartScreen;暂用默认 Electron 图标。
 
-## 数据存储
-
-控制器直接读写 `~/.dsh/` 下的数据(不修改 dsh 源码):
-
-| 数据 | 位置 |
-|------|------|
-| 工作区 + 归档标记 | `~/.dsh/storages/workspace.json` |
-| 会话日志 | `~/.dsh/sessions/` |
-| Skills | `~/.dsh/skills/` |
-| 系统提示词(persona) | `~/.dsh/cordis.patch.yml` |
-
 ## 已知限制
 
 - 「停止 dsh」会停掉占用 3080 端口的进程(包括终端手动启动的 dsh)
-- 归档 / 删除会话后会自动重启 dsh,使网页端立即同步(会更换访问 token)
+- 外部启动的 dsh 若进程权限不足,CPU / 内存等详情可能无法读取,显示为「—」

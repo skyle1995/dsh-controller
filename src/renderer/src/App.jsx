@@ -1,374 +1,537 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-export default function App() {
-  const [tab, setTab] = useState('sessions')
-  const [sessions, setSessions] = useState([])
-  const [dsh, setDsh] = useState({ running: false })
-  const [loading, setLoading] = useState(true)
+const POLL_MS = 2000
+const MAX_EVENTS = 8
+
+function pad(n) { return String(n).padStart(2, '0') }
+
+function clock(ms) {
+  const d = new Date(ms)
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+}
+
+function formatUptime(ms) {
+  if (ms == null) return '—'
+  const s = Math.max(0, Math.floor(ms / 1000))
+  const d = Math.floor(s / 86400)
+  const h = Math.floor((s % 86400) / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  if (d > 0) return `${d} 天 ${h} 小时`
+  if (h > 0) return `${h} 小时 ${m} 分`
+  if (m > 0) return `${m} 分 ${s % 60} 秒`
+  return `${s} 秒`
+}
+
+function fmtCpu(v) { return v == null ? '—' : `${Math.round(v)}%` }
+
+function fmtMem(v) {
+  if (v == null) return '—'
+  return v >= 1024 ? `${(v / 1024).toFixed(1)} GB` : `${v} MB`
+}
+
+function platformLabel(p) {
+  if (p === 'darwin') return 'macOS'
+  if (p === 'win32') return 'Windows'
+  if (p === 'linux') return 'Linux'
+  return p || '—'
+}
+
+function StatTile({ label, value, mono, tone }) {
+  const toneClass = tone ? `stat-${tone}` : ''
+  return (
+    <div className={`stat ${toneClass}`}>
+      <div className="stat-label">{label}</div>
+      <div className={`stat-value ${mono ? 'mono' : ''}`}>{value}</div>
+    </div>
+  )
+}
+
+function OpLog({ open, onToggle }) {
+  const [text, setText] = useState('')
+  const boxRef = useRef(null)
+
+  useEffect(() => window.api.onOpLog((chunk) => setText(t => t + chunk)), [])
+
+  useEffect(() => {
+    const el = boxRef.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [text])
+
+  return (
+    <details className="op-log" open={open}>
+      <summary onClick={(e) => { e.preventDefault(); onToggle() }}>操作日志</summary>
+      <pre className="op-log-box" ref={boxRef}>{text || '暂无输出'}</pre>
+    </details>
+  )
+}
+
+function VersionPanel() {
+  const [info, setInfo] = useState(null)
+  const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [collapsed, setCollapsed] = useState(() => new Set())
+  const [logOpen, setLogOpen] = useState(true)
 
-  const [skills, setSkills] = useState([])
-  const [skillForm, setSkillForm] = useState({ name: '', description: '', body: '' })
-  const [editingSkill, setEditingSkill] = useState(null)
-  const [showSkillForm, setShowSkillForm] = useState(false)
-
-  const [prompt, setPrompt] = useState('')
-  const [detail, setDetail] = useState(null) // { sid, title, loading, data }
-
-  const refresh = useCallback(async () => {
+  const load = useCallback(async () => {
     try {
-      const [list, status] = await Promise.all([
-        window.api.listSessions(),
-        window.api.getDshStatus(),
-      ])
-      setSessions(list)
-      setDsh(status)
+      setInfo(await window.api.getVersionInfo())
       setError('')
     } catch (e) {
       setError(String(e?.message ?? e))
-    } finally {
-      setLoading(false)
     }
   }, [])
 
-  const loadSkills = useCallback(async () => {
-    try { setSkills(await window.api.listSkills()) } catch (e) { setError(String(e?.message ?? e)) }
-  }, [])
+  useEffect(() => { void load() }, [load])
 
-  const loadPrompt = useCallback(async () => {
-    try { setPrompt((await window.api.getPrompt()).persona) } catch (e) { setError(String(e?.message ?? e)) }
-  }, [])
-
-  const openDetail = useCallback(async (s) => {
-    setDetail({ sid: s.id, title: s.title, loading: true, data: null })
-    try {
-      const data = await window.api.getSessionDetail(s.id)
-      setDetail({ sid: s.id, title: s.title, loading: false, data })
-    } catch (e) {
-      setDetail({ sid: s.id, title: s.title, loading: false, data: { ok: false, error: String(e?.message ?? e) } })
-    }
-  }, [])
-
-  useEffect(() => { void refresh() }, [refresh])
-  useEffect(() => { void loadSkills() }, [loadSkills])
-  useEffect(() => { void loadPrompt() }, [loadPrompt])
-
-  // 提示 4 秒后自动消失
-  useEffect(() => {
-    if (!notice) return
-    const t = setTimeout(() => setNotice(''), 4000)
-    return () => clearTimeout(t)
-  }, [notice])
-
-  const act = async (fn) => {
+  const run = async (fn, label) => {
     setBusy(true)
-    try { await fn() } catch (e) { setError(String(e?.message ?? e)) }
-    setBusy(false)
-    await refresh()
-  }
-
-  const mutate = async (fn) => {
-    setBusy(true)
+    setError('')
     setNotice('')
     try {
       await fn()
-      const status = await window.api.getDshStatus()
-      if (status.running) {
-        await window.api.restartDsh()
-        setNotice('变更已保存,dsh 已重启。网页端未自动刷新就点「打开界面」。')
-      } else {
-        setNotice('变更已保存。')
-      }
-    } catch (e) { setError(String(e?.message ?? e)) }
-    setBusy(false)
-    await refresh()
-  }
-
-  const toggleDsh = () => act(async () => {
-    if (dsh.running) await window.api.stopDsh()
-    else await window.api.startDsh()
-  })
-
-  const groups = useMemo(() => {
-    const map = new Map()
-    for (const s of sessions) {
-      const key = s.workspacePath || ''
-      if (!map.has(key)) map.set(key, { title: s.workspaceTitle || '未分组', path: s.workspacePath || '', items: [] })
-      map.get(key).items.push(s)
+      setNotice(label)
+      await load()
+    } catch (e) {
+      setError(String(e?.message ?? e))
     }
-    return [...map.values()].sort((a, b) => (!a.path ? 1 : !b.path ? -1 : a.title.localeCompare(b.title, 'zh')))
-  }, [sessions])
-
-  const archivedCount = sessions.filter(s => s.archived).length
-
-  const toggleGroup = (key) => {
-    setCollapsed(prev => {
-      const next = new Set(prev)
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
-      return next
-    })
-  }
-
-  // skills
-  const startNewSkill = () => { setSkillForm({ name: '', description: '', body: '' }); setEditingSkill(null); setShowSkillForm(true) }
-  const editSkill = (sk) => {
-    setSkillForm({ name: sk.name, description: sk.description, body: sk.body.replace(/^---[\s\S]*?\n---\n\n?/, '') })
-    setEditingSkill(sk.name)
-    setShowSkillForm(true)
-  }
-  const cancelSkillForm = () => { setShowSkillForm(false); setSkillForm({ name: '', description: '', body: '' }); setEditingSkill(null) }
-  const saveSkill = async () => {
-    const name = skillForm.name.trim()
-    if (!name) { setError('Skill 名称不能为空'); return }
-    setBusy(true)
-    try {
-      const r = await window.api.saveSkill(name, skillForm.description, skillForm.body)
-      if (editingSkill && editingSkill !== r.name) await window.api.deleteSkill(editingSkill)
-      setEditingSkill(null)
-      setSkillForm({ name: '', description: '', body: '' })
-      setShowSkillForm(false)
-      await loadSkills()
-      setNotice('Skill 已保存。')
-    } catch (e) { setError(String(e?.message ?? e)) }
-    setBusy(false)
-  }
-  const removeSkill = async (name) => {
-    if (!confirm(`删除 skill「${name}」？`)) return
-    setBusy(true)
-    try { await window.api.deleteSkill(name); await loadSkills(); setNotice('Skill 已删除。') }
-    catch (e) { setError(String(e?.message ?? e)) }
-    setBusy(false)
-  }
-  const importSkill = async () => {
-    setBusy(true)
-    try {
-      const r = await window.api.importSkill()
-      if (!r.canceled) { await loadSkills(); setNotice(`已导入 Skill「${r.name}」。`) }
-    } catch (e) { setError(String(e?.message ?? e)) }
     setBusy(false)
   }
 
-  // prompt
-  const savePrompt = async () => {
-    setBusy(true)
-    try { await window.api.setPrompt(prompt); setNotice('提示词已保存(dsh 会自动热加载)。') }
-    catch (e) { setError(String(e?.message ?? e)) }
-    setBusy(false)
-  }
-
-  return (
-    <div className="app">
-      <h1>DSH Controller</h1>
-      <p className="subtitle">DeepSeek Harness 桌面控制器 · 会话 / Skills / 提示词</p>
-
-      <div className="toolbar">
-        <span className={`status-dot ${dsh.running ? 'on' : 'off'}`} />
-        <span className="status-text">{dsh.running ? 'dsh 运行中' : 'dsh 已停止'}</span>
-        <span className="muted">端口 {dsh.port ?? 3080}</span>
-        <div style={{ flex: 1 }} />
-        <button className="btn" onClick={() => void refresh()} disabled={busy}>刷新</button>
-        <button className="btn primary" onClick={() => act(() => window.api.openSessionUi())} disabled={busy || !dsh.running}>打开界面</button>
-        <button className="btn" onClick={() => act(() => window.api.restartDsh())} disabled={busy || !dsh.running}>重启 dsh</button>
-        <button className={`btn ${dsh.running ? 'danger' : 'primary'}`} onClick={() => void toggleDsh()} disabled={busy}>
-          {dsh.running ? '停止 dsh' : '启动 dsh'}
-        </button>
-      </div>
-
-      <div className="tabs">
-        <button className={`tab ${tab === 'sessions' ? 'active' : ''}`} onClick={() => setTab('sessions')}>会话</button>
-        <button className={`tab ${tab === 'skills' ? 'active' : ''}`} onClick={() => setTab('skills')}>Skills</button>
-        <button className={`tab ${tab === 'prompt' ? 'active' : ''}`} onClick={() => setTab('prompt')}>提示词</button>
-      </div>
-
-      {error ? <p style={{ color: '#dc2626' }}>{error}</p> : null}
-      {notice ? <p style={{ color: '#16a34a', margin: '8px 0' }}>{notice}</p> : null}
-
-      {tab === 'sessions' ? (
-        loading
-          ? <p className="empty">加载中…</p>
-          : groups.length === 0
-            ? <p className="empty">暂无会话</p>
-            : groups.map(g => {
-                const key = g.path || '__ungrouped__'
-                const isCollapsed = collapsed.has(key)
-                return (
-                  <section key={key} style={{ marginBottom: 20 }}>
-                    <h2 className="group-header" style={{ fontSize: 15, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleGroup(key)}>
-                      <span style={{ width: 14, display: 'inline-block' }}>{isCollapsed ? '▸' : '▾'}</span>
-                      <span>📁 {g.title}</span>
-                      <span className="muted">({g.items.length})</span>
-                      {g.path ? <span className="muted" style={{ fontWeight: 400 }}>{g.path}</span> : null}
-                    </h2>
-                    {isCollapsed ? null : <SessionList items={g.items} mutate={mutate} onDetail={openDetail} />}
-                  </section>
-                )
-              })
-      ) : null}
-
-      {tab === 'skills' ? <SkillsView
-        skills={skills}
-        form={skillForm}
-        editing={editingSkill}
-        busy={busy}
-        setForm={setSkillForm}
-        onNew={startNewSkill}
-        onEdit={editSkill}
-        onSave={saveSkill}
-        onDelete={removeSkill}
-        onImport={importSkill}
-        showForm={showSkillForm}
-        onCancel={cancelSkillForm}
-      /> : null}
-
-      {tab === 'prompt' ? <PromptView prompt={prompt} setPrompt={setPrompt} onSave={savePrompt} busy={busy} /> : null}
-
-      {detail ? <DetailModal detail={detail} onClose={() => setDetail(null)} /> : null}
-    </div>
+  const installOrUpdate = () => run(
+    () => window.api.installDsh(),
+    info.installed ? '已执行更新(重启 dsh 生效)' : '已执行安装(可启动 dsh)',
   )
-}
 
-function SessionList({ items, mutate, onDetail }) {
+  const uninstall = () => {
+    if (!confirm('确定卸载 dsh?卸载后「启动 dsh」将不可用,需重新安装。')) return
+    void run(() => window.api.uninstallDsh(), '已卸载 dsh')
+  }
+
+  const state = !info ? 'loading' : !info.installed ? 'missing' : !info.latest ? 'unknown' : info.upToDate ? 'current' : 'outdated'
+
   return (
-    <div className="session-list">
-      {items.map(s => (
-        <div key={s.id} className="session-row">
-          <div className="session-meta">
-            <div className="session-title">
-              {s.title}
-              {s.archived ? <span className="badge" style={{ marginLeft: 8 }}>已归档</span> : null}
-            </div>
-            <div className="session-id">{s.id}</div>
-          </div>
-          <div className="actions">
-            <button className="btn" onClick={() => onDetail(s)}>详情</button>
-            {s.archived
-              ? <button className="btn" onClick={() => mutate(() => window.api.unarchiveSession(s.id))}>还原</button>
-              : <button className="btn" onClick={() => mutate(() => window.api.archiveSession(s.id))}>归档</button>}
-            <button className="btn danger" onClick={() => {
-              if (confirm(`确定删除会话「${s.title}」？此操作不可恢复。`)) mutate(() => window.api.deleteSession(s.id))
-            }}>删除</button>
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}
+    <>
+      <section className="card">
+        <h2>dsh 版本 <span className="hint">npm 全局包 @deepseek-ai/dsh</span></h2>
 
-function SkillsView({ skills, form, editing, busy, showForm, setForm, onNew, onEdit, onSave, onDelete, onImport, onCancel }) {
-  return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-        <strong style={{ fontSize: 14 }}>Skills({skills.length})</strong>
-        <div style={{ display: 'flex', gap: 8 }}>
-          {!showForm ? <button className="btn" onClick={onNew}>新建 Skill</button> : null}
-          <button className="btn primary" onClick={onImport} disabled={busy}>导入 Skill</button>
-        </div>
-      </div>
-
-      {showForm ? (
-        <div className="panel" style={{ marginBottom: 16 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <strong>{editing ? '编辑 Skill' : '新建 Skill'}</strong>
-            <button className="btn" onClick={onCancel}>取消</button>
+        <div className="version-cards">
+          <div className="vcard">
+            <div className="vcard-label">当前版本</div>
+            <div className="vcard-value mono">{info?.installed || '未安装'}</div>
           </div>
-          <input className="input" placeholder="名称(如 my-skill)" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
-          <input className="input" placeholder="描述" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
-          <textarea className="textarea" rows={6} placeholder="Skill 正文(给模型的指令)" value={form.body} onChange={e => setForm({ ...form, body: e.target.value })} />
-          <button className="btn primary" onClick={onSave} disabled={busy}>{editing ? '更新' : '保存'}</button>
-        </div>
-      ) : null}
-
-      <div className="session-list">
-        {skills.length === 0 ? <p className="empty">暂无 Skill(目录 ~/.dsh/skills/)</p> : null}
-        {skills.map(sk => (
-          <div key={sk.name} className="session-row">
-            <div className="session-meta">
-              <div className="session-title">{sk.name}</div>
-              {sk.description ? <div className="session-ws">{sk.description}</div> : null}
-            </div>
-            <div className="actions">
-              <button className="btn" onClick={() => onEdit(sk)}>编辑</button>
-              <button className="btn danger" onClick={() => onDelete(sk.name)}>删除</button>
+          <div className="vcard">
+            <div className="vcard-label">最新版本(npm)</div>
+            <div className="vcard-value mono">
+              {info?.latest || (info?.latestError ? '获取失败' : '—')}
             </div>
           </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function PromptView({ prompt, setPrompt, onSave, busy }) {
-  return (
-    <div className="panel">
-      <p className="muted" style={{ marginTop: 0 }}>系统提示词(persona)。保存后 dsh 会热加载,无需重启。留空则用默认。</p>
-      <textarea className="textarea" rows={14} value={prompt} onChange={e => setPrompt(e.target.value)} placeholder="You are a coding agent..." />
-      <button className="btn primary" onClick={onSave} disabled={busy}>保存提示词</button>
-    </div>
-  )
-}
-
-function DetailModal({ detail, onClose }) {
-  return (
-    <div className="detail-overlay" onClick={onClose}>
-      <div className="detail-modal" onClick={e => e.stopPropagation()}>
-        <div className="detail-head">
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="detail-title">{detail.title || '会话详情'}</div>
-            <div className="muted">{detail.sid}</div>
-          </div>
-          <button className="btn" onClick={onClose}>关闭</button>
         </div>
-        <div className="detail-body">
-          {detail.loading ? <p className="empty">加载中…</p> : null}
-          {!detail.loading && detail.data && !detail.data.ok ? <p className="empty">{detail.data.error}</p> : null}
-          {!detail.loading && detail.data && detail.data.ok ? (
-            detail.data.messages.length === 0
-              ? <p className="empty">暂无对话内容(空会话)</p>
-              : (
-                <>
-                  {detail.data.truncated ? <p className="muted" style={{ margin: '0 0 10px' }}>仅显示最近 {detail.data.messages.length} 条 / 共 {detail.data.total} 条</p> : null}
-                  {detail.data.messages.map((m, i) => <Msg key={i} m={m} />)}
-                </>
-              )
+
+        <div className="version-status">
+          {state === 'current' ? <span className="pill pill-on">已是最新</span> : null}
+          {state === 'outdated' ? <span className="pill pill-warn">可更新到 {info.latest}</span> : null}
+          {state === 'missing' ? <span className="pill pill-off">未安装</span> : null}
+          {info?.latestError ? (
+            <span className="muted">获取最新版本失败:已尝试 npmjs 官方源、npmmirror 镜像与 npm CLI。请检查网络,或在 ~/.npmrc 配置可用 registry 后点「重新检测」</span>
+          ) : (state === 'outdated' || state === 'missing') ? (
+            <span className="muted">安装 / 更新完成后需重启 dsh 生效</span>
           ) : null}
         </div>
-      </div>
-    </div>
+
+        <div className="btn-row" style={{ marginTop: 14 }}>
+          <button type="button" className="btn" onClick={() => void load()} disabled={busy}>重新检测</button>
+          {info?.installed ? (
+            <>
+              <button type="button" className="btn primary" onClick={installOrUpdate} disabled={busy || info.upToDate}>
+                更新到最新
+              </button>
+              <button type="button" className="btn danger" onClick={uninstall} disabled={busy}>卸载 dsh</button>
+            </>
+          ) : (
+            <button type="button" className="btn primary" onClick={installOrUpdate} disabled={busy}>安装 dsh</button>
+          )}
+        </div>
+
+        {error ? <div className="banner banner-error" role="alert">{error}</div> : null}
+        {notice ? <div className="banner banner-ok" role="status">{notice}</div> : null}
+
+        <OpLog open={logOpen} onToggle={() => setLogOpen(v => !v)} />
+      </section>
+    </>
   )
 }
 
-function Msg({ m }) {
-  if (m.role === 'user') {
-    return (
-      <div className="msg msg-user">
-        <div className="msg-role">你</div>
-        <div className="msg-text">{m.text}</div>
-      </div>
-    )
+function PluginPanel({ dshVersion }) {
+  const [installed, setInstalled] = useState([])
+  const [catalog, setCatalog] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
+  const [logOpen, setLogOpen] = useState(true)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const [inst, cat] = await Promise.all([
+        window.api.listInstalledPlugins(),
+        window.api.fetchPluginCatalog(),
+      ])
+      setInstalled(inst)
+      setCatalog(cat)
+      setError('')
+    } catch (e) {
+      setError(String(e?.message ?? e))
+    }
+    setLoading(false)
+  }, [])
+
+  useEffect(() => { void load() }, [load])
+
+  const run = async (fn, label) => {
+    setBusy(true)
+    setError('')
+    setNotice('')
+    try {
+      await fn()
+      setNotice(label)
+      await load()
+    } catch (e) {
+      setError(String(e?.message ?? e))
+    }
+    setBusy(false)
   }
-  if (m.role === 'assistant') {
-    return (
-      <div className="msg msg-assistant">
-        <div className="msg-role">AI</div>
-        {m.reasoning ? (
-          <details className="msg-reasoning">
-            <summary>思考过程</summary>
-            <div className="msg-text dim">{m.reasoning}</div>
-          </details>
-        ) : null}
-        {m.tools && m.tools.length ? <div className="msg-tools">工具:{m.tools.join(', ')}</div> : null}
-        {m.text ? <div className="msg-text">{m.text}</div> : null}
-      </div>
-    )
+
+  const installOrUpdate = (p) => run(
+    () => window.api.installPlugin(p.spec),
+    `已安装插件 ${p.name}${p.version ? ` v${p.version}` : ''}(重启 dsh 生效)`,
+  )
+
+  const remove = (name) => {
+    if (!confirm(`确定卸载插件「${name}」?(重启 dsh 生效)`)) return
+    void run(() => window.api.uninstallPlugin(name), `已卸载插件 ${name}(重启 dsh 生效)`)
   }
+
+  const restart = () => run(() => window.api.restartDsh(), '已重启 dsh')
+
+  const installedMap = useMemo(() => new Map(installed.map(p => [p.name, p])), [installed])
+
   return (
-    <details className="msg msg-tool">
-      <summary>工具结果</summary>
-      <div className="msg-text mono">{m.text}</div>
-    </details>
+    <>
+      <section className="card">
+        <h2>已安装插件 <span className="hint">profile: web</span></h2>
+        {installed.length === 0 ? (
+          <p className="empty">暂无插件(目录 ~/.dsh/profiles/web/)</p>
+        ) : (
+          <div className="plugin-list">
+            {installed.map(p => (
+              <div key={p.name} className="plugin-row">
+                <div className="plugin-meta">
+                  <div className="plugin-name mono">{p.name}</div>
+                  <div className="plugin-spec mono">{p.spec}</div>
+                </div>
+                <div className="actions">
+                  <button type="button" className="btn danger" onClick={() => remove(p.name)} disabled={busy}>卸载</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="card">
+        <div className="panel-head">
+          <h2>插件仓库 <span className="hint">hub.ifunx.com/skyle1995/dsh-plugins</span></h2>
+          <div className="btn-row">
+            <button type="button" className="btn" onClick={() => void load()} disabled={busy}>刷新目录</button>
+            <button type="button" className="btn primary" onClick={restart} disabled={busy}>重启 dsh</button>
+          </div>
+        </div>
+
+        {error ? <div className="banner banner-error" role="alert">{error}</div> : null}
+        {notice ? <div className="banner banner-ok" role="status">{notice}</div> : null}
+
+        {loading ? (
+          <p className="empty">加载中…</p>
+        ) : catalog.length === 0 ? (
+          <p className="empty">仓库为空或无法访问</p>
+        ) : (
+          <div className="plugin-list">
+            {catalog.map(p => {
+              const isInstalled = installedMap.has(p.name)
+              const compatible = !p.dshRequired || !dshVersion || p.dshRequired === dshVersion
+              return (
+                <div key={p.name} className="plugin-row">
+                  <div className="plugin-meta">
+                    <div className="plugin-name">
+                      {p.name} <span className="plugin-ver mono">v{p.version}</span>
+                      {isInstalled ? <span className="badge badge-installed">已安装</span> : null}
+                      {!compatible ? <span className="badge badge-warn">要求 dsh {p.dshRequired},与当前 {dshVersion || '—'} 不兼容</span> : null}
+                    </div>
+                    <div className="plugin-desc">{p.description || '无描述'}</div>
+                  </div>
+                  <div className="actions">
+                    {isInstalled ? (
+                      <>
+                        <button type="button" className="btn" onClick={() => installOrUpdate(p)} disabled={busy}>更新</button>
+                        <button type="button" className="btn danger" onClick={() => remove(p.name)} disabled={busy}>卸载</button>
+                      </>
+                    ) : (
+                      <button type="button" className="btn primary" onClick={() => installOrUpdate(p)} disabled={busy}>安装</button>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        <OpLog open={logOpen} onToggle={() => setLogOpen(v => !v)} />
+      </section>
+    </>
+  )
+}
+
+export default function App() {
+  const [tab, setTab] = useState('status')
+  const [status, setStatus] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [events, setEvents] = useState([])
+  const [now, setNow] = useState(() => Date.now())
+  const prevRunning = useRef(null)
+
+  const refresh = useCallback(async () => {
+    try {
+      const st = await window.api.getDshStatus()
+      setStatus(st)
+      setError('')
+    } catch (e) {
+      setError(String(e?.message ?? e))
+    }
+  }, [])
+
+  // 每 2 秒轮询 + 窗口聚焦时立即刷新
+  useEffect(() => {
+    void refresh()
+    const id = setInterval(() => void refresh(), POLL_MS)
+    const onFocus = () => void refresh()
+    window.addEventListener('focus', onFocus)
+    return () => {
+      clearInterval(id)
+      window.removeEventListener('focus', onFocus)
+    }
+  }, [refresh])
+
+  // 运行时长每秒跳动
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [])
+
+  const pushEvent = useCallback((text) => {
+    setEvents(prev => [{ time: Date.now(), text }, ...prev].slice(0, MAX_EVENTS))
+  }, [])
+
+  // 状态变化时记录事件
+  useEffect(() => {
+    if (!status) return
+    if (prevRunning.current === null) {
+      prevRunning.current = status.running
+      return
+    }
+    if (prevRunning.current !== status.running) {
+      prevRunning.current = status.running
+      pushEvent(status.running
+        ? (status.managedByUs ? 'dsh 已启动(本应用)' : '检测到 dsh 已运行(外部进程)')
+        : 'dsh 已停止')
+    }
+  }, [status, pushEvent])
+
+  const act = useCallback(async (fn, label) => {
+    setBusy(true)
+    try {
+      await fn()
+      if (label) pushEvent(label)
+    } catch (e) {
+      setError(String(e?.message ?? e))
+    }
+    setBusy(false)
+    await refresh()
+  }, [pushEvent, refresh])
+
+  const running = !!status?.running
+
+  const uptimeMs = useMemo(() => {
+    if (!running || status.startedAtMs == null) return null
+    return Math.max(0, now - status.startedAtMs)
+  }, [running, status, now])
+
+  const toggleDsh = () => act(
+    running ? () => window.api.stopDsh() : () => window.api.startDsh(),
+    null,
+  )
+  const restartDsh = () => act(() => window.api.restartDsh(), '已重启 dsh')
+  const openUi = () => act(() => window.api.openSessionUi(), '已打开 Web 界面')
+  const manualRefresh = () => void refresh()
+
+  if (!status) {
+    return (
+      <main className="app">
+        <header className="hero">
+          <div className="brand">
+            <span className="brand-mark" />
+            <div>
+              <h1>DSH Controller</h1>
+              <p className="subtitle">DeepSeek Harness 服务状态管理</p>
+            </div>
+          </div>
+        </header>
+        <section className="card"><p className="empty">正在获取服务状态…</p></section>
+      </main>
+    )
+  }
+
+  const webLabel = !running
+    ? '—'
+    : !status.web
+      ? '检测中…'
+      : (status.web.ok ? (status.web.ms < 1 ? '<1 ms' : `${status.web.ms} ms`) : '无响应')
+
+  const webTone = running && status.web && !status.web.ok ? 'warn' : (running && status.web?.ok ? 'good' : null)
+
+  return (
+    <main className="app">
+      <header className="hero">
+        <div className="brand">
+          <span className="brand-mark" />
+          <div>
+            <h1>DSH Controller</h1>
+            <p className="subtitle">DeepSeek Harness 服务状态管理</p>
+          </div>
+        </div>
+        <span className={`pill ${running ? 'pill-on' : 'pill-off'}`}>
+          {running ? '服务运行中' : '服务已停止'}
+        </span>
+      </header>
+
+      <nav className="tabs" role="tablist" aria-label="功能导航">
+        <button type="button" role="tab" aria-selected={tab === 'status'} className={`tab ${tab === 'status' ? 'active' : ''}`} onClick={() => setTab('status')}>服务状态</button>
+        <button type="button" role="tab" aria-selected={tab === 'version'} className={`tab ${tab === 'version' ? 'active' : ''}`} onClick={() => setTab('version')}>版本管理</button>
+        <button type="button" role="tab" aria-selected={tab === 'plugins'} className={`tab ${tab === 'plugins' ? 'active' : ''}`} onClick={() => setTab('plugins')}>插件中心</button>
+      </nav>
+
+      {tab === 'status' ? (
+        <>
+          <section className="card status-card">
+            <div className="status-main">
+              <div className="status-indicator">
+                <span className={`status-dot ${running ? 'on' : 'off'}`} aria-hidden="true" />
+                <div className="status-copy">
+                  <div className="status-title">{running ? '运行中' : '已停止'}</div>
+                  <div className="status-sub" title={running ? status.url : undefined}>
+                    {running ? status.url : '服务未启动,点击「启动 dsh」开始'}
+                  </div>
+                </div>
+              </div>
+              <div className="btn-row">
+                <button type="button" className="btn" onClick={manualRefresh} disabled={busy}>刷新</button>
+                <button type="button" className="btn" onClick={openUi} disabled={busy || !running}>打开界面</button>
+                <button type="button" className="btn" onClick={restartDsh} disabled={busy || !running}>重启</button>
+                <button
+                  type="button"
+                  className={`btn ${running ? 'danger' : 'primary'}`}
+                  onClick={toggleDsh}
+                  disabled={busy}
+                >
+                  {busy ? '处理中…' : running ? '停止 dsh' : '启动 dsh'}
+                </button>
+              </div>
+            </div>
+
+            {error ? <div className="banner banner-error" role="alert">{error}</div> : null}
+
+            <div className="status-foot">
+              <span className="foot-item">端口 <b className="mono">{status.port}</b></span>
+              <span className="foot-item">PID <b className="mono">{status.pid ?? '—'}</b></span>
+              <span className={`foot-tag ${!running ? 'tag-off' : status.managedByUs ? 'tag-self' : 'tag-ext'}`}>
+                {!running ? '未运行' : status.managedByUs ? '本应用启动' : '外部进程'}
+              </span>
+              <span className="foot-item foot-right">⟳ 每 2 秒自动刷新</span>
+            </div>
+          </section>
+
+          <section aria-label="服务指标">
+            <div className="grid">
+              <StatTile label="运行时长" value={formatUptime(uptimeMs)} />
+              <StatTile label="进程 PID" value={status.pid ?? '—'} mono />
+              <StatTile label="CPU 占用" value={fmtCpu(status.cpu)} mono />
+              <StatTile label="内存占用" value={fmtMem(status.rssMB)} mono />
+              <StatTile label="Web UI 延迟" value={webLabel} mono tone={webTone} />
+            </div>
+            {running && status.procBlocked ? (
+              <p className="note-warn">⚠ 当前环境禁止读取进程详情,CPU / 内存等指标暂不可用</p>
+            ) : null}
+          </section>
+
+          <section className="card">
+            <h2>服务详情</h2>
+            <dl className="kv">
+              <div>
+                <dt>dsh 版本</dt>
+                <dd className="mono">{status.version || '—'}</dd>
+              </div>
+              <div>
+                <dt>访问地址</dt>
+                <dd className="mono">{status.url}</dd>
+              </div>
+              <div>
+                <dt>监听端口</dt>
+                <dd className="mono">{status.port}</dd>
+              </div>
+              <div>
+                <dt>进程名称</dt>
+                <dd className="mono">{status.procName || '—'}</dd>
+              </div>
+              <div>
+                <dt>运行平台</dt>
+                <dd>{platformLabel(status.platform)}</dd>
+              </div>
+              <div>
+                <dt>Web UI 状态码</dt>
+                <dd className="mono">{running && status.web?.code != null ? status.web.code : '—'}</dd>
+              </div>
+              <div>
+                <dt>启动时间</dt>
+                <dd className="mono">{status.startedAtMs ? new Date(status.startedAtMs).toLocaleString() : '—'}</dd>
+              </div>
+            </dl>
+          </section>
+
+          <section className="card">
+            <h2>事件记录 <span className="hint">本次会话</span></h2>
+            {events.length === 0 ? (
+              <p className="empty">暂无事件</p>
+            ) : (
+              <ul className="events">
+                {events.map((e, i) => (
+                  <li key={`${e.time}-${i}`}>
+                    <span className="event-time mono">{clock(e.time)}</span>
+                    <span className="event-text">{e.text}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </>
+      ) : null}
+
+      {tab === 'version' ? <VersionPanel /> : null}
+      {tab === 'plugins' ? <PluginPanel dshVersion={status.version} /> : null}
+
+      <footer className="foot">
+        关闭窗口后应用驻留菜单栏托盘 · 「停止 dsh」会结束占用 3080 端口的进程
+      </footer>
+    </main>
   )
 }

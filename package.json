@@ -1,7 +1,7 @@
 {
   "name": "dsh-controller",
   "version": "0.1.0",
-  "description": "DeepSeek Harness 桌面控制器:脱离终端管理 dsh 进程与会话",
+  "description": "DeepSeek Harness 桌面控制器:在桌面端管理 dsh 服务进程",
   "main": "out/main/index.js",
   "type": "module",
   "scripts": {
@@ -9,9 +9,6 @@
     "build": "electron-vite build",
     "start": "electron-vite preview",
     "dist": "electron-vite build && electron-builder"
-  },
-  "dependencies": {
-    "fzstd": "^0.1.1"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^5.2.0",
