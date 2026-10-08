@@ -319,17 +319,29 @@ function sendOpLog(text) {
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('op:log', text)
 }
 
+// cmd.exe 参数引用:含特殊字符(& | < > ^ 空格 括号)时用双引号包裹
+function winQuote(a) {
+  const s = String(a)
+  return /[\s&|<>^()]/.test(s) ? `"${s}"` : s
+}
+
 function runOp(cmd, args, { log = true } = {}) {
   return new Promise((resolve, reject) => {
     if (opRunning) return reject(new Error('已有操作正在进行,请稍候'))
     opRunning = true
     if (log) sendOpLog(`$ ${cmd} ${args.join(' ')}\n`)
-    const child = spawn(cmd, args, {
-      env: spawnEnv(),
-      shell: IS_WIN,
-      windowsHide: true,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    })
+    // Windows 上必须逐参数引号包裹后交给 cmd /c:
+    // 插件 spec 里的 `#main&path:...` 若不加引号,& 会被 cmd 当成命令分隔符
+    const child = IS_WIN
+      ? spawn('cmd', ['/d', '/s', '/c', [cmd, ...args.map(winQuote)].join(' ')], {
+          env: spawnEnv(),
+          windowsHide: true,
+          stdio: ['ignore', 'pipe', 'pipe'],
+        })
+      : spawn(cmd, args, {
+          env: spawnEnv(),
+          stdio: ['ignore', 'pipe', 'pipe'],
+        })
     child.stdout?.on('data', (d) => { if (log) sendOpLog(String(d)) })
     child.stderr?.on('data', (d) => { if (log) sendOpLog(String(d)) })
     child.once('error', (err) => { opRunning = false; sendOpLog(`\n[错误] ${err.message}\n`); reject(err) })
