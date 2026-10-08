@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain, shell, Tray, Menu, nativeImage, nativeTheme } from 'electron'
 import { spawn, exec, execSync } from 'child_process'
-import { readFile } from 'fs/promises'
+import { cp, mkdir, readFile, readdir, rm, writeFile } from 'fs/promises'
+import { existsSync } from 'fs'
 import path from 'path'
 import os from 'os'
 import net from 'net'
@@ -9,11 +10,14 @@ import zlib from 'zlib'
 
 const DSH_PORT = 3080
 const DSH_HOME = path.join(os.homedir(), '.dsh')
+const DSH_SKILLS_DIR = path.join(DSH_HOME, 'skills')
 const DSH_NPM_PACKAGE = '@deepseek-ai/dsh'
 const PLUGIN_PROFILE = 'web' // 控制器管理的 profile 与 dsh web 一致
 const PLUGIN_HUB = 'https://hub.ifunx.com/skyle1995/dsh-plugins'
 const PLUGIN_HUB_API = 'https://hub.ifunx.com/api/v1/repos/skyle1995/dsh-plugins'
 const PLUGIN_PROFILE_PKG = path.join(DSH_HOME, 'profiles', PLUGIN_PROFILE, 'package.json')
+const PACK_VERSION = '2.0.7'
+const PACK_SKILL_NAME = 'reverse-skill'
 // 打包成 app 后从 Finder/Explorer 启动时,PATH 可能只有系统默认(无 node/npm),
 // 导致 spawn('dsh'/'npx') 找不到命令。这里按平台给启动的子进程补上常见路径。
 const IS_WIN = process.platform === 'win32'
@@ -450,6 +454,85 @@ ipcMain.handle('plugins:installed', () => listInstalledPlugins())
 ipcMain.handle('plugins:catalog', () => fetchPluginCatalog())
 ipcMain.handle('plugins:install', (_e, spec) => runOp('dsh', ['plugin', '--profile', PLUGIN_PROFILE, 'add', spec]))
 ipcMain.handle('plugins:uninstall', (_e, name) => runOp('dsh', ['plugin', '--profile', PLUGIN_PROFILE, 'remove', name]))
+
+// ── 技能包(reverse-skill) ──────────────────────────────────
+const PACK_SKILL_MD = `---
+name: reverse-skill
+description: 逆向工程 / 授权渗透测试 / 安全研究 / CTF 技能路由包。处理 APK、二进制、JS 加密、协议逆向、恶意样本分析、漏洞复现等任务时使用。
+---
+
+# reverse-skill 路由入口
+
+本技能是一个完整的技能路由包。开始任务前:
+
+1. 阅读本目录下的 \`RULES.md\`(总规则与路由矩阵)与 \`README_AI.md\`(AI 引导)
+2. 按 RULES.md 的 MASTER-ROUTING 进入对应子技能
+3. **先确认任务目标已获得明确授权**,未授权的目标一律拒绝执行
+`
+
+function packResourcesDir() {
+  return app.isPackaged
+    ? path.join(process.resourcesPath, 'resources', 'reverse-skill')
+    : path.join(app.getAppPath(), 'resources', 'reverse-skill')
+}
+
+function packStateFile() {
+  return path.join(app.getPath('userData'), 'pack.json')
+}
+
+async function readPackState() {
+  try { return JSON.parse(await readFile(packStateFile(), 'utf8')) } catch { return null }
+}
+
+async function countPackSkills(packDir) {
+  let count = 0
+  for (const sub of ['skills', 'skill']) {
+    const dir = path.join(packDir, sub)
+    if (!existsSync(dir)) continue
+    for (const e of await readdir(dir, { withFileTypes: true })) {
+      if (e.isDirectory() && existsSync(path.join(dir, e.name, 'SKILL.md'))) count++
+    }
+  }
+  return count
+}
+
+ipcMain.handle('pack:info', async () => {
+  const src = packResourcesDir()
+  const available = existsSync(path.join(src, 'RULES.md'))
+  const state = await readPackState()
+  return {
+    available,
+    version: PACK_VERSION,
+    skillCount: available ? await countPackSkills(src) : 0,
+    installed: existsSync(path.join(DSH_SKILLS_DIR, PACK_SKILL_NAME, 'SKILL.md')),
+    installedVersion: state?.version ?? null,
+    installedAt: state?.installedAt ?? null,
+    dest: path.join(DSH_SKILLS_DIR, PACK_SKILL_NAME),
+  }
+})
+
+ipcMain.handle('pack:install', async () => {
+  const src = packResourcesDir()
+  if (!existsSync(path.join(src, 'RULES.md'))) {
+    throw new Error('技能包资源未就绪:请先运行 npm run prepare:pack 再重新打包')
+  }
+  const dest = path.join(DSH_SKILLS_DIR, PACK_SKILL_NAME)
+  await mkdir(DSH_SKILLS_DIR, { recursive: true })
+  await rm(dest, { recursive: true, force: true })
+  await cp(src, dest, { recursive: true })
+  await writeFile(path.join(dest, 'SKILL.md'), PACK_SKILL_MD, 'utf8')
+  await mkdir(path.dirname(packStateFile()), { recursive: true })
+  await writeFile(packStateFile(), JSON.stringify({ version: PACK_VERSION, installedAt: Date.now() }, null, 2), 'utf8')
+  return { ok: true, dest }
+})
+
+ipcMain.handle('pack:uninstall', async () => {
+  const dest = path.join(DSH_SKILLS_DIR, PACK_SKILL_NAME)
+  if (existsSync(dest)) await rm(dest, { recursive: true, force: true })
+  const sf = packStateFile()
+  if (existsSync(sf)) await rm(sf, { force: true })
+  return { ok: true }
+})
 
 // ── 窗口 ────────────────────────────────────────────────────
 function createWindow() {

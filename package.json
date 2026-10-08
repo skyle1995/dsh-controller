@@ -8,6 +8,7 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "start": "electron-vite preview",
+    "prepare:pack": "node scripts/prepare-pack.mjs",
     "dist": "electron-vite build && electron-builder"
   },
   "devDependencies": {
@@ -24,6 +25,12 @@
     "productName": "DSH Controller",
     "files": [
       "out/**"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/reverse-skill",
+        "to": "resources/reverse-skill"
+      }
     ],
     "directories": {
       "output": "dist"

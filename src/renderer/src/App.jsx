@@ -292,6 +292,100 @@ function PluginPanel({ dshVersion }) {
   )
 }
 
+function PackPanel() {
+  const [info, setInfo] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
+
+  const load = useCallback(async () => {
+    try {
+      setInfo(await window.api.getPackInfo())
+      setError('')
+    } catch (e) {
+      setError(String(e?.message ?? e))
+    }
+  }, [])
+
+  useEffect(() => { void load() }, [load])
+
+  const run = async (fn, label) => {
+    setBusy(true)
+    setError('')
+    setNotice('')
+    try {
+      await fn()
+      setNotice(label)
+      await load()
+    } catch (e) {
+      setError(String(e?.message ?? e))
+    }
+    setBusy(false)
+  }
+
+  const install = () => run(
+    () => window.api.installPack(),
+    info?.installed ? '技能包已更新(dsh 新会话生效)' : '技能包已安装(dsh 新会话生效)',
+  )
+
+  const uninstall = () => {
+    if (!confirm('确定卸载 reverse-skill 技能包?')) return
+    void run(() => window.api.uninstallPack(), '技能包已卸载')
+  }
+
+  return (
+    <>
+      <section className="card">
+        <h2>reverse-skill 技能包 <span className="hint">逆向 / 渗透 / 安全研究路由包</span></h2>
+
+        <div className="version-cards">
+          <div className="vcard">
+            <div className="vcard-label">捆绑版本</div>
+            <div className="vcard-value mono">{info?.available ? `v${info.version}` : '未就绪'}</div>
+          </div>
+          <div className="vcard">
+            <div className="vcard-label">安装状态</div>
+            <div className="vcard-value mono">{info?.installed ? `已安装 v${info.installedVersion}` : '未安装'}</div>
+          </div>
+          <div className="vcard">
+            <div className="vcard-label">技能数量</div>
+            <div className="vcard-value mono">{info?.skillCount ?? '—'}</div>
+          </div>
+        </div>
+
+        <div className="version-status">
+          {info?.installed ? <span className="pill pill-on">已安装</span> : <span className="pill pill-off">未安装</span>}
+          <span className="muted">目标目录 {info?.dest ?? '~/.dsh/skills/reverse-skill'}</span>
+        </div>
+
+        <div className="btn-row" style={{ marginTop: 14 }}>
+          <button type="button" className="btn" onClick={() => void load()} disabled={busy}>刷新</button>
+          <button type="button" className="btn primary" onClick={install} disabled={busy || !info?.available}>
+            {info?.installed ? '更新技能包' : '安装技能包'}
+          </button>
+          <button type="button" className="btn danger" onClick={uninstall} disabled={busy || !info?.installed}>卸载</button>
+        </div>
+
+        <p className="note-warn">
+          ⚠ 该技能包会引导 AI 执行逆向 / 渗透 / 安全研究任务。请仅在目标已获明确授权时使用;安装后对 dsh 新会话生效。
+        </p>
+
+        {error ? <div className="banner banner-error" role="alert">{error}</div> : null}
+        {notice ? <div className="banner banner-ok" role="status">{notice}</div> : null}
+      </section>
+
+      <section className="card">
+        <h2>说明</h2>
+        <p className="muted">
+          技能包内容来自开源项目 zhaoxuya520/reverse-skill(MIT,提取自「无限破甲」内嵌资源)。
+          安装后 dsh 会把该技能加入技能目录:遇到 APK / 二进制 / JS 加密 / 协议逆向等任务时,
+          按技能描述路由进入包内 RULES.md 路由矩阵,并自举所需工具链。
+        </p>
+      </section>
+    </>
+  )
+}
+
 export default function App() {
   const [tab, setTab] = useState('status')
   const [status, setStatus] = useState(null)
@@ -419,6 +513,7 @@ export default function App() {
         <button type="button" role="tab" aria-selected={tab === 'status'} className={`tab ${tab === 'status' ? 'active' : ''}`} onClick={() => setTab('status')}>服务状态</button>
         <button type="button" role="tab" aria-selected={tab === 'version'} className={`tab ${tab === 'version' ? 'active' : ''}`} onClick={() => setTab('version')}>版本管理</button>
         <button type="button" role="tab" aria-selected={tab === 'plugins'} className={`tab ${tab === 'plugins' ? 'active' : ''}`} onClick={() => setTab('plugins')}>插件中心</button>
+        <button type="button" role="tab" aria-selected={tab === 'pack'} className={`tab ${tab === 'pack' ? 'active' : ''}`} onClick={() => setTab('pack')}>技能包</button>
       </nav>
 
       {tab === 'status' ? (
@@ -528,6 +623,7 @@ export default function App() {
 
       {tab === 'version' ? <VersionPanel /> : null}
       {tab === 'plugins' ? <PluginPanel dshVersion={status.version} /> : null}
+      {tab === 'pack' ? <PackPanel /> : null}
 
       <footer className="foot">
         关闭窗口后应用驻留菜单栏托盘 · 「停止 dsh」会结束占用 3080 端口的进程

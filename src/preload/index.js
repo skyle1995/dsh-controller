@@ -13,6 +13,9 @@ contextBridge.exposeInMainWorld('api', {
   fetchPluginCatalog: () => ipcRenderer.invoke('plugins:catalog'),
   installPlugin: (spec) => ipcRenderer.invoke('plugins:install', spec),
   uninstallPlugin: (name) => ipcRenderer.invoke('plugins:uninstall', name),
+  getPackInfo: () => ipcRenderer.invoke('pack:info'),
+  installPack: () => ipcRenderer.invoke('pack:install'),
+  uninstallPack: () => ipcRenderer.invoke('pack:uninstall'),
   onOpLog: (cb) => {
     const listener = (_e, text) => cb(text)
     ipcRenderer.on('op:log', listener)
