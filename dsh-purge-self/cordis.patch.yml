@@ -33,7 +33,7 @@
 
 - insert:
     - id: dsh-purge
-      name: 'dsh-purge-community'
+      name: 'dsh-purge-self'
       inject: [systemPrompt, tools]
       config:
         enabled: true
@@ -56,18 +56,18 @@
 
     # 演练台：预设 + 技能落地（本插件 lib/redteam）
     - id: dsh-purge-redteam
-      name: dsh-purge-community/redteam
+      name: dsh-purge-self/redteam
 
     # 自带 agent 预设：unrestricted（无限制模式）
     - id: dsh-purge-presets
-      name: dsh-purge-community/presets-plugin
+      name: dsh-purge-self/presets-plugin
 
     # 演练台事实库（SQLite），数据在 $DSH_HOME/redteam
     - id: dsh-purge-redteam-store
-      name: dsh-purge-community/redteam/store
+      name: dsh-purge-self/redteam/store
       config:
         root: !!js dshHomePath('redteam')
 
     # 演练台 HTTP 桥 POST /redteam/api
     - id: dsh-purge-redteam-ui
-      name: dsh-purge-community/redteam/ui
+      name: dsh-purge-self/redteam/ui
