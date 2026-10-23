@@ -615,6 +615,12 @@ body[data-ds-dark-theme] .rt-gain,body[data-ds-dark-theme] .rt-counted,body[data
 body[data-ds-dark-theme] .rt-pri-low{background:#334155;color:#cbd5e1}
 body[data-ds-dark-theme] .rt-dot-unk,body[data-ds-dark-theme] .rt-live-dot.idle,body[data-ds-dark-theme] .rt-flow-node.overflow .rt-flow-idx{background:#475569}
 body[data-ds-dark-theme] .rt-hit-row.service-capped .rt-hit-idx,body[data-ds-dark-theme] .rt-kb-kind.k-poc{background:#b45309}
+
+/* [self] 深色容器兜底:不依赖父级继承 */
+body[data-ds-dark-theme] .rt-body,body[data-ds-dark-theme] .rt-split,body[data-ds-dark-theme] .rt-main,body[data-ds-dark-theme] .rt-pane,body[data-ds-dark-theme] .rt-side,body[data-ds-dark-theme] .rt-dock{background:var(--dsw-alias-bg-base,#101012)!important}
+body[data-ds-dark-theme] .rt-toolbar,body[data-ds-dark-theme] .rt-list,body[data-ds-dark-theme] .rt-table{background:transparent!important}
+body[data-ds-dark-theme] .rt-row.head{background:var(--dsw-alias-bg-layer-1,#1c1c1f)!important}
+body[data-ds-dark-theme] .dshpp-native-content,body[data-ds-dark-theme] .dshpp-page,body[data-ds-dark-theme] .dshpp-native-drill{background:var(--dsw-alias-bg-base,#101012)!important}
 `;
   const isFullWindow = () => {
     try {
@@ -12838,7 +12844,7 @@ function SettingsRoot(props = {}) {
       h(
         "span",
         { className: "dshpp-native-badge" },
-        (true ? "Purge Self " : "\u72EC\u7ACB\u754C\u9762 ") + "1.1.4"
+        (true ? "Purge Self " : "\u72EC\u7ACB\u754C\u9762 ") + "1.1.5"
       )
     ),
     h(CompatibilityNote, { status: backendStatus }),
@@ -12994,7 +13000,7 @@ function StatusStrip({ info }) {
       "span",
       { className: "dshpp-strip-item" },
       "\u63D2\u4EF6 ",
-      h("b", null, info?.plugin_version || "1.1.4")
+      h("b", null, info?.plugin_version || "1.1.5")
     )
   );
 }
@@ -13029,11 +13035,11 @@ function VersionNotice({ info }) {
     );
   }
   const backend = info?.plugin_version;
-  if (!backend || backend === "1.1.4") return null;
+  if (!backend || backend === "1.1.5") return null;
   return h(
     "p",
     { className: "dshpp-warn", role: "status" },
-    `\u5B98\u65B9\u7248\u672C ${backend}\uFF1B\u754C\u9762 ${"1.1.4"}\u3002\u4E24\u8005\u4E0D\u4E00\u81F4\u65F6\u8BBE\u7F6E\u53EF\u80FD\u4E0D\u751F\u6548\uFF0C\u8BF7\u66F4\u65B0\u5230\u540C\u4E00\u7248\u672C\u540E\u91CD\u542F DSH\u3002`
+    `\u5B98\u65B9\u7248\u672C ${backend}\uFF1B\u754C\u9762 ${"1.1.5"}\u3002\u4E24\u8005\u4E0D\u4E00\u81F4\u65F6\u8BBE\u7F6E\u53EF\u80FD\u4E0D\u751F\u6548\uFF0C\u8BF7\u66F4\u65B0\u5230\u540C\u4E00\u7248\u672C\u540E\u91CD\u542F DSH\u3002`
   );
 }
 function PurgePage() {
@@ -13090,7 +13096,7 @@ function PurgePage() {
           true ? h(
             "span",
             { className: "dshpp-page-ver" },
-            "Purge Self 1.1.4"
+            "Purge Self 1.1.5"
           ) : null
         )
       )
