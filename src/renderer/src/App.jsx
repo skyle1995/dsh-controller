@@ -532,6 +532,11 @@ function PurgePanel() {
 
   const prune = () => void run(() => window.api.prunePurge(), '旧备份已清理')
 
+  const deleteBackup = (id) => {
+    if (!confirm(`确定删除备份 ${id}?此操作不可撤销(快照占用的空间会在下次清理时回收)。`)) return
+    void run(() => window.api.deletePurgeBackup(id), `备份 ${id} 已删除`)
+  }
+
   const tune = (key, value) => void run(
     () => window.api.tunePurge(key, value),
     `已设置 ${key} = ${value}(下一轮对话生效,无需重启)`,
@@ -700,7 +705,10 @@ function PurgePanel() {
                     <li key={b.id}>
                       <span className="mono">{b.id}</span>
                       <span className="muted"> {fmtTime(b.created_at)} · {b.reason ?? ''}{b.host_version ? ` · dsh ${b.host_version}` : ''}</span>
-                      <button type="button" className="btn small" disabled={busy} onClick={() => rollbackTo(b.id)}>回滚到此</button>
+                      <span className="actions" style={{ marginLeft: 'auto' }}>
+                        <button type="button" className="btn small" disabled={busy} onClick={() => rollbackTo(b.id)}>回滚到此</button>
+                        <button type="button" className="btn small danger" disabled={busy} onClick={() => deleteBackup(b.id)}>删除</button>
+                      </span>
                     </li>
                   ))}
                 </ul>

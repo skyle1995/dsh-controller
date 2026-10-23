@@ -21,6 +21,7 @@ contextBridge.exposeInMainWorld('api', {
   backupPurge: () => ipcRenderer.invoke('purge:backup'),
   rollbackPurge: (id) => ipcRenderer.invoke('purge:rollback', id),
   prunePurge: () => ipcRenderer.invoke('purge:prune'),
+  deletePurgeBackup: (id) => ipcRenderer.invoke('purge:deleteBackup', id),
   tunePurge: (key, value) => ipcRenderer.invoke('purge:tune', key, value),
   // 破甲技能包(红队技能,提取自插件)
   getPurgeSkills: () => ipcRenderer.invoke('purge:skillsState'),

@@ -586,9 +586,21 @@ ipcMain.handle('purge:uninstall', async () => {
 
 // 自检(25 层,JSON)/ 备份 / 回滚到备份 / 清理
 ipcMain.handle('purge:selfcheck', () => purgeCliJson(['selfcheck', '--json'], { log: false }))
-ipcMain.handle('purge:backup', () => purgeCliJson(['backup']))
-ipcMain.handle('purge:rollback', (_e, id) => purgeCliJson(['rollback', String(id)]))
-ipcMain.handle('purge:prune', () => purgeCliJson(['prune']))
+// 备份相关操作后清 status 缓存,保证列表立即反映最新状态
+ipcMain.handle('purge:backup', async () => { purgeCliCache = null; return purgeCliJson(['backup']) })
+ipcMain.handle('purge:rollback', async (_e, id) => { purgeCliCache = null; return purgeCliJson(['rollback', String(id)]) })
+ipcMain.handle('purge:prune', async () => { purgeCliCache = null; return purgeCliJson(['prune']) })
+
+// 单独删除一个备份(插件无此命令,直接删备份目录;id 校验与插件 list 过滤一致)
+ipcMain.handle('purge:deleteBackup', async (_e, id) => {
+  const name = String(id ?? '')
+  if (!/^[0-9TZa-f-]{15,80}$/.test(name)) throw new Error('备份 ID 格式非法')
+  const dir = path.join(DSH_HOME, 'dsh-purge-community', 'backups', name)
+  if (!existsSync(dir)) throw new Error('备份不存在(可能已被清理)')
+  await rm(dir, { recursive: true, force: true })
+  purgeCliCache = null
+  return { ok: true, id: name }
+})
 
 // 运行时开关:boost / retry / rewind / inject 位置(写 tuning.json,下一轮对话生效,无需重启)
 ipcMain.handle('purge:tune', async (_e, key, value) => {
