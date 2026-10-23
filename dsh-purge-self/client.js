@@ -1,7 +1,7 @@
 // Generated from src/ by npm run build. Do not edit.
 ;try{var __ds=document.createElement("style");__ds.textContent=":root{--dshpp-fb-bg-base:#f7f7f8;--dshpp-fb-bg-1:#ffffff;--dshpp-fb-bg-2:#f2f2f3;--dshpp-fb-bg-overlay:#ffffff;--dshpp-fb-border-1:#e2e2e4;--dshpp-fb-border-2:#d3d3d6;--dshpp-fb-brand:#6dbf8c;--dshpp-fb-label-1:#171717;--dshpp-fb-label-2:#666668;--dshpp-fb-label-3:#8f8f94;--dshpp-fb-label-brand:#2f6b4f;--dshpp-fb-hover:rgba(0,0,0,.06);--dshpp-fb-err:#d23b3b;--dshpp-fb-ok:#218838;--dshpp-fb-warn:#b7791f;--dshpp-fb-elev:0 16px 64px rgba(0,0,0,.18);--dshpp-fb-mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;--dshpp-fb-menu:#ffffff;}@media (prefers-color-scheme: dark){:root{--dshpp-fb-bg-base:#101012;--dshpp-fb-bg-1:#1c1c1f;--dshpp-fb-bg-2:#26262a;--dshpp-fb-bg-overlay:#1c1c1f;--dshpp-fb-border-1:#33333a;--dshpp-fb-border-2:#40404a;--dshpp-fb-brand:#6dbf8c;--dshpp-fb-label-1:#f2f2f3;--dshpp-fb-label-2:#a8a8b0;--dshpp-fb-label-3:#7c7c86;--dshpp-fb-label-brand:#7fd0a0;--dshpp-fb-hover:rgba(255,255,255,.08);--dshpp-fb-err:#f87171;--dshpp-fb-ok:#34d17b;--dshpp-fb-warn:#fbbf24;--dshpp-fb-elev:0 16px 64px rgba(0,0,0,.5);--dshpp-fb-menu:#1c1c1f;}}";(document.head||document.documentElement).appendChild(__ds)}catch(e){};
 // Derived UI: YuJunZhiXue/dsh-purge (MIT), see LICENSE.
-window.__ModuleLoader__.load({id:"dsh-purge-community",factory:(require)=>{
+window.__ModuleLoader__.load({id:"dsh-purge-self",factory:(require)=>{
 var module={exports:{}};var exports=module.exports;
 var __create = Object.create;
 var __defProp = Object.defineProperty;
@@ -14355,7 +14355,7 @@ function EnvAdaptSendGate() {
 }
 
 // src/entry.js
-var name = true ? "dsh-purge-community" : "dsh-purge-panel";
+var name = true ? "dsh-purge-self" : "dsh-purge-panel";
 var inject = ["slots", "locale"];
 function PurgeIcon({ size = 20 } = {}) {
   return h(
@@ -14445,7 +14445,7 @@ function apply(ctx) {
     () => ctx.slots.register(
       {
         name: "plugins.bundle.config",
-        key: true ? "dsh-purge-community" : "dsh-purge-panel",
+        key: true ? "dsh-purge-self" : "dsh-purge-panel",
         inject: () => ({ t })
       },
       SettingsRoot
