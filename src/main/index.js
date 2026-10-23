@@ -548,16 +548,22 @@ ipcMain.handle('purge:install', async () => {
     if (!res.ok) throw new Error(`仓库归档下载失败:HTTP ${res.status}`)
     const buf = Buffer.from(await res.arrayBuffer())
     if (!buf.length || buf.length > 200 * 1024 * 1024) throw new Error('归档大小异常')
+    // gzip magic 校验:代理拦截/登录页会返回 200 的 HTML,直接解压会得到误导性错误
+    if (buf[0] !== 0x1f || buf[1] !== 0x8b) {
+      throw new Error(`归档内容异常(可能是系统代理拦截):前 16 字节 ${buf.slice(0, 16).toString('hex')}`)
+    }
     const arc = path.join(tmpDir, 'repo.tgz')
     await writeFile(arc, buf)
     await extractTar(arc, path.join(tmpDir, 'repo'))
     // 归档根目录名为 <repo>-<ref> 或 <repo>,定位 dsh-purge-self 子目录
     let srcDir = null
+    let topDirs = []
     for (const e of await readdir(path.join(tmpDir, 'repo'), { withFileTypes: true })) {
+      if (e.isDirectory()) topDirs.push(e.name)
       const cand = path.join(tmpDir, 'repo', e.name, 'dsh-purge-self')
       if (e.isDirectory() && existsSync(path.join(cand, 'package.json'))) { srcDir = cand; break }
     }
-    if (!srcDir) throw new Error('归档里没有 dsh-purge-self/(先提交推送到本项目仓库)')
+    if (!srcDir) throw new Error(`归档里没有 dsh-purge-self/(归档顶层目录: ${topDirs.join(', ') || '空'});请确认已提交推送 dsh-purge-self/`)
     await cp(srcDir, path.join(tmpDir, 'package'), { recursive: true })
     tarball = path.join(tmpDir, 'dsh-purge-self.tgz')
     await new Promise((resolve, reject) => {
