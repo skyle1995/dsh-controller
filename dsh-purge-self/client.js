@@ -2533,7 +2533,7 @@ var __dshPurgeDrill = (() => {
         err ? needRestart ? h2(
           "div",
           { className: "rt-empty" },
-          "\u8BE5\u6A21\u5757\u7684\u5BBF\u4E3B\u4EE3\u7801\u5DF2\u66F4\u65B0\uFF0C\u9700\u91CD\u542F\u4E00\u6B21\u5F53\u524D\u5BBF\u4E3B\uFF08\u5B98\u65B9 exe / \u793E\u533A\u7248 / dsh web\uFF09\u540E\u751F\u6548"
+          "\u8BE5\u6A21\u5757\u7684\u5BBF\u4E3B\u4EE3\u7801\u5DF2\u66F4\u65B0\uFF0C\u9700\u91CD\u542F\u4E00\u6B21\u5F53\u524D\u5BBF\u4E3B\uFF08\u5B98\u65B9 exe / Purge Self / dsh web\uFF09\u540E\u751F\u6548"
         ) : h2("div", { className: "rt-err" }, err) : null,
         detail ? h2(
           "div",
@@ -3601,7 +3601,7 @@ var __dshPurgeDrill = (() => {
       needRestart ? h2(
         "div",
         { className: "rt-empty" },
-        "\u8BE5\u6A21\u5757\u7684\u5BBF\u4E3B\u4EE3\u7801\u5DF2\u66F4\u65B0\uFF0C\u9700\u91CD\u542F\u4E00\u6B21\u5F53\u524D\u5BBF\u4E3B\uFF08\u5B98\u65B9 exe / \u793E\u533A\u7248 / dsh web\uFF09\u540E\u751F\u6548"
+        "\u8BE5\u6A21\u5757\u7684\u5BBF\u4E3B\u4EE3\u7801\u5DF2\u66F4\u65B0\uFF0C\u9700\u91CD\u542F\u4E00\u6B21\u5F53\u524D\u5BBF\u4E3B\uFF08\u5B98\u65B9 exe / Purge Self / dsh web\uFF09\u540E\u751F\u6548"
       ) : null,
       state.error && !needRestart ? h2("div", { className: "rt-err" }, state.error) : null,
       subTab === "files" ? h2(
@@ -5467,7 +5467,7 @@ var __dshPurgeDrill = (() => {
         { className: "rt-err" },
         /engagement required|unknown op/i.test(err) ? (
           /* 老 host 还没有知识库接口：讲清怎么恢复，别让人对着 "engagement required" 发懵 */
-          "\u77E5\u8BC6\u5E93\u63A5\u53E3\u7531 host \u4FA7\u63D0\u4F9B\uFF0C\u5F53\u524D\u5BBF\u4E3B\u8FD8\u662F\u65E7\u8FDB\u7A0B \u2014\u2014 \u8BF7\u5B8C\u5168\u9000\u51FA\u540E\u91CD\u65B0\u6253\u5F00\uFF08\u5B98\u65B9 exe / \u793E\u533A\u7248 / dsh web \u4EFB\u4E00\uFF09\uFF0C\u518D\u5237\u65B0\u9875\u9762\u3002"
+          "\u77E5\u8BC6\u5E93\u63A5\u53E3\u7531 host \u4FA7\u63D0\u4F9B\uFF0C\u5F53\u524D\u5BBF\u4E3B\u8FD8\u662F\u65E7\u8FDB\u7A0B \u2014\u2014 \u8BF7\u5B8C\u5168\u9000\u51FA\u540E\u91CD\u65B0\u6253\u5F00\uFF08\u5B98\u65B9 exe / Purge Self / dsh web \u4EFB\u4E00\uFF09\uFF0C\u518D\u5237\u65B0\u9875\u9762\u3002"
         ) : err
       ) : null,
       !err && data && data.dbPath ? h2(
@@ -8022,7 +8022,7 @@ var __dshPurgeDrill = (() => {
                 margin: "8px 0"
               }
             },
-            "\u66F4\u65B0\u8FC7\u7A0B\uFF1A\u5B89\u88C5\u65B0\u7248\u672C \u2192 \u81EA\u52A8\u91CD\u542F\u5F53\u524D\u5BBF\u4E3B\uFF08\u5B98\u65B9 exe / \u793E\u533A\u7248 / dsh web\uFF1B\u5F53\u524D\u9875\u9762\u4F1A\u65AD\u5F00\uFF0C\u7EA6 5\u201310 \u79D2\u540E\u81EA\u52A8\u5237\u65B0\uFF09\u3002\u91CD\u542F\u524D\u4F1A\u68C0\u67E5\u6709\u6CA1\u6709\u667A\u80FD\u4F53\u5728\u8DD1\uFF0C\u6709\u5C31\u62E6\u4F4F\u4E0D\u52A8\u3002"
+            "\u66F4\u65B0\u8FC7\u7A0B\uFF1A\u5B89\u88C5\u65B0\u7248\u672C \u2192 \u81EA\u52A8\u91CD\u542F\u5F53\u524D\u5BBF\u4E3B\uFF08\u5B98\u65B9 exe / Purge Self / dsh web\uFF1B\u5F53\u524D\u9875\u9762\u4F1A\u65AD\u5F00\uFF0C\u7EA6 5\u201310 \u79D2\u540E\u81EA\u52A8\u5237\u65B0\uFF09\u3002\u91CD\u542F\u524D\u4F1A\u68C0\u67E5\u6709\u6CA1\u6709\u667A\u80FD\u4F53\u5728\u8DD1\uFF0C\u6709\u5C31\u62E6\u4F4F\u4E0D\u52A8\u3002"
           ),
           msg ? h2(
             "div",
@@ -12826,7 +12826,7 @@ function SettingsRoot(props = {}) {
       h(
         "span",
         { className: "dshpp-native-badge" },
-        (true ? "\u793E\u533A\u7248 " : "\u72EC\u7ACB\u754C\u9762 ") + "1.0.0"
+        (true ? "Purge Self " : "\u72EC\u7ACB\u754C\u9762 ") + "1.1.0"
       )
     ),
     h(CompatibilityNote, { status: backendStatus }),
@@ -12982,7 +12982,7 @@ function StatusStrip({ info }) {
       "span",
       { className: "dshpp-strip-item" },
       "\u63D2\u4EF6 ",
-      h("b", null, info?.plugin_version || "1.0.0")
+      h("b", null, info?.plugin_version || "1.1.0")
     )
   );
 }
@@ -13017,11 +13017,11 @@ function VersionNotice({ info }) {
     );
   }
   const backend = info?.plugin_version;
-  if (!backend || backend === "1.0.0") return null;
+  if (!backend || backend === "1.1.0") return null;
   return h(
     "p",
     { className: "dshpp-warn", role: "status" },
-    `\u5B98\u65B9\u7248\u672C ${backend}\uFF1B\u754C\u9762 ${"1.0.0"}\u3002\u4E24\u8005\u4E0D\u4E00\u81F4\u65F6\u8BBE\u7F6E\u53EF\u80FD\u4E0D\u751F\u6548\uFF0C\u8BF7\u66F4\u65B0\u5230\u540C\u4E00\u7248\u672C\u540E\u91CD\u542F DSH\u3002`
+    `\u5B98\u65B9\u7248\u672C ${backend}\uFF1B\u754C\u9762 ${"1.1.0"}\u3002\u4E24\u8005\u4E0D\u4E00\u81F4\u65F6\u8BBE\u7F6E\u53EF\u80FD\u4E0D\u751F\u6548\uFF0C\u8BF7\u66F4\u65B0\u5230\u540C\u4E00\u7248\u672C\u540E\u91CD\u542F DSH\u3002`
   );
 }
 function PurgePage() {
