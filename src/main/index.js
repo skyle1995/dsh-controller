@@ -736,12 +736,16 @@ async function purgeSkillsState() {
   try { state = JSON.parse(await readFile(PURGE_SKILL_STATE, 'utf8')) } catch {}
   let available = 0
   try { available = (await listPurgeSkills()).length } catch {}
-  // 旧分散布局残留检测
+  // 旧分散布局残留检测:与清理同口径——只统计确实源自红队技能集的目录
+  // (插件源里存在同名 .md),避免把 skill-creator 等正常技能误报为残留
   let legacyCount = 0
   try {
-    for (const e of await readdir(DSH_SKILLS_DIR, { withFileTypes: true })) {
-      if (!e.isDirectory() || e.name === 'redteam-skill' || e.name === 'reverse-skill') continue
-      if (existsSync(path.join(DSH_SKILLS_DIR, e.name, 'SKILL.md'))) legacyCount++
+    const src = purgeSkillsSrcDir()
+    if (src) {
+      for (const e of await readdir(DSH_SKILLS_DIR, { withFileTypes: true })) {
+        if (!e.isDirectory() || e.name === 'redteam-skill' || e.name === 'reverse-skill') continue
+        if (existsSync(path.join(DSH_SKILLS_DIR, e.name, 'SKILL.md')) && existsSync(path.join(src, e.name + '.md'))) legacyCount++
+      }
     }
   } catch {}
   return {
