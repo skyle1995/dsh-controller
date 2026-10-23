@@ -1,0 +1,42 @@
+{
+  "repository": "https://github.com/lingbol088-spec/5.6-JAILBREAK-NERV-codex-instruct-5.6.git",
+  "commit": "4fac65fa452d96c98d96e2d9759f31cd1683441d",
+  "branch": "main",
+  "mode": "offline-direct",
+  "bridge": {
+    "filename": "bridge.md",
+    "sha256": "EA0203FCB0723AE59E23C2C4A7AF18D537EAAFC82D6F4ECCFD95A8AF577052C7"
+  },
+  "combined": {
+    "filename": "combined-instructions.md",
+    "sha256": "7FC063085C8B9E3A1F4BFD5835E08A5ADB91856C8243D536E7C83E5E7FEED49E"
+  },
+  "skills": {
+    "root": "skills",
+    "directories": 28,
+    "skillFiles": 28,
+    "scriptFiles": 38,
+    "files": 66
+  },
+  "manifest": {
+    "filename": "FILE-MANIFEST.json",
+    "sha256": "C84A01F9024F218304E526F0C194B1F9EF24188D2B10081F919C5B1696D43C72"
+  },
+  "license": {
+    "identity": "MIT",
+    "evidenceFile": "README.md",
+    "evidenceSha256": "4D35F2B56EBD23F655A387D9515E761639589E5D5D5C3C09B1B2080900B80F32",
+    "standaloneLicenseFile": false
+  },
+  "omittedComponents": [
+    "deploy.py",
+    "direct_setup.py",
+    "docs",
+    "images",
+    "mcp_server.py",
+    "proxy_relay.py",
+    "requirements.txt",
+    "scripts",
+    "tools"
+  ]
+}

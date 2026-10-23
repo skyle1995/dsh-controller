@@ -1,0 +1,18 @@
+{
+  "repository": "https://github.com/MDX-Tom/gpt-5.6-instruct.git",
+  "commit": "77e7a649903f9556f2d7bfa0223fa99e123aad52",
+  "variant": "v45",
+  "archive": {
+    "filename": "gpt-5.6-sol-unrestricted-v45.zip",
+    "sha256": "C86C2C6D20A4D1155D87422F485EB37B77539132270918C002B5D8237A5ADF54"
+  },
+  "runtime": {
+    "filename": "gpt-5.6-sol-unrestricted-v45.md",
+    "sha256": "C71C50E2F7A303B5EEBC2B24C0B1CA0D9C753E3240DB05C3E472C679907898F7"
+  },
+  "license": {
+    "identity": "MIT",
+    "filename": "LICENSE-MIT.txt",
+    "sha256": "EDB45F4CB24498171BC9A748BEA6EABBA5ED8176213522822128622623413EEB"
+  }
+}

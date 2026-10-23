@@ -5,7 +5,6 @@ dist-win/
 .cache/
 .DS_Store
 *.log
-resources/
 文件/
 docs/*.exe
 dsh-purge-self-*.tgz

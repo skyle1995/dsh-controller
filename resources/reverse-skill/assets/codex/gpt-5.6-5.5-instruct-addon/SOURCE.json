@@ -1,0 +1,74 @@
+{
+  "repository": "https://github.com/lingbol088-spec/codex-gpt-5.6-5.5-instruct.git",
+  "commit": "95e7156939b32b105c062fde35626b1193531dd0",
+  "branch": "main",
+  "mode": "selected-paid-addon",
+  "bridge": {
+    "filename": "bridge.md",
+    "sha256": "4113EB22DF7F834FA8DD6D2F4037323D62A70CDCDFB1FBFE22A4826A73B6D74C"
+  },
+  "skills": {
+    "root": "skills",
+    "ids": [
+      "brute-force",
+      "dns-enum",
+      "encrypt-detect",
+      "entity-list",
+      "frida-intercept",
+      "iat-rebuild",
+      "keygen-build",
+      "network-bypass",
+      "overlay-render",
+      "patch-rollback",
+      "port-scan",
+      "sqli-test",
+      "vuln-scan",
+      "web-scan",
+      "world-to-screen",
+      "zxwn-activation"
+    ],
+    "directories": 16,
+    "skillFiles": 16,
+    "scriptFiles": 15,
+    "supportFiles": 1,
+    "files": 32
+  },
+  "manifest": {
+    "filename": "FILE-MANIFEST.json",
+    "sha256": "36C92E7D8C35AF9D6454959AC4758796640B7F2F7DEEF83C8F06A154B0089FE0"
+  },
+  "license": {
+    "identity": "MIT",
+    "filename": "LICENSE-MIT.txt",
+    "sha256": "2EC9E0643152608CA92FCA155F1C527AA09A67DD74293A4F9921C93673982974"
+  },
+  "adaptations": [
+    {
+      "path": "skills/network-bypass/scripts/network_bypass.py",
+      "upstreamPath": "Skills/network-bypass/scripts/network_bypass.py",
+      "upstreamSha256": "E21B989D5A1A5B0327FBAA495DD42A42D904D9705F7E04F099BC5AA1F959C2C6",
+      "vendoredSha256": "CC3EF648C753CAC15D7593DEE5443DA453AC9A673F6D609AF0D785D6EE533F0E",
+      "reason": "Replace the upstream Administrator desktop and uv Python paths with current-directory and PATH-based commands so the example is portable across customer machines."
+    },
+    {
+      "path": "skills/overlay-render/scripts/overlay_render.py",
+      "upstreamPath": "Skills/overlay-render/scripts/overlay_render.py",
+      "upstreamSha256": "B658898F4D0D7BA2CD232B232804C91DD75DC790550BB3BB08C71F8C59607551",
+      "vendoredSha256": "231700BCAEDE0C039284B033ADDEE1B34B2193F77AEA12BB35518870A16FE055",
+      "reason": "Remove the upstream machine-specific absolute game_hacker.py path while preserving the generic helper reference."
+    }
+  ],
+  "omittedComponents": [
+    "CONTRIBUTING.md",
+    "README.md",
+    "README_EN.md",
+    "SKILL.md",
+    "bridge backups",
+    "deploy.py",
+    "mcp",
+    "scripts",
+    "unselected Skills",
+    "startup BAT and duplicate files",
+    "upstream __pycache__ artifacts"
+  ]
+}

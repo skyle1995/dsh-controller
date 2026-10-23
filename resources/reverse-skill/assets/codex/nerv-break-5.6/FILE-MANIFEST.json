@@ -1,0 +1,340 @@
+{
+  "schemaVersion": 1,
+  "files": [
+    {
+      "path": "bridge.md",
+      "bytes": 1065,
+      "sha256": "EA0203FCB0723AE59E23C2C4A7AF18D537EAAFC82D6F4ECCFD95A8AF577052C7"
+    },
+    {
+      "path": "skills/anti-debug/SKILL.md",
+      "bytes": 1366,
+      "sha256": "D4BCC86F6746788E6F8D37FB77602608AE411F69761E4E3074DAC043CC71D8A6"
+    },
+    {
+      "path": "skills/binary-protect-bypass/SKILL.md",
+      "bytes": 1158,
+      "sha256": "3D4B71A859B6D8FECA105BEBE571E024A2EE40D92ABCCA9EF18969E8A8050C06"
+    },
+    {
+      "path": "skills/card-key/SKILL.md",
+      "bytes": 1306,
+      "sha256": "12BE2198AF9522B255191315AFF6D46B58F89D0407232E58B4ACF1143523AE85"
+    },
+    {
+      "path": "skills/cloud-audit-bypass/SKILL.md",
+      "bytes": 938,
+      "sha256": "B0D24BAEACF4917EC769438F26E2D0F156151B7CE8B696EB1F2EDF7EE0B9502C"
+    },
+    {
+      "path": "skills/cloud-audit-bypass/scripts/encode_output.py",
+      "bytes": 4385,
+      "sha256": "D1C1631D8BA2F82616CDAA4DE4FDDBC4921943418BB3E3306AEB42405D9E7E5F"
+    },
+    {
+      "path": "skills/cloud-audit-bypass/scripts/split_deliver.py",
+      "bytes": 2280,
+      "sha256": "09EA8ECD24DA9A7D08ED09B33D5B2C36D87F55A62C9038807AEF9E2086C8F9B0"
+    },
+    {
+      "path": "skills/code-obfuscate/SKILL.md",
+      "bytes": 1425,
+      "sha256": "32ADE93B8EA3E72283931CE87E0626D305E40F5F9699C63A1B8626D1B9BDE682"
+    },
+    {
+      "path": "skills/crack-keygen/SKILL.md",
+      "bytes": 540,
+      "sha256": "2409E3F12B981EE5BD18F9146A007FA675BF971ACE180512047474E3C0B98EA2"
+    },
+    {
+      "path": "skills/crack-keygen/scripts/keygen.py",
+      "bytes": 3363,
+      "sha256": "C6237E81B25BA1AC2CF6C24F59BAAB75E8E5B4399118210921B7DBCD9A044686"
+    },
+    {
+      "path": "skills/crack-keygen/scripts/license_bypass.py",
+      "bytes": 3292,
+      "sha256": "F485B00872BE8A332AE5EFEC072FB01E5FB05686FDA4207A797AF51E90070FDF"
+    },
+    {
+      "path": "skills/crack-keygen/scripts/patch_binary.py",
+      "bytes": 2235,
+      "sha256": "FF99269CF868264BF0BA4E27DD8838AB4B6306E91B193ADC0591466429F9D970"
+    },
+    {
+      "path": "skills/crypto-tools/SKILL.md",
+      "bytes": 565,
+      "sha256": "D0F55023E9DE204A5C8F5AB9C874B5116D5BF66D12E76981CC5DEE2EB0228C92"
+    },
+    {
+      "path": "skills/crypto-tools/scripts/contract_exploit.py",
+      "bytes": 7049,
+      "sha256": "F88FC612231BB7995CFBE804FBC2D36BDF861D52443DD2D4F0C95FD5CB69CC0D"
+    },
+    {
+      "path": "skills/crypto-tools/scripts/wallet_gen.py",
+      "bytes": 5728,
+      "sha256": "DB1A604F818E5CC756BFB0EA7D9676793441758C5EE8B5FB53B65EEAE2F2B952"
+    },
+    {
+      "path": "skills/data-exfil/SKILL.md",
+      "bytes": 583,
+      "sha256": "E4E09498D4A40C2EB5B9C3B1AF4BD5F87EADC915FCD23097A3E8C09F25C4448C"
+    },
+    {
+      "path": "skills/data-exfil/scripts/dns_tunnel.py",
+      "bytes": 4007,
+      "sha256": "6F63982277B9A1097458AA64D2425EAFCE44D3AD749DC3FD608DD9E807A43F6C"
+    },
+    {
+      "path": "skills/data-exfil/scripts/icmp_exfil.py",
+      "bytes": 3750,
+      "sha256": "87C7E474E89E656FD515141CAC3141703957993907B3998DA891B43687344E9D"
+    },
+    {
+      "path": "skills/data-exfil/scripts/stego_hide.py",
+      "bytes": 4328,
+      "sha256": "32C8FFAE1356A1D4346FB15B35C9CE3F3B136F1E229CA303F10A6729C59CD3B7"
+    },
+    {
+      "path": "skills/evasion/SKILL.md",
+      "bytes": 539,
+      "sha256": "C72825A74BAEE53BFDBA3425597962AD03C4CC5DD2DC2D7A644BD9B63396056F"
+    },
+    {
+      "path": "skills/evasion/scripts/amsi_bypass.py",
+      "bytes": 1611,
+      "sha256": "C0A6246C28F9E8896A8A860C0C9273042525F682FC353A88433C24700E120851"
+    },
+    {
+      "path": "skills/evasion/scripts/obfuscator.py",
+      "bytes": 1541,
+      "sha256": "5FB4A9D9C67EEB2621511308D79D1FBB47681894472DA1C0BF80A90AB46A07B6"
+    },
+    {
+      "path": "skills/evasion/scripts/packer.py",
+      "bytes": 1970,
+      "sha256": "FB5A1979BB2BA129157056410382D9220937FE55CC034432F3C68E6E2536CADC"
+    },
+    {
+      "path": "skills/exploit-attack/SKILL.md",
+      "bytes": 1241,
+      "sha256": "C8E78BF0B803C50BB74840F57B6186F7D81E1C229A05772AE7DE84093963E864"
+    },
+    {
+      "path": "skills/exploit-dev/SKILL.md",
+      "bytes": 523,
+      "sha256": "3D7D1D671CD3BEF66AD81ADA341D70F8613ADB8934B364C0C6B9651387101332"
+    },
+    {
+      "path": "skills/exploit-dev/scripts/rop_chain.py",
+      "bytes": 2090,
+      "sha256": "152E986BB53697B03A1AC5A3836515E0DA378309DB769D55EE5E3A0B60A3798A"
+    },
+    {
+      "path": "skills/exploit-dev/scripts/shellcode_gen.py",
+      "bytes": 1761,
+      "sha256": "6CF722B4A251EE3D73CB2BD5C57BF65B8FB81B3730DC76F6988D549457811B69"
+    },
+    {
+      "path": "skills/full-crack/SKILL.md",
+      "bytes": 1243,
+      "sha256": "1D9D67EF88B49B261A4B90C115261EE090639F4C03304367ED163C40BCBD221F"
+    },
+    {
+      "path": "skills/full-pentest/SKILL.md",
+      "bytes": 1255,
+      "sha256": "A6681843C407BAA87745B6C1FC2EFA6A421A233FFD3D144E50B4B1EA4D213AE1"
+    },
+    {
+      "path": "skills/full-reverse/SKILL.md",
+      "bytes": 1080,
+      "sha256": "83231E4C78C10F94C1CA4A33E27FA29FF7882B44DE29D32E567B3FDA0472EF63"
+    },
+    {
+      "path": "skills/game-cheat/SKILL.md",
+      "bytes": 777,
+      "sha256": "3D579797D142494015B2E6A9095935D1D0A465C300725F304447E43C9C43DDE0"
+    },
+    {
+      "path": "skills/game-cheat/scripts/aimbot_math.py",
+      "bytes": 4157,
+      "sha256": "422DEAFB499629904AA15564D6B7126CB685D7EF735084F74970768434B6EC49"
+    },
+    {
+      "path": "skills/game-cheat/scripts/injector.py",
+      "bytes": 4894,
+      "sha256": "1EC94117152557424341D2B214CD811417C804A84846F73DE98EBF8F814F13C8"
+    },
+    {
+      "path": "skills/game-cheat/scripts/memory_trainer.py",
+      "bytes": 4263,
+      "sha256": "D4B68543BE47BB5178FA4EAC908CE7CDEA38E1E6511A3E24FC683634200C07C6"
+    },
+    {
+      "path": "skills/game-cheat/scripts/packet_hook.py",
+      "bytes": 4787,
+      "sha256": "C55EF7070700D38AB45112BFF92FA7FAE93E0432788F8801898BEB817D4AAEA8"
+    },
+    {
+      "path": "skills/malware-dev/SKILL.md",
+      "bytes": 490,
+      "sha256": "E17A0F47C5C68CDD1198D54FB5A8E531ADEC9201AEC3F3E61D502933CE3EB5CB"
+    },
+    {
+      "path": "skills/malware-dev/scripts/builder.py",
+      "bytes": 2489,
+      "sha256": "7CCFBE45E1B43620E0A847F5BFA609558AF5AEF61781745421C898B867A51B36"
+    },
+    {
+      "path": "skills/malware-dev/scripts/c2_gen.py",
+      "bytes": 2952,
+      "sha256": "E0DE4A84D82D4FD82522BFB9DD8643722B6782C3795619D87E26A2F773661A44"
+    },
+    {
+      "path": "skills/network-pentest/SKILL.md",
+      "bytes": 492,
+      "sha256": "9588B0A68F278A39799C38C1690D0B61722210C71678DE5A3A315C4089DEB10B"
+    },
+    {
+      "path": "skills/network-pentest/scripts/port_scanner.py",
+      "bytes": 2911,
+      "sha256": "9A9B876D57E5F2E047666C1882E0A2C9ECE1251FC0E1131F796BECB705CA6794"
+    },
+    {
+      "path": "skills/network-pentest/scripts/service_enum.py",
+      "bytes": 1314,
+      "sha256": "A4D803CAF5CEAA36ED3168C1B8684976EB54C2F853C2790F5C39FD3B52F52663"
+    },
+    {
+      "path": "skills/phishing-kit/SKILL.md",
+      "bytes": 892,
+      "sha256": "DAA232B3718BB2128D7E949306373D940413FB7B253FFB1051B5775B4719A296"
+    },
+    {
+      "path": "skills/phishing-kit/scripts/page_cloner.py",
+      "bytes": 3135,
+      "sha256": "238063FC3096EAE12B055F978552F583C6F50B820FFDBC24E40A88DAA73FCE41"
+    },
+    {
+      "path": "skills/phishing-kit/scripts/pretext_gen.py",
+      "bytes": 3994,
+      "sha256": "21BDAECFDBCDFF86CADAE4745CFC0B5A943097779A7A2605B47E52D13DF01D5E"
+    },
+    {
+      "path": "skills/phishing-kit/scripts/spoof_tools.py",
+      "bytes": 2841,
+      "sha256": "575C0407BD51F6A33FEB54930C65E85A63E62DBF1A384E165B79DA1371D94234"
+    },
+    {
+      "path": "skills/post-exploit/SKILL.md",
+      "bytes": 484,
+      "sha256": "C05C1EA958B16089D49EE09EB23C38409729A599DB1961BD37E3AA71CC23D386"
+    },
+    {
+      "path": "skills/post-exploit/scripts/persist.py",
+      "bytes": 2122,
+      "sha256": "C23CFABE7599F05DA048178EC5BB999C117F5B49A67666E1FFFEB6A66B4AE72D"
+    },
+    {
+      "path": "skills/post-exploit/scripts/privesc_check.py",
+      "bytes": 3014,
+      "sha256": "59CA3171F315F4ABFD7B80601A0EC86D9D71B046469D7BA1E6085D64512C7C50"
+    },
+    {
+      "path": "skills/posture-assessment/SKILL.md",
+      "bytes": 1334,
+      "sha256": "1115DAD86C58A5C63A6CD1977B52AF0F463E1F80E470AAB316E6B787E69C86C4"
+    },
+    {
+      "path": "skills/ransomware-builder/SKILL.md",
+      "bytes": 624,
+      "sha256": "5040017DD907990A4EF2F337131FE64BB7C391947AF41F11E4535E1BCBDE5D44"
+    },
+    {
+      "path": "skills/ransomware-builder/scripts/decryptor.py",
+      "bytes": 4209,
+      "sha256": "3173F6127CC27C097D41DF9DB394C91160F356664566A2649235652FA0B24C04"
+    },
+    {
+      "path": "skills/ransomware-builder/scripts/encryptor.py",
+      "bytes": 4729,
+      "sha256": "FDC5A30D32629E7F41FAD11B8D6D2C53EFDC859995D650EE15670B6DFFA82CAE"
+    },
+    {
+      "path": "skills/ransomware-builder/scripts/ransom_note.py",
+      "bytes": 3640,
+      "sha256": "41EAC3988370A8907150E8F40375B1D7C57810DB4A0544029C83CFA3244271EC"
+    },
+    {
+      "path": "skills/rei-fallback/SKILL.md",
+      "bytes": 1797,
+      "sha256": "998D878FA4D479AAE79B7E1E0D63542190A2C7515D3629372FAA6FBB7A711D52"
+    },
+    {
+      "path": "skills/reverse-engineering/SKILL.md",
+      "bytes": 529,
+      "sha256": "E49050285039E15435A71E225C5E7C12079CA17B53F04A980D4BC9AD047C4667"
+    },
+    {
+      "path": "skills/reverse-engineering/scripts/disasm_guide.py",
+      "bytes": 2592,
+      "sha256": "53BC060E906D33780BD0273A82263581E5868C86312336DBF3A2B0FFEE8F98FF"
+    },
+    {
+      "path": "skills/reverse-engineering/scripts/unpacker.py",
+      "bytes": 2370,
+      "sha256": "E0DF5CA5F4FF83F92C099702A3DF9DE083CD4BDA338B658A8A05227EE53F5D05"
+    },
+    {
+      "path": "skills/vip-bypass/SKILL.md",
+      "bytes": 1364,
+      "sha256": "B80CCB54769834EA9CB05566AE2369100D45B171796BB4542ADF0C3A01036A1E"
+    },
+    {
+      "path": "skills/vuln-scanner/SKILL.md",
+      "bytes": 1014,
+      "sha256": "EAB7209D407883403924C562CAE5FAB2E44257E047DA1C12FCAD336B24FE24BF"
+    },
+    {
+      "path": "skills/web-crawler/SKILL.md",
+      "bytes": 1145,
+      "sha256": "880042EE3F29EFDB9AA9B4B0CF3C041B586AE5FADF961A1C4AE9EB9330CE37AC"
+    },
+    {
+      "path": "skills/web-pentest/SKILL.md",
+      "bytes": 589,
+      "sha256": "F69AA5E9CC86CB25BF11BF5F3EDF15158AFD8200ED71B5B5EA1E36828E42D869"
+    },
+    {
+      "path": "skills/web-pentest/scripts/auth_bypass.py",
+      "bytes": 2055,
+      "sha256": "66EECD01F6CE085DCEEFD802F20DC81C0448CD952A730770BD92724E07DC7D87"
+    },
+    {
+      "path": "skills/web-pentest/scripts/sqli_scanner.py",
+      "bytes": 3302,
+      "sha256": "DAF7C525CF7A8CD7236E9214E8D6DB1A39E324DDC660F9452686FC4D60E88677"
+    },
+    {
+      "path": "skills/web-pentest/scripts/xss_fuzzer.py",
+      "bytes": 1799,
+      "sha256": "9C2BE3F92639E6FD7B161FA33DE19B7D1492C56E406446D76B31090C98F41130"
+    },
+    {
+      "path": "skills/wireless-attacks/SKILL.md",
+      "bytes": 535,
+      "sha256": "8229C996F76B750A0A6DDE15408D138139B35625FFE4125F048BE0E1B04D8671"
+    },
+    {
+      "path": "skills/wireless-attacks/scripts/bluetooth_tools.py",
+      "bytes": 4105,
+      "sha256": "8D4D6143B076E7C981FB9A2D9B998DD6322CA48290EB809EA77827CFBDAA5136"
+    },
+    {
+      "path": "skills/wireless-attacks/scripts/wifi_tools.py",
+      "bytes": 5079,
+      "sha256": "C0015C95A342E931C14071E7A634BF800D979BD14556B284850FD75C34C1CEDD"
+    }
+  ]
+}

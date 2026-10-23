@@ -1,0 +1,49 @@
+{
+  "sourceType": "user-provided-local-artifact",
+  "reviewedAt": "2026-08-08",
+  "mode": "selected-paid-skill",
+  "sourceArtifacts": [
+    {
+      "name": "setup_codex.py",
+      "bytes": 18605,
+      "sha256": "A8A12C6FA298EDBB700DEFA2E51DC04DCC3F4FFC3C35C88D654F9E67BEE260B1"
+    },
+    {
+      "name": "终末地科技Codex5.5一键破甲.exe",
+      "bytes": 11921459,
+      "sha256": "AD770D99E5470B03750D6CEB79094B2BF76B6512985C8C5E278AF2D5E707B4A4"
+    }
+  ],
+  "selection": {
+    "skillId": "web-asset-auditor",
+    "sourcePromptIds": [
+      "PROMPT_AUDITOR",
+      "PROMPT_CORE"
+    ],
+    "excludedComponents": [
+      "executables and backups",
+      "extracted resources",
+      "screenshots and icons",
+      "third-party tools",
+      "Python configuration writer",
+      "model defaults",
+      "duplicate generic prompt text"
+    ]
+  },
+  "provenance": {
+    "filename": "PROVENANCE.md",
+    "sha256": "6AC68336B16551B24D696D75094827FDF08C91DD836456143D6E9C1EB776BA08"
+  },
+  "routing": {
+    "filename": "ROUTING.md",
+    "sha256": "A69374C27251DCF67D67DA070227FA70345B07A92729A30A5359D9E601581E19"
+  },
+  "skill": {
+    "filename": "skills/web-asset-auditor/SKILL.md",
+    "sha256": "37CA20B7BF516695CA6D3EE8C4EE48C43C29365A3B5D8C30639048EFEAF5918F"
+  },
+  "manifest": {
+    "filename": "FILE-MANIFEST.json",
+    "sha256": "3A5E6DB444D4400C1D892ACC8881C3A74BDE20B6B6653E107EE4891E2E9FFE3F"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "repository": "https://github.com/Jia-Ethan/codex-keysmith.git",
+  "commit": "1b5eefac001f800f2d8b4df6137464e07873379f",
+  "version": "0.3.2",
+  "mode": "selected-paid-cli",
+  "excluded": [
+    "gui",
+    ".git",
+    ".github",
+    "__pycache__",
+    "docs",
+    "README and policy documents",
+    "license files",
+    "desktop release scripts and tests"
+  ],
+  "license": "MIT",
+  "upstream_scope": "Runtime CLI, all scenario packages, non-desktop tests, prompt-bank script, examples, and Python project metadata.",
+  "windows_note": "The upstream CLI marks fresh Windows deployment explicit beta; Wujin uses the vendored files as a paid Codex resource and does not invoke its global deployment entry point."
+}

@@ -1,0 +1,170 @@
+{
+  "schemaVersion": 1,
+  "files": [
+    {
+      "path": "bridge.md",
+      "bytes": 2220,
+      "sha256": "4113EB22DF7F834FA8DD6D2F4037323D62A70CDCDFB1FBFE22A4826A73B6D74C"
+    },
+    {
+      "path": "skills/brute-force/SKILL.md",
+      "bytes": 396,
+      "sha256": "3CDCB3D315BCDA905474F3597B8408F107BAF1A901E55F03F78F0EF408025B50"
+    },
+    {
+      "path": "skills/brute-force/scripts/brute_force.py",
+      "bytes": 3128,
+      "sha256": "352C282A0AEBD723A56644599890151F23A0DC325F1C1B5F059A2A68F1C64C1B"
+    },
+    {
+      "path": "skills/dns-enum/SKILL.md",
+      "bytes": 428,
+      "sha256": "FA2E6685683B132CF2017BAB05637495B2CA69B555BB7806EBB5448C6082BD11"
+    },
+    {
+      "path": "skills/dns-enum/scripts/dns_enum.py",
+      "bytes": 2391,
+      "sha256": "CADD64375BFDDA11CE3BAB899E3CA5889A51BB0B0E1F33A83C75E86CDEF3409B"
+    },
+    {
+      "path": "skills/encrypt-detect/SKILL.md",
+      "bytes": 428,
+      "sha256": "23AB10CDECC28020EF05824F3DB0D3985D6394795212BC1E7CA2D84D9AFCD5CC"
+    },
+    {
+      "path": "skills/encrypt-detect/scripts/encrypt_detect.py",
+      "bytes": 1005,
+      "sha256": "2ED07A6510AB0797CD9647A8516D55BC8777F0E42630B70D71680ACAA91DC34D"
+    },
+    {
+      "path": "skills/entity-list/SKILL.md",
+      "bytes": 402,
+      "sha256": "5B017F435A103341AE59136A979894B4E393D23426907DCC3AFC6B250B225103"
+    },
+    {
+      "path": "skills/entity-list/scripts/entity_list.py",
+      "bytes": 680,
+      "sha256": "DADC36F6250C47478D8A99F46A6930FD69D0B629F07CCA9797058F4D8CA59789"
+    },
+    {
+      "path": "skills/frida-intercept/SKILL.md",
+      "bytes": 435,
+      "sha256": "B281843950F60A0382DF44FF1BC8D45328EB07B7025519247241E64BBE975473"
+    },
+    {
+      "path": "skills/frida-intercept/scripts/frida_intercept.py",
+      "bytes": 1197,
+      "sha256": "28DA4D804DC2EAA92ECEF2F724211C794E91FC6871727C292C7A4A2006CA8650"
+    },
+    {
+      "path": "skills/iat-rebuild/SKILL.md",
+      "bytes": 382,
+      "sha256": "A2937A4584B5B28CDFF1C832660A83F73F633D347B361DCE59BD4FFA1D83F8A0"
+    },
+    {
+      "path": "skills/iat-rebuild/scripts/iat_rebuild.py",
+      "bytes": 556,
+      "sha256": "6B3C09744BE372CD8271BB74CADB5580581B436CF0AB59E8203144C125A20FB6"
+    },
+    {
+      "path": "skills/keygen-build/SKILL.md",
+      "bytes": 400,
+      "sha256": "22E37543D8B2DAD8C3E9C02FC356A6C3737ADDC2F59DBC1BFB75CAFE57246663"
+    },
+    {
+      "path": "skills/keygen-build/scripts/keygen_build.py",
+      "bytes": 943,
+      "sha256": "19D735BE5176954D1F494A11AD1FC9029FE9BEB53F6F6B78982D9293D23CD0D2"
+    },
+    {
+      "path": "skills/network-bypass/SKILL.md",
+      "bytes": 429,
+      "sha256": "DCA85E7AD19D4C554A8B6E92B7E64CE609A230F3B54054F20554671BA80BC8EE"
+    },
+    {
+      "path": "skills/network-bypass/scripts/network_bypass.py",
+      "bytes": 1093,
+      "sha256": "CC3EF648C753CAC15D7593DEE5443DA453AC9A673F6D609AF0D785D6EE533F0E"
+    },
+    {
+      "path": "skills/overlay-render/SKILL.md",
+      "bytes": 441,
+      "sha256": "B3E518B272CEE1A00F5979688C6EF40EB5DDC2162C2A161E8E1D68F743431B9A"
+    },
+    {
+      "path": "skills/overlay-render/scripts/overlay_render.py",
+      "bytes": 769,
+      "sha256": "231700BCAEDE0C039284B033ADDEE1B34B2193F77AEA12BB35518870A16FE055"
+    },
+    {
+      "path": "skills/patch-rollback/SKILL.md",
+      "bytes": 329,
+      "sha256": "61FA2BD4FAA485A240F5D21E164F806EEFC2A2F13DF10F7B8F7AB4F4661B428F"
+    },
+    {
+      "path": "skills/patch-rollback/scripts/patch_rollback.py",
+      "bytes": 550,
+      "sha256": "0F54C730D92F4DD4E518F655F4D34A9766D271C8E298C71E6665A3C1A435354D"
+    },
+    {
+      "path": "skills/port-scan/SKILL.md",
+      "bytes": 388,
+      "sha256": "3AC752025B96F2AAE849FFF4AEF39003BF56D1D985061978A3247F935A85B638"
+    },
+    {
+      "path": "skills/port-scan/scripts/port_scanner.py",
+      "bytes": 3567,
+      "sha256": "F1D80F72C90182E431EA257238607498633E577995F6B97AB18B4724C6CDC487"
+    },
+    {
+      "path": "skills/sqli-test/SKILL.md",
+      "bytes": 346,
+      "sha256": "42A2B6127FD0EC1FC4426F3506603B679961F0C756EA231229FCE6B6CF030C89"
+    },
+    {
+      "path": "skills/sqli-test/scripts/sqli_tester.py",
+      "bytes": 2457,
+      "sha256": "EA1C03A96757D4FF383E3BA2D38245B95B00FE34C235B2B0931C91F771EDCFA4"
+    },
+    {
+      "path": "skills/vuln-scan/SKILL.md",
+      "bytes": 357,
+      "sha256": "0B56BFE0907D54DC2F2F76A22B8441A25ED379A312CF3CC0659AC43E95D07733"
+    },
+    {
+      "path": "skills/vuln-scan/scripts/vuln_scanner.py",
+      "bytes": 2521,
+      "sha256": "F5C2A8E1911ADD883F6F9D7E6A41D50A0D33FB6A54C296EA0E46D74A5F551C4A"
+    },
+    {
+      "path": "skills/web-scan/SKILL.md",
+      "bytes": 433,
+      "sha256": "DD3BF4FB43A0D22837DFFD1D0FE91C7632D56E28B4EACCA35147E903061107A0"
+    },
+    {
+      "path": "skills/web-scan/scripts/common.txt",
+      "bytes": 604,
+      "sha256": "96ADA94E30FF174B22AFD05A8996C70ADC0C0902AE5B731F74D132AB9E627000"
+    },
+    {
+      "path": "skills/web-scan/scripts/web_scanner.py",
+      "bytes": 3417,
+      "sha256": "9E85C44D0A3B3ABB230869681C1972B57E67273081739BC36F2050D806911D04"
+    },
+    {
+      "path": "skills/world-to-screen/SKILL.md",
+      "bytes": 380,
+      "sha256": "80B6BAF469FE8A9A925B124217AC0A41E3DD390F16241A0C3A7602F83430BDFC"
+    },
+    {
+      "path": "skills/world-to-screen/scripts/world_to_screen.py",
+      "bytes": 638,
+      "sha256": "747D6FFCE1863ADF681033ED8D73E20095CEF8B546A89AE3A5EA464F77749D50"
+    },
+    {
+      "path": "skills/zxwn-activation/SKILL.md",
+      "bytes": 761,
+      "sha256": "A9A927F9ECC78741FF75CD56E5168312A4C032B4DACCBD664E5154FADF42009B"
+    }
+  ]
+}

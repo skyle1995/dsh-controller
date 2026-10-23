@@ -1,0 +1,759 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:,">
+  <title>无限破甲 · 一键配置交互演示</title>
+  <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
+  <script>window.lucide = window.lucide || { createIcons: function () {} };</script>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f8fa;
+      --side: #ffffff;
+      --panel: #ffffff;
+      --panel-2: #f0f3f6;
+      --line: #d9e0e7;
+      --text: #1c2733;
+      --muted: #667382;
+      --red: #c92f36;
+      --red-hover: #b8272e;
+      --green: #178456;
+      --amber: #a96d11;
+      --blue: #286aa3;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      min-height: 100vh;
+      overflow: hidden;
+      background: #e9edf1;
+      color: var(--text);
+      font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+      letter-spacing: 0;
+    }
+    button, input { font: inherit; letter-spacing: 0; }
+    button, a { -webkit-tap-highlight-color: transparent; }
+    .app {
+      width: min(1180px, calc(100vw - 32px));
+      height: min(760px, calc(100vh - 32px));
+      margin: 16px auto;
+      display: grid;
+      grid-template-rows: 46px 1fr;
+      overflow: hidden;
+      border: 1px solid #cbd4dd;
+      background: var(--bg);
+      box-shadow: 0 22px 72px rgba(35,49,64,.16);
+    }
+    .titlebar { display: flex; align-items: center; border-bottom: 1px solid var(--line); }
+    .brand-mark { width: 46px; height: 46px; display: grid; place-items: center; background: var(--red); }
+    .brand-mark svg { width: 20px; }
+    .brand { margin-left: 13px; font-size: 13px; font-weight: 700; }
+    .demo-badge {
+      margin-left: 10px; padding: 4px 7px; border: 1px solid #d4dce4; border-radius: 4px;
+      color: var(--muted); background: #f1f4f6; font-size: 10px;
+    }
+    .title-link {
+      margin-left: auto; height: 30px; padding: 0 10px; border: 0; border-radius: 4px;
+      display: inline-flex; align-items: center; gap: 6px; color: var(--muted); background: transparent;
+      text-decoration: none; font-size: 11px; cursor: pointer;
+    }
+    .title-link:hover { color: var(--text); background: #eef2f5; }
+    .title-link svg { width: 14px; }
+    .window-actions { height: 100%; display: flex; }
+    .icon-button {
+      width: 44px; border: 0; display: grid; place-items: center; color: inherit;
+      background: transparent; cursor: pointer;
+    }
+    .icon-button:hover { background: #eef2f5; }
+    .icon-button.close:hover { background: var(--red); }
+    .icon-button svg { width: 15px; }
+    .layout { min-height: 0; display: grid; grid-template-columns: 220px 1fr; }
+    aside {
+      min-height: 0; padding: 17px 12px 12px; display: flex; flex-direction: column;
+      border-right: 1px solid var(--line); background: var(--side);
+    }
+    .nav-label { padding: 0 10px 8px; color: #727d88; font-size: 10px; font-weight: 700; text-transform: uppercase; }
+    .nav-label.help { margin-top: 17px; }
+    .nav {
+      width: 100%; height: 42px; margin-bottom: 3px; padding: 0 11px; border: 0; border-radius: 5px;
+      display: flex; align-items: center; gap: 11px; color: var(--muted); background: transparent;
+      text-align: left; cursor: pointer;
+    }
+    .nav:hover, .nav.active { color: var(--text); background: #eef2f5; }
+    .nav.active { box-shadow: inset 3px 0 var(--red); }
+    .nav:disabled { opacity: .36; cursor: not-allowed; }
+    .nav:disabled:hover { color: var(--muted); background: transparent; }
+    .nav svg { width: 17px; }
+    .nav-state { margin-left: auto; color: var(--green); font-size: 10px; }
+    .license { margin-top: auto; padding: 13px 9px 2px; border-top: 1px solid var(--line); font-size: 11px; }
+    .license-line { display: flex; align-items: center; gap: 8px; }
+    .dot { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; background: var(--green); }
+    .license-id { margin-top: 7px; color: var(--muted); font: 10px Consolas, monospace; }
+    main { min-width: 0; min-height: 0; overflow: hidden; }
+    .page { display: none; height: 100%; padding: 29px 34px; overflow: auto; }
+    .page.active { display: block; }
+    .eyebrow { margin-bottom: 7px; color: #ff706c; font-size: 10px; font-weight: 750; text-transform: uppercase; }
+    h1 { margin: 0; font-size: 25px; line-height: 1.25; font-weight: 680; }
+    .lead { max-width: 700px; margin: 8px 0 21px; color: var(--muted); font-size: 13px; line-height: 1.6; }
+    .panel { padding: 18px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); }
+    .panel + .panel { margin-top: 12px; }
+    .panel-title { margin: 0 0 4px; font-size: 13px; font-weight: 670; }
+    .panel-description { margin: 0 0 14px; color: var(--muted); font-size: 11px; line-height: 1.55; }
+    .form-row { display: flex; gap: 8px; }
+    .consent-row { margin-top: 12px; display: flex; align-items: flex-start; gap: 8px; color: var(--muted); font-size: 11px; line-height: 1.55; }
+    .consent-row input { width: 15px; height: 15px; flex: 0 0 auto; margin: 1px 0 0; accent-color: var(--red); }
+    .text-link { padding: 0; border: 0; color: var(--blue); background: transparent; font-size: inherit; cursor: pointer; }
+    .text-link:hover { text-decoration: underline; }
+    input {
+      min-width: 0; height: 42px; flex: 1; padding: 0 13px; border: 1px solid #cbd5df; border-radius: 4px;
+      outline: 0; color: var(--text); background: #fbfcfd; font-family: Consolas, monospace;
+    }
+    input:focus, select:focus { border-color: var(--red); box-shadow: 0 0 0 2px rgba(201,47,54,.13); }
+    select { width: 100%; height: 36px; padding: 0 10px; border: 1px solid #cbd5df; border-radius: 4px; color: var(--text); background: #fbfcfd; font-size: 11px; }
+    .primary, .secondary {
+      min-height: 40px; padding: 0 15px; border-radius: 4px; display: inline-flex; align-items: center;
+      justify-content: center; gap: 7px; color: white; font-size: 12px; font-weight: 650; text-decoration: none;
+      white-space: nowrap; cursor: pointer;
+    }
+    .primary { border: 1px solid transparent; background: var(--red); }
+    .primary:hover { background: var(--red-hover); }
+    .primary:disabled { opacity: .4; cursor: not-allowed; }
+    .secondary { border: 1px solid #cbd5df; color: var(--text); background: #f4f6f8; }
+    .secondary:hover { background: #e9eef2; }
+    .primary svg, .secondary svg { width: 16px; }
+    .verified { display: none; margin-top: 12px; padding: 11px; border-left: 3px solid var(--green); background: rgba(70,189,134,.08); font-size: 12px; }
+    .verified.show { display: flex; align-items: center; gap: 9px; }
+    .purchase-row {
+      margin-top: 13px; padding-top: 13px; border-top: 1px solid var(--line);
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    }
+    .purchase-copy b { display: block; margin-bottom: 3px; font-size: 12px; }
+    .purchase-copy span { color: var(--muted); font-size: 11px; }
+    .inline-links { margin-top: 12px; display: flex; gap: 15px; }
+    .inline-links button {
+      padding: 0; border: 0; display: inline-flex; align-items: center; gap: 5px;
+      color: var(--muted); background: transparent; font-size: 11px; cursor: pointer;
+    }
+    .inline-links button:hover { color: var(--text); }
+    .inline-links svg { width: 13px; }
+    .page-actions { margin-top: 18px; display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+    .hint { color: var(--muted); font-size: 11px; line-height: 1.45; }
+    .client-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; }
+    .client-card {
+      position: relative; width: 100%; min-height: 94px; padding: 14px; border: 1px solid var(--line);
+      border-radius: 5px; color: var(--text); background: #ffffff; text-align: left; cursor: pointer;
+    }
+    .client-card:hover, .client-card:focus-visible { border-color: #59646f; outline: 0; }
+    .client-card.selected { border-color: var(--red); background: rgba(229,57,53,.055); }
+    .client-name { margin-bottom: 6px; font-size: 13px; font-weight: 680; }
+    .client-path { max-width: calc(100% - 24px); color: var(--muted); font: 10px/1.45 Consolas, monospace; overflow-wrap: anywhere; }
+    .client-support { margin-top: 7px; color: var(--blue); font-size: 10px; }
+    .checkbox {
+      position: absolute; top: 10px; right: 10px; width: 18px; height: 18px; border: 1px solid #4b555f;
+      border-radius: 3px; display: grid; place-items: center;
+    }
+    .checkbox svg { display: none; width: 13px; }
+    .selected .checkbox { border-color: var(--red); background: var(--red); }
+    .selected .checkbox svg { display: block; }
+    .scope-note {
+      margin-bottom: 12px; padding: 11px 13px; border: 1px solid rgba(88,168,237,.28); border-radius: 5px;
+      display: flex; align-items: center; gap: 9px; color: #b8d9f6; background: rgba(88,168,237,.07); font-size: 11px;
+    }
+    .scope-note svg { width: 16px; }
+    .configure-layout { display: grid; grid-template-columns: minmax(0, 1fr) 250px; gap: 13px; }
+    .progress-head { margin-bottom: 10px; display: flex; justify-content: space-between; font-size: 12px; }
+    .progress-track { height: 6px; overflow: hidden; border-radius: 3px; background: #e3e8ed; }
+    .progress-bar { width: 0; height: 100%; background: var(--red); transition: width .3s ease; }
+    .steps { margin-top: 17px; }
+    .step {
+      min-height: 43px; border-top: 1px solid var(--line); display: grid; grid-template-columns: 22px 1fr auto;
+      align-items: center; gap: 10px; color: var(--muted); font-size: 12px;
+    }
+    .step svg { width: 16px; }
+    .step.running, .step.done { color: var(--text); }
+    .step.done svg { color: var(--green); }
+    .step-state { color: var(--muted); font-size: 10px; }
+    .metric { padding: 14px 0; border-bottom: 1px solid var(--line); }
+    .metric:first-child { padding-top: 0; }
+    .metric:last-child { border: 0; padding-bottom: 0; }
+    .metric b { display: block; margin-bottom: 2px; font-size: 22px; }
+    .metric span { color: var(--muted); font-size: 11px; }
+    .metric.good b { color: var(--green); }
+    .result-summary {
+      margin-bottom: 13px; padding: 15px 17px; border: 1px solid rgba(70,189,134,.3); border-radius: 6px;
+      display: flex; align-items: center; gap: 13px; background: rgba(70,189,134,.07);
+    }
+    .result-icon { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; color: var(--green); background: rgba(70,189,134,.13); }
+    .result-icon svg { width: 20px; }
+    .result-summary b { display: block; font-size: 13px; }
+    .result-summary span { color: var(--muted); font-size: 11px; }
+    .result-table { overflow: hidden; border: 1px solid var(--line); border-radius: 6px; }
+    .result-row {
+      min-height: 53px; padding: 0 14px; border-bottom: 1px solid var(--line);
+      display: grid; grid-template-columns: .7fr 1.45fr .8fr 34px; align-items: center; gap: 10px; font-size: 11px;
+    }
+    .result-row:last-child { border: 0; }
+    .result-row.header { min-height: 36px; color: var(--muted); background: var(--panel-2); font-size: 10px; text-transform: uppercase; }
+    .path { color: var(--muted); font-family: Consolas, monospace; overflow-wrap: anywhere; }
+    .status-ok { color: var(--green); }
+    .small-icon {
+      width: 30px; height: 30px; border: 0; border-radius: 3px; display: grid; place-items: center;
+      color: inherit; background: transparent; cursor: pointer;
+    }
+    .small-icon:hover { background: #293139; }
+    .small-icon svg { width: 15px; }
+    .tabs {
+      width: fit-content; margin-bottom: 15px; padding: 3px; border: 1px solid var(--line); border-radius: 5px;
+      display: flex; background: #f3f5f7;
+    }
+    .tab {
+      min-height: 32px; padding: 0 12px; border: 0; border-radius: 3px; color: var(--muted);
+      background: transparent; font-size: 11px; cursor: pointer;
+    }
+    .tab:hover { color: var(--text); }
+    .tab.active { color: var(--text); background: #ffffff; box-shadow: 0 1px 3px rgba(25,39,52,.12); }
+    .guide-panel { display: none; }
+    .guide-panel.active { display: block; }
+    .guide-list { border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+    .guide-step {
+      min-height: 64px; padding: 11px 14px; border-bottom: 1px solid var(--line);
+      display: grid; grid-template-columns: 28px 1fr auto; align-items: center; gap: 11px;
+    }
+    .guide-step:last-child { border: 0; }
+    .step-number { width: 25px; height: 25px; border-radius: 50%; display: grid; place-items: center; color: var(--muted); background: #e8edf1; font-size: 10px; font-weight: 700; }
+    .guide-step.complete .step-number { color: #07130e; background: var(--green); }
+    .guide-copy b { display: block; margin-bottom: 3px; font-size: 12px; }
+    .guide-copy span { color: var(--muted); font-size: 11px; line-height: 1.5; }
+    .chip { padding: 4px 7px; border-radius: 3px; color: var(--muted); background: #e8edf1; font-size: 10px; }
+    .chip.complete { color: var(--green); background: rgba(70,189,134,.1); }
+    .adapter-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+    .adapter { padding: 14px; border: 1px solid var(--line); border-radius: 5px; background: var(--panel); }
+    .adapter-head { display: flex; align-items: center; justify-content: space-between; }
+    .adapter-head b { font-size: 12px; }
+    .adapter .path { margin-top: 8px; font-size: 10px; }
+    .adapter-actions { margin-top: 11px; display: flex; gap: 7px; }
+    .adapter-actions button { min-height: 30px; padding: 0 9px; }
+    .tool-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .tool-card { padding: 17px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); }
+    .tool-card-head { display: flex; align-items: center; gap: 10px; }
+    .tool-icon { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 5px; color: var(--blue); background: #eaf3fb; }
+    .tool-icon svg { width: 17px; }
+    .tool-card h2 { margin: 0; font-size: 13px; }
+    .tool-card p { margin: 11px 0 14px; color: var(--muted); font-size: 11px; line-height: 1.55; }
+    .tool-card .form-row { margin-top: 10px; }
+    .tool-card input { height: 36px; font-size: 11px; }
+    .tool-status { margin-top: 11px; color: var(--muted); font-size: 11px; }
+    .tool-status.good { color: var(--green); }
+    .skin-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .skin-card { padding: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 6px; color: var(--text); background: var(--panel); text-align: left; cursor: pointer; }
+    .skin-card:hover, .skin-card.selected { border-color: var(--red); }
+    .skin-preview { height: 68px; background: linear-gradient(135deg, #f8fafc, #dfe7ef); }
+    .skin-preview.night { background: linear-gradient(135deg, #1f2937, #4b5563); }
+    .skin-preview.ink { background: linear-gradient(135deg, #fff7ed, #fdba74); }
+    .skin-label { padding: 10px 11px; font-size: 11px; font-weight: 650; }
+    .example-list { display: grid; gap: 9px; }
+    .example {
+      padding: 13px 14px; border: 1px solid var(--line); border-radius: 5px;
+      display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--panel);
+    }
+    .example code { color: #3d4a57; font: 11px/1.55 Consolas, monospace; }
+    .issue-list { display: grid; gap: 8px; }
+    .issue { padding: 13px 14px; border: 1px solid var(--line); border-radius: 5px; background: var(--panel); }
+    .issue b { display: block; margin-bottom: 5px; font-size: 12px; }
+    .issue p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.55; }
+    .log-shell { overflow: hidden; border: 1px solid var(--line); border-radius: 6px; background: #f8fafb; }
+    .log-toolbar { height: 41px; padding: 0 12px; border-bottom: 1px solid var(--line); display: flex; align-items: center; background: #eef2f5; font-size: 11px; }
+    .log-toolbar button { min-height: 29px; margin-left: auto; padding: 0 9px; }
+    pre { height: 405px; margin: 0; padding: 15px; overflow: auto; color: #4c5a67; font: 11px/1.75 Consolas, monospace; white-space: pre-wrap; }
+    .log-good { color: #75daa9; }
+    .log-run { color: #ff7a76; }
+    .toast {
+      position: fixed; right: 24px; bottom: 24px; max-width: min(360px, calc(100vw - 48px));
+      padding: 11px 13px; border: 1px solid #414a54; border-radius: 5px; color: var(--text);
+      background: #20262d; box-shadow: 0 10px 35px rgba(0,0,0,.4); font-size: 11px;
+      opacity: 0; transform: translateY(8px); pointer-events: none; transition: .2s ease;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    @media (max-width: 760px) {
+      body { overflow: auto; }
+      .app { width: 100%; min-height: 100vh; height: auto; margin: 0; border: 0; }
+      .layout { grid-template-columns: 60px 1fr; }
+      aside { padding: 12px 7px; }
+      .nav { padding: 0; justify-content: center; }
+      .nav span, .nav-label, .license, .demo-badge, .title-link { display: none; }
+      .nav-state { position: absolute; margin: 0 0 25px 26px; }
+      .page { padding: 22px 15px; }
+      .client-grid, .configure-layout, .adapter-list { grid-template-columns: 1fr; }
+      .tool-grid, .skin-grid { grid-template-columns: 1fr; }
+      .purchase-row, .page-actions { align-items: flex-start; flex-direction: column; }
+      .tabs { width: 100%; overflow-x: auto; }
+      .tab { flex: 1 0 auto; }
+      .result-row { grid-template-columns: .65fr 1.1fr 32px; }
+      .result-row > :nth-child(3) { display: none; }
+      .guide-step { grid-template-columns: 28px 1fr; }
+      .guide-step .chip { display: none; }
+      .example { align-items: flex-start; flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="titlebar">
+      <div class="brand-mark"><i data-lucide="shield-check"></i></div>
+      <div class="brand">无限破甲</div>
+      <div class="demo-badge">交互演示 · 不执行系统操作</div>
+      <button class="title-link demo-link" data-link="website"><i data-lucide="globe-2"></i>官方网站</button>
+      <div class="window-actions">
+        <button class="icon-button demo-window" title="最小化" aria-label="最小化"><i data-lucide="minus"></i></button>
+        <button class="icon-button demo-window" title="最大化" aria-label="最大化"><i data-lucide="square"></i></button>
+        <button class="icon-button close demo-window" title="关闭" aria-label="关闭"><i data-lucide="x"></i></button>
+      </div>
+    </header>
+    <div class="layout">
+      <aside>
+        <div class="nav-label">付费核心 · CDK</div>
+        <button class="nav active" data-page="activation" aria-label="破甲中心" title="破甲中心"><i data-lucide="shield-check"></i><span>破甲中心</span><small class="nav-state" id="activationBadge"></small></button>
+        <button class="nav" data-page="clients" aria-label="部署范围" title="部署范围" disabled><i data-lucide="layers-3"></i><span>部署范围</span><small class="nav-state" id="clientBadge">2</small></button>
+        <button class="nav" data-page="configure" aria-label="一键部署" title="一键部署" disabled><i data-lucide="wand-sparkles"></i><span>一键部署</span></button>
+        <button class="nav" data-page="result" aria-label="部署结果" title="部署结果" disabled><i data-lucide="file-check-2"></i><span>部署结果</span><small class="nav-state" id="resultBadge"></small></button>
+        <div class="nav-label help">免费工具</div>
+        <button class="nav" data-page="provider" aria-label="Provider 配置" title="Provider 配置"><i data-lucide="plug-zap"></i><span>Provider 配置</span></button>
+        <button class="nav" data-page="install" aria-label="下载客户端" title="下载客户端"><i data-lucide="download"></i><span>下载客户端</span></button>
+        <button class="nav" data-page="skin" aria-label="Codex 换肤" title="Codex 换肤"><i data-lucide="palette"></i><span>Codex 换肤</span></button>
+        <div class="nav-label help">帮助</div>
+        <button class="nav" data-page="guide" aria-label="使用说明" title="使用说明"><i data-lucide="book-open"></i><span>使用说明</span></button>
+        <button class="nav" data-page="logs" aria-label="运行日志" title="运行日志"><i data-lucide="scroll-text"></i><span>运行日志</span></button>
+        <div class="license">
+          <div class="license-line"><span class="dot"></span><span id="licenseState">等待激活</span></div>
+          <div class="license-id" id="licenseId">LICENSE: —</div>
+        </div>
+      </aside>
+      <main>
+        <section class="page active" id="activation">
+          <div class="eyebrow">付费核心能力</div>
+          <h1>破甲中心</h1>
+          <p class="lead">输入购买后获得的 CDK，解锁一键破甲、一键部署和 NERV 专业部署包。Provider、客户端下载和换肤始终免费。</p>
+          <div class="panel">
+            <h2 class="panel-title">付费 CDK 激活</h2>
+            <p class="panel-description">正式版本会校验签名并关联设备公钥哈希；本页仅演示交互。</p>
+            <form class="form-row" id="activationForm">
+              <input id="cdk" type="password" autocomplete="off" placeholder="WJP-XXXX-XXXX-XXXX">
+              <button class="primary" id="activateButton" type="submit" disabled><i data-lucide="badge-check"></i>验证并激活</button>
+            </form>
+            <label class="consent-row"><input id="termsConsent" type="checkbox"><span>我已阅读并同意 <button type="button" class="text-link demo-link" data-link="terms">《用户协议》</button>、<button type="button" class="text-link demo-link" data-link="privacy">《隐私政策》</button> 和 <button type="button" class="text-link demo-link" data-link="license">《商业授权条款》</button></span></label>
+            <div class="verified" id="verified"><i data-lucide="circle-check"></i><span><b>授权有效</b><br>永久授权 · 商业版</span></div>
+            <div class="purchase-row">
+              <div class="purchase-copy"><b>还没有产品密钥？</b><span>前往授权中心购买永久 CDK</span></div>
+              <button class="primary demo-link" data-link="purchase"><i data-lucide="shopping-cart"></i>购买 CDK</button>
+            </div>
+          </div>
+          <div class="inline-links">
+            <button class="demo-link" data-link="docs"><i data-lucide="book-open"></i>在线文档</button>
+            <button class="demo-link" data-link="support"><i data-lucide="messages-square"></i>售后支持</button>
+          </div>
+          <div class="page-actions">
+            <span class="hint">激活仅提交 CDK 和设备公钥哈希；免费工具无需激活。</span>
+            <button class="primary" id="toClients" disabled>进入部署范围<i data-lucide="arrow-right"></i></button>
+          </div>
+        </section>
+
+        <section class="page" id="clients">
+          <div class="eyebrow">付费核心 · 部署范围</div>
+          <h1>选择需要部署的 AI</h1>
+          <p class="lead">只处理你勾选的客户端。真实 EXE 会先备份，再配置项目规则并回读验证。</p>
+          <div class="client-grid">
+            <button class="client-card selected" data-client="Claude" data-path="CLAUDE.md + mcp.json" aria-pressed="true"><span class="checkbox"><i data-lucide="check"></i></span><div class="client-name">Claude</div><div class="client-path">~/.claude/CLAUDE.md<br>~/.claude/mcp.json</div><div class="client-support">规则 + MCP adapter</div></button>
+            <button class="client-card selected" data-client="Codex" data-path="AGENTS.md + config.toml" aria-pressed="true"><span class="checkbox"><i data-lucide="check"></i></span><div class="client-name">Codex</div><div class="client-path">~/.codex/AGENTS.md<br>~/.codex/config.toml</div><div class="client-support">规则 + MCP adapter</div></button>
+            <button class="client-card" data-client="Kiro" data-path="steering + settings/mcp.json" aria-pressed="false"><span class="checkbox"><i data-lucide="check"></i></span><div class="client-name">Kiro</div><div class="client-path">~/.kiro/steering/reverse-routing.md<br>~/.kiro/settings/mcp.json</div><div class="client-support">Steering + MCP adapter</div></button>
+            <button class="client-card" data-client="Cursor" data-path="Settings / Global Rules" aria-pressed="false"><span class="checkbox"><i data-lucide="check"></i></span><div class="client-name">Cursor</div><div class="client-path">Settings / Global Rules</div><div class="client-support">版本化 adapter</div></button>
+            <button class="client-card" data-client="Cline" data-path="Custom Instructions" aria-pressed="false"><span class="checkbox"><i data-lucide="check"></i></span><div class="client-name">Cline</div><div class="client-path">Custom Instructions</div><div class="client-support">版本化 adapter</div></button>
+            <button class="client-card" data-client="Windsurf" data-path="Global Rules" aria-pressed="false"><span class="checkbox"><i data-lucide="check"></i></span><div class="client-name">Windsurf</div><div class="client-path">Global Rules</div><div class="client-support">版本化 adapter</div></button>
+          </div>
+          <div class="page-actions">
+            <span class="hint" id="selectedCount">已选择 2 个客户端</span>
+            <button class="primary" id="toConfigure">确认配置范围<i data-lucide="arrow-right"></i></button>
+          </div>
+        </section>
+
+        <section class="page" id="configure">
+          <div class="eyebrow">付费核心 · 一键部署</div>
+          <h1>一键部署破甲环境</h1>
+          <p class="lead">部署 reverse-skill、NERV 专业部署包，并把项目规则安全接入所选 AI 客户端。</p>
+          <div class="scope-note"><i data-lucide="shield"></i><span>本流程不会下载第三方软件，不安装工具链，不启动服务，不申请 UAC。</span></div>
+          <div class="configure-layout">
+            <div class="panel">
+              <div class="progress-head"><span id="progressText">等待开始</span><b id="progressPercent">0%</b></div>
+              <div class="progress-track"><div class="progress-bar" id="progressBar"></div></div>
+              <div class="steps">
+                <div class="step"><i data-lucide="archive"></i><span>部署 reverse-skill 项目</span><span class="step-state">等待</span></div>
+                <div class="step"><i data-lucide="package-check"></i><span>部署 NERV 专业部署包</span><span class="step-state">等待</span></div>
+                <div class="step"><i data-lucide="shield-check"></i><span>校验项目文件完整性</span><span class="step-state">等待</span></div>
+                <div class="step"><i data-lucide="list-tree"></i><span>生成本机 tool-index</span><span class="step-state">等待</span></div>
+                <div class="step"><i data-lucide="copy-check"></i><span>备份所选 AI 配置</span><span class="step-state">等待</span></div>
+                <div class="step"><i data-lucide="file-cog"></i><span>写入项目规则与 MCP 配置</span><span class="step-state">等待</span></div>
+                <div class="step"><i data-lucide="badge-check"></i><span>回读并验证配置</span><span class="step-state">等待</span></div>
+              </div>
+              <button class="primary" id="startConfigure" style="width:100%; margin-top:15px"><i data-lucide="wand-sparkles"></i>开始一键配置</button>
+            </div>
+            <div class="panel">
+              <div class="metric"><b id="selectedMetric">2</b><span>选定 AI 客户端</span></div>
+              <div class="metric good"><b>0</b><span>第三方软件下载</span></div>
+              <div class="metric good"><b>无需</b><span>管理员权限</span></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="page" id="result">
+          <div class="eyebrow">配置结果</div>
+          <h1>项目环境已配置</h1>
+          <p class="lead">reverse-skill 与 NERV 已部署，所选 AI 的规则与 MCP 配置已完成回读验证。</p>
+          <div class="result-summary"><div class="result-icon"><i data-lucide="circle-check"></i></div><div><b>一键配置完成</b><span>项目规则与 MCP 文件均已验证；第三方软件下载 0 项，MCP 服务未启动。</span></div></div>
+          <div class="result-table">
+            <div class="result-row header"><span>客户端</span><span>配置目标</span><span>结果</span><span></span></div>
+            <div id="resultRows"></div>
+          </div>
+          <div class="page-actions">
+            <span class="hint">真实 EXE 会保留每个被修改文件的独立备份。</span>
+            <button class="primary" id="openGuide">查看使用说明<i data-lucide="arrow-right"></i></button>
+          </div>
+        </section>
+
+        <section class="page" id="provider">
+          <div class="eyebrow">免费工具</div>
+          <h1>Provider / API</h1>
+          <p class="lead">添加中转站、检测连接、获取模型并随时切换。此工具不需要 CDK，也不会打开新的授权网页。</p>
+          <div class="tool-grid">
+            <div class="tool-card">
+              <div class="tool-card-head"><span class="tool-icon"><i data-lucide="plug-zap"></i></span><h2>添加中转站</h2></div>
+              <p>仅支持 HTTPS 的 OpenAI-compatible 接口。API Key 由正式 EXE 使用 Windows DPAPI 保存。</p>
+              <input id="providerUrl" type="url" placeholder="https://api.example.com/v1">
+              <div class="form-row"><input id="providerKey" type="password" placeholder="API Key"><button class="secondary" id="providerDetect" type="button"><i data-lucide="radio-tower"></i>检测</button></div>
+              <div class="tool-status" id="providerStatus">尚未检测</div>
+            </div>
+            <div class="tool-card">
+              <div class="tool-card-head"><span class="tool-icon"><i data-lucide="list-filter"></i></span><h2>模型与切换</h2></div>
+              <p>检测成功后读取模型列表，选择后写入受控配置并回读验证。</p>
+              <select id="modelSelect" disabled><option>请先检测 Provider</option></select>
+              <button class="primary" id="providerApply" type="button" style="margin-top:10px" disabled><i data-lucide="check"></i>应用模型</button>
+              <div class="tool-status" id="modelStatus">等待 Provider</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="page" id="install">
+          <div class="eyebrow">免费工具</div>
+          <h1>下载 AI 客户端</h1>
+          <p class="lead">一键检查并安装 Codex 和 Claude Desktop。正式版本优先使用官方安装源，失败时显示可用镜像状态。</p>
+          <div class="tool-grid">
+            <div class="tool-card"><div class="tool-card-head"><span class="tool-icon"><i data-lucide="terminal-square"></i></span><h2>Codex</h2></div><p>检测 Windows Store、winget 和已安装版本。</p><button class="primary install-button" data-client-name="Codex" type="button"><i data-lucide="download"></i>一键安装 Codex</button><div class="tool-status">未检测</div></div>
+            <div class="tool-card"><div class="tool-card-head"><span class="tool-icon"><i data-lucide="message-square-code"></i></span><h2>Claude Desktop</h2></div><p>检测 Anthropic 官方安装包并完成安装。</p><button class="primary install-button" data-client-name="Claude Desktop" type="button"><i data-lucide="download"></i>一键安装 Claude</button><div class="tool-status">未检测</div></div>
+          </div>
+        </section>
+
+        <section class="page" id="skin">
+          <div class="eyebrow">免费工具</div>
+          <h1>Codex 换肤</h1>
+          <p class="lead">选择本地主题，一键应用并验证。正式版本只内置已授权素材，也支持导入自己的图片。</p>
+          <div class="skin-grid">
+            <button class="skin-card selected" data-skin="清透白" type="button"><div class="skin-preview"></div><div class="skin-label">清透白 · 当前主题</div></button>
+            <button class="skin-card" data-skin="深夜灰" type="button"><div class="skin-preview night"></div><div class="skin-label">深夜灰</div></button>
+            <button class="skin-card" data-skin="暖橙纸" type="button"><div class="skin-preview ink"></div><div class="skin-label">暖橙纸</div></button>
+          </div>
+          <div class="page-actions"><span class="hint" id="skinStatus">当前主题：清透白</span><button class="primary" id="applySkin" type="button"><i data-lucide="sparkles"></i>一键应用主题</button></div>
+        </section>
+
+        <section class="page" id="guide">
+          <div class="eyebrow">内置帮助</div>
+          <h1>使用说明</h1>
+          <p class="lead">从项目配置到第一次任务，按当前状态给出下一步。</p>
+          <div class="tabs" role="tablist" aria-label="使用说明分类">
+            <button class="tab active" role="tab" aria-selected="true" data-guide="quick">快速开始</button>
+            <button class="tab" role="tab" aria-selected="false" data-guide="ai">AI 接入</button>
+            <button class="tab" role="tab" aria-selected="false" data-guide="usage">项目用法</button>
+            <button class="tab" role="tab" aria-selected="false" data-guide="trouble">问题排查</button>
+          </div>
+          <div class="guide-panel active" data-guide-panel="quick">
+            <div class="guide-list">
+              <div class="guide-step" data-guide-step="activate"><span class="step-number">1</span><div class="guide-copy"><b>激活产品</b><span>输入购买的永久 CDK 完成离线验证。</span></div><span class="chip" id="guideActivation">未完成</span></div>
+              <div class="guide-step" data-guide-step="select"><span class="step-number">2</span><div class="guide-copy"><b>选择 AI 客户端</b><span>只勾选需要接入 reverse-skill 的客户端。</span></div><span class="chip" id="guideSelection">已选择 2 个</span></div>
+              <div class="guide-step" data-guide-step="configure"><span class="step-number">3</span><div class="guide-copy"><b>执行一键配置</b><span>部署项目、备份配置、写入规则并回读验证。</span></div><span class="chip" id="guideConfiguration">未完成</span></div>
+              <div class="guide-step"><span class="step-number">4</span><div class="guide-copy"><b>重启 AI 客户端</b><span>让客户端重新加载全局规则或 steering 文件。</span></div><span class="chip">待操作</span></div>
+              <div class="guide-step"><span class="step-number">5</span><div class="guide-copy"><b>发送第一个任务</b><span>描述目标文件、平台和希望完成的逆向任务。</span></div><span class="chip">待操作</span></div>
+            </div>
+          </div>
+          <div class="guide-panel" data-guide-panel="ai">
+            <div class="adapter-list" id="adapterList"></div>
+          </div>
+          <div class="guide-panel" data-guide-panel="usage">
+            <div class="example-list">
+              <div class="example"><code>分析这个 APK 的登录流程，并定位证书锁定实现。</code><button class="secondary copy-example">复制任务</button></div>
+              <div class="example"><code>对这个 EXE 做静态分析，说明入口、保护方式和关键校验函数。</code><button class="secondary copy-example">复制任务</button></div>
+              <div class="example"><code>根据这份 PCAP 恢复协议字段和请求签名算法。</code><button class="secondary copy-example">复制任务</button></div>
+            </div>
+            <div class="panel" style="margin-top:10px"><h2 class="panel-title">工具缺失时</h2><p class="panel-description" style="margin:0">AI 仍可读取项目方法论并完成可用的静态分析；需要外部工具时会明确告诉用户缺少什么，不由安装器自动下载。</p></div>
+          </div>
+          <div class="guide-panel" data-guide-panel="trouble">
+            <div class="issue-list">
+              <div class="issue"><b>AI 没有加载项目规则</b><p>重启对应客户端，在“AI 接入”确认配置目标和验证状态，再发送一个明确包含“读取 reverse-skill 路由”的任务。</p></div>
+              <div class="issue"><b>配置文件原本就有内容</b><p>真实 EXE 只更新自己的托管区块。可以从配置结果页查看备份路径并恢复。</p></div>
+              <div class="issue"><b>客户端版本不支持自动配置</b><p>安装器不会猜测内部存储路径，会生成导入内容并显示该版本对应的手动导入步骤。</p></div>
+              <div class="issue"><b>本机缺少逆向工具</b><p>不影响项目接入。AI 会根据 tool-index 识别缺失项并给出手动准备建议。</p></div>
+            </div>
+            <div class="page-actions"><span class="hint">诊断信息不会包含 CDK 明文。</span><button class="secondary" id="toLogs"><i data-lucide="scroll-text"></i>查看运行日志</button></div>
+          </div>
+        </section>
+
+        <section class="page" id="logs">
+          <div class="eyebrow">诊断中心</div>
+          <h1>运行日志</h1>
+          <p class="lead">记录项目部署、配置备份、写入和回读验证结果。</p>
+          <div class="log-shell">
+            <div class="log-toolbar">configure-20260711-143802.log<button class="secondary" id="copyLog"><i data-lucide="copy"></i>复制日志</button></div>
+            <pre id="log">[14:38:02] 无限破甲 interaction demo ready&#10;[14:38:02] Demo mode: no filesystem or system operation&#10;[14:38:03] Waiting for user action...</pre>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script>
+    lucide.createIcons();
+    const $ = selector => document.querySelector(selector);
+    const $$ = selector => [...document.querySelectorAll(selector)];
+    const state = { activated: false, configured: false, termsAccepted: false };
+    const LINK_CONFIG = {
+      website: '',
+      purchase: '',
+      docs: '',
+      support: '',
+      terms: '',
+      privacy: '',
+      license: ''
+    };
+
+    function showToast(message) {
+      const toast = $('#toast');
+      toast.textContent = message;
+      toast.classList.add('show');
+      clearTimeout(showToast.timer);
+      showToast.timer = setTimeout(() => toast.classList.remove('show'), 2200);
+    }
+
+    function go(page) {
+      const nav = $(`.nav[data-page="${page}"]`);
+      if (nav && nav.disabled) return;
+      $$('.nav').forEach(item => item.classList.toggle('active', item.dataset.page === page));
+      $$('.page').forEach(item => item.classList.toggle('active', item.id === page));
+    }
+
+    function selectedClients() {
+      return $$('.client-card.selected').map(card => ({ name: card.dataset.client, path: card.dataset.path }));
+    }
+
+    function updateClientState() {
+      const selected = selectedClients();
+      $('#selectedCount').textContent = `已选择 ${selected.length} 个客户端`;
+      $('#selectedMetric').textContent = selected.length;
+      $('#clientBadge').textContent = selected.length || '';
+      $('#guideSelection').textContent = `已选择 ${selected.length} 个`;
+      $('#toConfigure').disabled = selected.length === 0;
+      renderResult();
+    }
+
+    function appendLog(message, className = '') {
+      $('#log').innerHTML += `\n<span class="${className}">${message}</span>`;
+    }
+
+    function renderResult() {
+      $('#resultRows').innerHTML = selectedClients().map(client => `
+        <div class="result-row">
+          <b>${client.name}</b>
+          <span class="path">${client.path}</span>
+          <span class="status-ok">规则 + MCP 已验证</span>
+          <button class="small-icon demo-action" title="查看备份" aria-label="查看 ${client.name} 备份"><i data-lucide="history"></i></button>
+        </div>`).join('');
+      $('#adapterList').innerHTML = selectedClients().map(client => `
+        <div class="adapter">
+          <div class="adapter-head"><b>${client.name}</b><span class="chip ${state.configured ? 'complete' : ''}">${state.configured ? '已验证' : '待配置'}</span></div>
+          <div class="path">${client.path}</div>
+          <div class="adapter-actions">
+            ${state.configured
+              ? '<button class="secondary demo-action">打开配置</button><button class="secondary demo-action">恢复备份</button>'
+              : '<button class="secondary setup-action">前往配置流程</button>'}
+          </div>
+        </div>`).join('');
+      lucide.createIcons();
+      $$('.demo-action').forEach(button => button.addEventListener('click', () => showToast('交互演示：真实 EXE 在此执行对应文件操作')));
+      $$('.setup-action').forEach(button => button.addEventListener('click', () => go(state.activated ? 'clients' : 'activation')));
+    }
+
+    async function copyText(text) {
+      if (navigator.clipboard?.writeText) {
+        try { await navigator.clipboard.writeText(text); return true; } catch {}
+      }
+      const area = document.createElement('textarea');
+      area.value = text;
+      area.style.cssText = 'position:fixed;opacity:0';
+      document.body.appendChild(area);
+      area.select();
+      const copied = document.execCommand('copy');
+      area.remove();
+      return copied;
+    }
+
+    $$('.nav').forEach(item => item.addEventListener('click', () => go(item.dataset.page)));
+    $$('.demo-window').forEach(item => item.addEventListener('click', () => showToast('交互演示：窗口控制由正式 EXE 提供')));
+    $$('.demo-link').forEach(button => button.addEventListener('click', () => {
+      const url = LINK_CONFIG[button.dataset.link];
+      if (url) window.open(url, '_blank', 'noopener,noreferrer');
+      else showToast(`${button.textContent.trim()}链接由发布配置注入`);
+    }));
+
+    $('#activationForm').addEventListener('submit', event => {
+      event.preventDefault();
+      if (!state.termsAccepted) {
+        showToast('请先阅读并同意授权条款');
+        return;
+      }
+      if ($('#cdk').value.trim().length < 8) {
+        $('#cdk').focus();
+        $('#cdk').style.borderColor = 'var(--amber)';
+        showToast('请输入完整 CDK');
+        return;
+      }
+      state.activated = true;
+      $('#cdk').style.borderColor = 'var(--green)';
+      $('#verified').classList.add('show');
+      $('#toClients').disabled = false;
+      $$('.nav[data-page="clients"], .nav[data-page="configure"]').forEach(item => item.disabled = false);
+      $('#activationBadge').textContent = '有效';
+      $('#licenseState').textContent = '永久授权已激活';
+      $('#licenseId').textContent = 'LICENSE: WJP-82F4-19AC';
+      $('#guideActivation').textContent = '已完成';
+      $('#guideActivation').classList.add('complete');
+      $('[data-guide-step="activate"]').classList.add('complete');
+      appendLog('[14:38:11] CDK signature verified: OK; paid core unlocked', 'log-good');
+    });
+
+    $('#termsConsent').addEventListener('change', event => {
+      state.termsAccepted = event.target.checked;
+      $('#activateButton').disabled = !state.termsAccepted;
+    });
+
+    $('#toClients').addEventListener('click', () => go('clients'));
+    $$('.client-card').forEach(card => card.addEventListener('click', () => {
+      card.classList.toggle('selected');
+      card.setAttribute('aria-pressed', card.classList.contains('selected'));
+      updateClientState();
+    }));
+    $('#toConfigure').addEventListener('click', () => go('configure'));
+
+    $('#startConfigure').addEventListener('click', () => {
+      const button = $('#startConfigure');
+      const steps = $$('.step');
+      let index = 0;
+      button.disabled = true;
+      function run() {
+        if (index > 0) {
+          const previous = steps[index - 1];
+          previous.className = 'step done';
+          previous.querySelector('.step-state').textContent = '完成';
+          previous.querySelector('svg').outerHTML = '<i data-lucide="circle-check"></i>';
+          lucide.createIcons();
+        }
+        if (index === steps.length) {
+          state.configured = true;
+          $('#progressText').textContent = '配置完成';
+          button.innerHTML = '<i data-lucide="circle-check"></i>配置完成';
+          $('.nav[data-page="result"]').disabled = false;
+          $('#resultBadge').textContent = '完成';
+          $('#guideConfiguration').textContent = '已完成';
+          $('#guideConfiguration').classList.add('complete');
+          $('[data-guide-step="configure"]').classList.add('complete');
+          renderResult();
+          appendLog('[14:38:24] Configuration completed; downloads=0; uac=false', 'log-good');
+          lucide.createIcons();
+          setTimeout(() => go('result'), 350);
+          return;
+        }
+        const current = steps[index];
+        current.classList.add('running');
+        current.querySelector('.step-state').textContent = '执行中';
+        const percent = Math.round(((index + 1) / steps.length) * 100);
+        $('#progressBar').style.width = `${percent}%`;
+        $('#progressPercent').textContent = `${percent}%`;
+        const task = current.querySelector('span').textContent;
+        $('#progressText').textContent = task;
+        appendLog(`[14:38:${12 + index * 2}] DEMO ${task}`, 'log-run');
+        index += 1;
+        setTimeout(run, 520);
+      }
+      run();
+    });
+
+    $('#openGuide').addEventListener('click', () => {
+      go('guide');
+      $('.tab[data-guide="quick"]').click();
+    });
+    $$('.tab').forEach(tab => tab.addEventListener('click', () => {
+      $$('.tab').forEach(item => { item.classList.toggle('active', item === tab); item.setAttribute('aria-selected', item === tab); });
+      $$('.guide-panel').forEach(panel => panel.classList.toggle('active', panel.dataset.guidePanel === tab.dataset.guide));
+    }));
+    $$('.copy-example').forEach(button => button.addEventListener('click', async () => {
+      const copied = await copyText(button.parentElement.querySelector('code').textContent);
+      button.textContent = copied ? '已复制' : '复制失败';
+    }));
+    $('#toLogs').addEventListener('click', () => go('logs'));
+    $('#copyLog').addEventListener('click', async event => {
+      const button = event.currentTarget;
+      button.textContent = await copyText($('#log').innerText) ? '已复制' : '复制失败';
+    });
+
+    $('#providerDetect').addEventListener('click', () => {
+      const url = $('#providerUrl').value.trim();
+      if (!url.startsWith('https://')) {
+        showToast('请输入 HTTPS Provider 地址');
+        return;
+      }
+      $('#providerStatus').textContent = '连接成功 · 已读取 3 个模型';
+      $('#providerStatus').classList.add('good');
+      $('#modelSelect').disabled = false;
+      $('#modelSelect').innerHTML = '<option>gpt-4.1</option><option>claude-sonnet</option><option>o4-mini</option>';
+      $('#providerApply').disabled = false;
+      $('#modelStatus').textContent = '请选择模型';
+      showToast('Provider 检测成功');
+    });
+    $('#providerApply').addEventListener('click', () => {
+      $('#modelStatus').textContent = `当前模型：${$('#modelSelect').value} · 已回读验证`;
+      $('#modelStatus').classList.add('good');
+      showToast('模型配置已应用');
+    });
+    $$('.install-button').forEach(button => button.addEventListener('click', () => {
+      const name = button.dataset.clientName;
+      button.disabled = true;
+      button.innerHTML = '<i data-lucide="loader-circle"></i>检查安装源…';
+      lucide.createIcons();
+      setTimeout(() => {
+        button.innerHTML = '<i data-lucide="circle-check"></i>已加入安装队列';
+        button.nextElementSibling.textContent = '演示状态 · 官方源可用';
+        button.nextElementSibling.classList.add('good');
+        lucide.createIcons();
+        showToast(`${name} 安装任务已准备`);
+      }, 650);
+    }));
+    $$('.skin-card').forEach(card => card.addEventListener('click', () => {
+      $$('.skin-card').forEach(item => item.classList.toggle('selected', item === card));
+      $('#skinStatus').textContent = `已选择主题：${card.dataset.skin}`;
+    }));
+    $('#applySkin').addEventListener('click', () => {
+      showToast(`${$('#skinStatus').textContent.replace('已选择主题：', '')} 已应用并完成验证`);
+    });
+
+    updateClientState();
+    renderResult();
+  </script>
+</body>
+</html>

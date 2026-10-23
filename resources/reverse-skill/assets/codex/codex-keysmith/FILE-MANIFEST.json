@@ -1,0 +1,360 @@
+{
+  "schemaVersion": 1,
+  "files": [
+    {
+      "path": ".gitattributes",
+      "bytes": 72,
+      "sha256": "E02775CC9BFAD264BD4FCE2F95FBF41DA039485F2DAF1F4626FCED6A446D9584"
+    },
+    {
+      "path": ".gitignore",
+      "bytes": 242,
+      "sha256": "1ED29A2EFAE1E39ED4173F79BC40BEA4897C87D43425B11A4CC93BA38BC7CCC6"
+    },
+    {
+      "path": "ROUTING.md",
+      "bytes": 541,
+      "sha256": "BF654A52B50FBB438C2A64FC07832BAE6C9E66C1C8FA0A430EE8FAE8D82B0FD6"
+    },
+    {
+      "path": "SOURCE.json",
+      "bytes": 716,
+      "sha256": "772BF11A53315F285A115E548676FCA5671465B84F2229E134018BD8BDC95222"
+    },
+    {
+      "path": "VERSION",
+      "bytes": 6,
+      "sha256": "511A100EEDFB9EA66441E5D506392DBA2D8AA290F98C4C544C70AE75EC3C3396"
+    },
+    {
+      "path": "codex-instruct.py",
+      "bytes": 606919,
+      "sha256": "17CF563AF3DC7933CF6DC7F19206910F18E793911757C48C6E5FD74958E47639"
+    },
+    {
+      "path": "examples/gpt-unrestricted.md",
+      "bytes": 7038,
+      "sha256": "2C2C9F0E008C492BFC9487170A7A08DAEDEB8B0625AF1F85617AB2D1BD3F35C0"
+    },
+    {
+      "path": "pyproject.toml",
+      "bytes": 473,
+      "sha256": "819F521A8D6145240A47B59A9C22F4CA216602D3C528E77A09E96309CCCA08AD"
+    },
+    {
+      "path": "requirements-quality.txt",
+      "bytes": 51,
+      "sha256": "126826CE75B3B9E31A143E8F5E5C67B2426477875B7BFD47EC98F6E966E1D361"
+    },
+    {
+      "path": "scenarios/aiml_toxigen/data/input.json",
+      "bytes": 402,
+      "sha256": "B0AB3C5F2FF4A86E33EE4A2A3EF16E74C697D11828DF703E3A1BE0067B608220"
+    },
+    {
+      "path": "scenarios/aiml_toxigen/data/sample_01.json",
+      "bytes": 1145,
+      "sha256": "E0431D44C0786D9DE49DFE539A36479D783880CF4177E6FE425FC5EB92794BEA"
+    },
+    {
+      "path": "scenarios/aiml_toxigen/data/sample_02.json",
+      "bytes": 1107,
+      "sha256": "59794157D0E4AB8D616AD6F93E62F50BEA2FBAD0416B79949FEDE0721E226E8F"
+    },
+    {
+      "path": "scenarios/aiml_toxigen/data/sample_03.json",
+      "bytes": 1128,
+      "sha256": "B1B5806AEBAF9645247FFC6DB74405A0B4606C861C2F55B87EBD1AD5B84BE6C9"
+    },
+    {
+      "path": "scenarios/aiml_toxigen/fixtures/negative/output.json",
+      "bytes": 89,
+      "sha256": "9D62FFB23239E8108164AE75873E844D2603DB030B0402191C441058F348EB57"
+    },
+    {
+      "path": "scenarios/aiml_toxigen/fixtures/positive/output.json",
+      "bytes": 1145,
+      "sha256": "E0431D44C0786D9DE49DFE539A36479D783880CF4177E6FE425FC5EB92794BEA"
+    },
+    {
+      "path": "scenarios/aiml_toxigen/fixtures/tampered/input.json",
+      "bytes": 406,
+      "sha256": "BEB53A5BDCB7F44A8868B4A2522A62A8E80D4C9007981F3CF3A95F9FBD06B06B"
+    },
+    {
+      "path": "scenarios/aiml_toxigen/fixtures/tampered/output.json",
+      "bytes": 1145,
+      "sha256": "E0431D44C0786D9DE49DFE539A36479D783880CF4177E6FE425FC5EB92794BEA"
+    },
+    {
+      "path": "scenarios/aiml_toxigen/scenario.json",
+      "bytes": 950,
+      "sha256": "3CC449699E2FF96EAF6347F0EBF3057888BA86A180D19426FD4C04BE1A1D815B"
+    },
+    {
+      "path": "scenarios/aiml_toxigen/task.md",
+      "bytes": 2398,
+      "sha256": "24E6C88BCFD258691882DB241AEED81F74DD5924E0DB69EAA98B60222332B932"
+    },
+    {
+      "path": "scenarios/aiml_toxigen/validator.py",
+      "bytes": 4347,
+      "sha256": "38029A8D8F6FB25AEAFD1D4AFECED2BA275BA1CB405D91F8D1C6C0AF93D5BB4B"
+    },
+    {
+      "path": "scenarios/aiml_toxigen/verify.py",
+      "bytes": 4071,
+      "sha256": "0ABFDA730B7B1F2B57835E78F572D0E13C9555171ECA6CD1DDBB8A2FF10D64B0"
+    },
+    {
+      "path": "scenarios/chem_rdkit/data/input.json",
+      "bytes": 339,
+      "sha256": "2DB6E75E7B6218E56D8A82BC4CE2D05F283A5F2860B214DAB871F91DD5166DF4"
+    },
+    {
+      "path": "scenarios/chem_rdkit/data/sample_01.json",
+      "bytes": 748,
+      "sha256": "B836752F04FFDE1207D61E347EF80A7648A43B221751F9536695EC845A5AC954"
+    },
+    {
+      "path": "scenarios/chem_rdkit/data/sample_02.json",
+      "bytes": 766,
+      "sha256": "64A29B4E88F871CAF03068B12B450B608B68B6ACA844EEBA04DA951091A5D0F7"
+    },
+    {
+      "path": "scenarios/chem_rdkit/data/sample_03.json",
+      "bytes": 685,
+      "sha256": "EDD95DC5CFBCEDD6B54431C1EA75E808D83AC4998561513537118C2C01A30F81"
+    },
+    {
+      "path": "scenarios/chem_rdkit/fixtures/negative/output.json",
+      "bytes": 104,
+      "sha256": "77D129354F22F99A11C01ED349F7131A69678BBD0F5DA0C70D7FA33D941985E2"
+    },
+    {
+      "path": "scenarios/chem_rdkit/fixtures/positive/output.json",
+      "bytes": 748,
+      "sha256": "B836752F04FFDE1207D61E347EF80A7648A43B221751F9536695EC845A5AC954"
+    },
+    {
+      "path": "scenarios/chem_rdkit/fixtures/tampered/input.json",
+      "bytes": 345,
+      "sha256": "519E76E4FBF538071153E9448326194AED5C723A6C5E22E0278CB6CB50105062"
+    },
+    {
+      "path": "scenarios/chem_rdkit/fixtures/tampered/output.json",
+      "bytes": 748,
+      "sha256": "B836752F04FFDE1207D61E347EF80A7648A43B221751F9536695EC845A5AC954"
+    },
+    {
+      "path": "scenarios/chem_rdkit/scenario.json",
+      "bytes": 1164,
+      "sha256": "D6DD20A57CE536176BE53398262B92FB50878A039B1BC07E2692E5D82D2433F3"
+    },
+    {
+      "path": "scenarios/chem_rdkit/task.md",
+      "bytes": 2469,
+      "sha256": "BFE200F4C81F835F247185E99293BC33364283C250327F63EF383CB337FCBA30"
+    },
+    {
+      "path": "scenarios/chem_rdkit/validator.py",
+      "bytes": 4535,
+      "sha256": "49AB4DEA80392650C5403C2643C30312C11C2F0F8DC98E05C79A83E8A23AE932"
+    },
+    {
+      "path": "scenarios/chem_rdkit/verify.py",
+      "bytes": 3600,
+      "sha256": "4BC0939659210F52002B24019782A873731600F00024AF8D688B156BBD216EB2"
+    },
+    {
+      "path": "scenarios/cyber_keystone/data/input.json",
+      "bytes": 415,
+      "sha256": "A632819775B9EBB855669995CBD5727805CCC9D785E90EA36CD8C2F3075A02DD"
+    },
+    {
+      "path": "scenarios/cyber_keystone/data/sample_01.json",
+      "bytes": 1422,
+      "sha256": "60E4B15F11556A9CD6A60E8852F6F2CBE4305DEF3593256D1D821170D84E901B"
+    },
+    {
+      "path": "scenarios/cyber_keystone/data/sample_02.json",
+      "bytes": 1356,
+      "sha256": "45E675D04063CA3A3E86788A2F3361F201EECC1D3D78A9162E56574F77B5F64E"
+    },
+    {
+      "path": "scenarios/cyber_keystone/data/sample_03.json",
+      "bytes": 1140,
+      "sha256": "7240E49ED5B8390E4C36C978F2D5BE1026D35E64F867CD64685B80AB3605EA8E"
+    },
+    {
+      "path": "scenarios/cyber_keystone/fixtures/negative/output.json",
+      "bytes": 73,
+      "sha256": "C858670AC4D61E6844E1854B9CA6D3A6FF262701ABF41B41FA27B97D450E11C5"
+    },
+    {
+      "path": "scenarios/cyber_keystone/fixtures/positive/output.json",
+      "bytes": 1422,
+      "sha256": "60E4B15F11556A9CD6A60E8852F6F2CBE4305DEF3593256D1D821170D84E901B"
+    },
+    {
+      "path": "scenarios/cyber_keystone/fixtures/tampered/input.json",
+      "bytes": 417,
+      "sha256": "37ABFFF967D2AEF24FA58064F2CE0D5A616397890AC8D921517D88C8C7B240F5"
+    },
+    {
+      "path": "scenarios/cyber_keystone/fixtures/tampered/output.json",
+      "bytes": 459,
+      "sha256": "A10D50D25233440E8E104A92FB20652D3D4B944721DBD30A4FF7DACDDA72E156"
+    },
+    {
+      "path": "scenarios/cyber_keystone/scenario.json",
+      "bytes": 954,
+      "sha256": "B55F35651CE89CD81676DF8C2194B04E19621F9EDB2C234D166034B98389753D"
+    },
+    {
+      "path": "scenarios/cyber_keystone/task.md",
+      "bytes": 2653,
+      "sha256": "5E3385606C99793F77378C9C6D309C7CC7DD32AF22EA830F507DC408A2002854"
+    },
+    {
+      "path": "scenarios/cyber_keystone/validator.py",
+      "bytes": 3295,
+      "sha256": "320914B1358EEF6B78A4F3415A5F2D2FBF88B060B50CB3AB88CAF0E1D3945861"
+    },
+    {
+      "path": "scenarios/cyber_keystone/verify.py",
+      "bytes": 3707,
+      "sha256": "54790875314537FB80C45ADBD4537C2CB02467E2C95F7D952591911EF87EE202"
+    },
+    {
+      "path": "scenarios/example_fixture/data/input.json",
+      "bytes": 37,
+      "sha256": "CA1BDDAAA5067C837A18D32978FDCFB7E9997D673D25F91D118A0A12B8667CE2"
+    },
+    {
+      "path": "scenarios/example_fixture/fixtures/negative/output.json",
+      "bytes": 31,
+      "sha256": "162C7889CAA9A1CF1B71CD3295FB65503C5CED0C759FAF3EF28F23B6DCDD5182"
+    },
+    {
+      "path": "scenarios/example_fixture/fixtures/positive/output.json",
+      "bytes": 49,
+      "sha256": "D777801976F9DDD9FC10C249EDC8913B1D83D58412D64829899B9860A0AE6922"
+    },
+    {
+      "path": "scenarios/example_fixture/fixtures/tampered/input.json",
+      "bytes": 31,
+      "sha256": "2DF1E1DA7B4B01BF16D70FC44AFD060EA5AE24F21D2D6DB380990918838054CF"
+    },
+    {
+      "path": "scenarios/example_fixture/fixtures/tampered/output.json",
+      "bytes": 43,
+      "sha256": "C39FB6BE525935EBF66F28553B9AE63738B38B192BACC08265B586D71D494CBA"
+    },
+    {
+      "path": "scenarios/example_fixture/scenario.json",
+      "bytes": 684,
+      "sha256": "6DB109957BF6C8296C9BB62D7C97C6F3CC99C367ED3582DAF6A65652B99278F6"
+    },
+    {
+      "path": "scenarios/example_fixture/task.md",
+      "bytes": 108,
+      "sha256": "C32C260F6840547E3DDA8AC37700681EB17CEB48932DB898103AA9793B4E247A"
+    },
+    {
+      "path": "scenarios/example_fixture/validator.py",
+      "bytes": 1015,
+      "sha256": "AC3B9D6BC3A8693EFC8B74C57C9F5EFB31C8284F350391FADAC98D22830DD3D0"
+    },
+    {
+      "path": "scenarios/example_fixture/verify.py",
+      "bytes": 2506,
+      "sha256": "97626043CAC1C08B8B834995868C11921B10575D1F613E83020332E80EF3EE98"
+    },
+    {
+      "path": "scripts/run_prompt_bank_regression.py",
+      "bytes": 45868,
+      "sha256": "236095C03B48B50728896907B829201B8E3F723801E8A9412F2A5C023F8346BB"
+    },
+    {
+      "path": "tests/fixtures/schema1-historical-field-restore.json",
+      "bytes": 1254,
+      "sha256": "5B75EFCDE60C90210DECB37C346D9B47E45FCDD9A2E4C5D27A6869860F2FCA99"
+    },
+    {
+      "path": "tests/prompt_bank/cases.json",
+      "bytes": 6627,
+      "sha256": "452835A015ED62B6215129324DF4AA7FF87233D38EBB021778F6201ADF44B0B6"
+    },
+    {
+      "path": "tests/test_codex_instruct.py",
+      "bytes": 97996,
+      "sha256": "9F8F57CFA9D14D53913C462936E96B5EAA8B5A45B75BAEB069C861E142442CFF"
+    },
+    {
+      "path": "tests/test_config_boundaries.py",
+      "bytes": 19651,
+      "sha256": "86B53692AF6F9A0782AC528A31B2B5265341A089AEC5C6F83F4131123CB02B99"
+    },
+    {
+      "path": "tests/test_platform_and_discovery.py",
+      "bytes": 14489,
+      "sha256": "9604436C3878CEA2103443A778B9188386FDDC4FB687AC9B0C9043AB51F464D6"
+    },
+    {
+      "path": "tests/test_prompt_bank_regression.py",
+      "bytes": 31611,
+      "sha256": "8AD8E6E518AF188B3766EA09A9B1066D241B0CEAC3E5B62F262B6DDB79486E4B"
+    },
+    {
+      "path": "tests/test_recovery.py",
+      "bytes": 57305,
+      "sha256": "AD812671F031A864934C198A453BC0873A95CA380A348EEAED3C7775DDA3A716"
+    },
+    {
+      "path": "tests/test_scenario_cli.py",
+      "bytes": 9557,
+      "sha256": "1E12AC1CCF5B68415FD8993B7C39380D2543DA9D34D02D3468BF014158460334"
+    },
+    {
+      "path": "tests/test_scenario_concurrency.py",
+      "bytes": 3786,
+      "sha256": "38372F13FB05872442460BDC1CC11FBC268B19CC0F0BE681FCF78A7E4823BE04"
+    },
+    {
+      "path": "tests/test_scenario_integrity.py",
+      "bytes": 27858,
+      "sha256": "4DDB812A90A3FF1E4DD879288FEBF6EACDCD3FEC12A3A518A9E70EB7C869C3AD"
+    },
+    {
+      "path": "tests/test_scenario_packages.py",
+      "bytes": 13589,
+      "sha256": "02EAD18D424C46CC5F6E27826500B2759213CACAA47E8F0A832DFC17AFA3497C"
+    },
+    {
+      "path": "tests/test_scenario_recovery.py",
+      "bytes": 39514,
+      "sha256": "5F95EB976BF808FBEE949AA6E3CECBB4ABA04653A9970B757B3CDD50C2098B7C"
+    },
+    {
+      "path": "tests/test_scenario_validation.py",
+      "bytes": 20810,
+      "sha256": "37D43DFDCB3E3864417B558FB221B7E44D82AB913EF35AE51F346FCD94C4B4DB"
+    },
+    {
+      "path": "tests/test_uninstall.py",
+      "bytes": 44759,
+      "sha256": "671B13712187C07F1CB81E57E73D8224A35F1D2488A03F94B3653B2033DF5381"
+    },
+    {
+      "path": "tests/test_uninstall_recovery.py",
+      "bytes": 80914,
+      "sha256": "24D6DD2361FD85DF7796600760CDD50C76100C692F6F96440FC1E72ED792169F"
+    },
+    {
+      "path": "tests/test_windows_filesystem.py",
+      "bytes": 53141,
+      "sha256": "D996DBE050D60F538BD8C2140B9635F9E5069DF5332E87D5905257AE5C1F16A0"
+    }
+  ]
+}

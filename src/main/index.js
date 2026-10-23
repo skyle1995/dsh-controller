@@ -816,7 +816,7 @@ let reverseSkillLatestAt = 0
 // 与仓库 commit 解耦——只有技能内容升版本才提示更新
 async function reverseSkillLatest() {
   if (reverseSkillLatestCache && Date.now() - reverseSkillLatestAt < 5 * 60_000) return reverseSkillLatestCache
-  const res = await hubFetch(`${REVERSE_SKILL_API}/contents/reverse-skill/package.json?ref=main`)
+  const res = await hubFetch(`${REVERSE_SKILL_API}/contents/resources/reverse-skill/package.json?ref=main`)
   if (!res.ok) throw new Error(res.status === 404 ? '自建源未发布(先提交推送 reverse-skill/ 到本项目仓库)' : `自建源接口返回 ${res.status}`)
   const meta = await res.json()
   const pkg = JSON.parse(Buffer.from(meta?.content ?? '', meta?.encoding === 'base64' ? 'base64' : 'utf8').toString('utf8'))
@@ -913,8 +913,8 @@ async function installReverseSkill() {
     const repoDir = path.join(tmpDir, 'repo')
     // git 下发:浅克隆本项目仓库,取 reverse-skill/ 子目录;整仓 commit 即版本
     await gitClone(REVERSE_SKILL_GIT, repoDir)
-    const pkgDir = path.join(repoDir, 'reverse-skill')
-    if (!existsSync(path.join(pkgDir, 'RULES.md'))) throw new Error('仓库内容异常:reverse-skill/ 缺少 RULES.md(先提交推送到本项目仓库)')
+    const pkgDir = path.join(repoDir, 'resources', 'reverse-skill')
+    if (!existsSync(path.join(pkgDir, 'RULES.md'))) throw new Error('仓库内容异常:resources/reverse-skill/ 缺少 RULES.md(先提交推送到本项目仓库)')
     await rm(REVERSE_SKILL_DIR, { recursive: true, force: true })
     await mkdir(path.dirname(REVERSE_SKILL_DIR), { recursive: true })
     await cp(pkgDir, REVERSE_SKILL_DIR, { recursive: true })

@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "files": [
+    {
+      "path": "PROVENANCE.md",
+      "bytes": 1009,
+      "sha256": "6AC68336B16551B24D696D75094827FDF08C91DD836456143D6E9C1EB776BA08"
+    },
+    {
+      "path": "ROUTING.md",
+      "bytes": 440,
+      "sha256": "A69374C27251DCF67D67DA070227FA70345B07A92729A30A5359D9E601581E19"
+    },
+    {
+      "path": "skills/web-asset-auditor/SKILL.md",
+      "bytes": 3459,
+      "sha256": "37CA20B7BF516695CA6D3EE8C4EE48C43C29365A3B5D8C30639048EFEAF5918F"
+    }
+  ]
+}
