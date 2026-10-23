@@ -13078,7 +13078,7 @@ function PurgePage() {
           true ? h(
             "span",
             { className: "dshpp-page-ver" },
-            "Purge Self 1.0.0"
+            "Purge Self 1.1.0"
           ) : null
         )
       )
