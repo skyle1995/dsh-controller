@@ -1,21 +1,37 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
 contextBridge.exposeInMainWorld('api', {
-  getDshStatus: () => ipcRenderer.invoke('dsh:status'),
-  startDsh: () => ipcRenderer.invoke('dsh:start'),
-  stopDsh: () => ipcRenderer.invoke('dsh:stop'),
   restartDsh: () => ipcRenderer.invoke('dsh:restart'),
-  openSessionUi: () => ipcRenderer.invoke('dsh:open'),
-  getVersionInfo: () => ipcRenderer.invoke('dsh:versionInfo'),
-  installDsh: () => ipcRenderer.invoke('dsh:install'),
-  uninstallDsh: () => ipcRenderer.invoke('dsh:uninstall'),
+  getDshVersion: () => ipcRenderer.invoke('dsh:version'),
   listInstalledPlugins: () => ipcRenderer.invoke('plugins:installed'),
   fetchPluginCatalog: () => ipcRenderer.invoke('plugins:catalog'),
   installPlugin: (spec) => ipcRenderer.invoke('plugins:install', spec),
   uninstallPlugin: (name) => ipcRenderer.invoke('plugins:uninstall', name),
-  getPackInfo: () => ipcRenderer.invoke('pack:info'),
-  installPack: () => ipcRenderer.invoke('pack:install'),
-  uninstallPack: () => ipcRenderer.invoke('pack:uninstall'),
+  updateAllPlugins: () => ipcRenderer.invoke('plugins:updateAll'),
+  listPluginExemptions: () => ipcRenderer.invoke('plugins:exemptions'),
+  setVersionExemption: (name, version, dshVersion, enable) =>
+    ipcRenderer.invoke('plugins:setVersionExemption', name, version, dshVersion, enable),
+  // 破甲(dsh-purge)集成
+  getPurgeState: () => ipcRenderer.invoke('purge:state'),
+  installPurge: () => ipcRenderer.invoke('purge:install'),
+  applyPurge: () => ipcRenderer.invoke('purge:apply'),
+  revertPurge: () => ipcRenderer.invoke('purge:revert'),
+  uninstallPurge: () => ipcRenderer.invoke('purge:uninstall'),
+  selfcheckPurge: () => ipcRenderer.invoke('purge:selfcheck'),
+  backupPurge: () => ipcRenderer.invoke('purge:backup'),
+  rollbackPurge: (id) => ipcRenderer.invoke('purge:rollback', id),
+  prunePurge: () => ipcRenderer.invoke('purge:prune'),
+  tunePurge: (key, value) => ipcRenderer.invoke('purge:tune', key, value),
+  // 破甲技能包(红队技能,提取自插件)
+  getPurgeSkills: () => ipcRenderer.invoke('purge:skillsState'),
+  installPurgeSkills: () => ipcRenderer.invoke('purge:skillsInstall'),
+  uninstallPurgeSkills: () => ipcRenderer.invoke('purge:skillsUninstall'),
+  installReverseSkill: () => ipcRenderer.invoke('reverseSkill:install'),
+  uninstallReverseSkill: () => ipcRenderer.invoke('reverseSkill:uninstall'),
+  // 破甲限制管理
+  unrestrictPurge: () => ipcRenderer.invoke('purge:unrestrict'),
+  restoreRestrictPurge: () => ipcRenderer.invoke('purge:restoreRestrict'),
+  grantPurgeDrill: () => ipcRenderer.invoke('purge:grantDrill'),
   onOpLog: (cb) => {
     const listener = (_e, text) => cb(text)
     ipcRenderer.on('op:log', listener)

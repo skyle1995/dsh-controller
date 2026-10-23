@@ -1,7 +1,26 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import semver from 'semver'
 
-const POLL_MS = 2000
-const MAX_EVENTS = 8
+
+// 与 dsh-app-boot 的规则保持一致:semver 范围匹配且允许预发布版本参与
+const WORKSPACE_RANGES = new Set(['workspace:^', 'workspace:~', 'workspace:*'])
+
+function satisfiesRange(version, range) {
+  if (!range) return true
+  const r = String(range).trim()
+  if (WORKSPACE_RANGES.has(r)) return true
+  try { return semver.satisfies(version, r, { includePrerelease: true }) } catch { return false }
+}
+
+// 插件 manifest 里声明的所有 dsh-* 范围都必须满足;没有声明则不限制
+function isPluginCompatible(p, dshVersion) {
+  if (!dshVersion) return true
+  const ranges = Array.isArray(p?.dshRanges) && p.dshRanges.length
+    ? p.dshRanges
+    : (p?.dshRequired ? [{ range: p.dshRequired }] : [])
+  if (!ranges.length) return true
+  return ranges.every(r => satisfiesRange(dshVersion, r.range))
+}
 
 function pad(n) { return String(n).padStart(2, '0') }
 
@@ -10,17 +29,6 @@ function clock(ms) {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
 }
 
-function formatUptime(ms) {
-  if (ms == null) return '—'
-  const s = Math.max(0, Math.floor(ms / 1000))
-  const d = Math.floor(s / 86400)
-  const h = Math.floor((s % 86400) / 3600)
-  const m = Math.floor((s % 3600) / 60)
-  if (d > 0) return `${d} 天 ${h} 小时`
-  if (h > 0) return `${h} 小时 ${m} 分`
-  if (m > 0) return `${m} 分 ${s % 60} 秒`
-  return `${s} 秒`
-}
 
 function fmtCpu(v) { return v == null ? '—' : `${Math.round(v)}%` }
 
@@ -36,15 +44,6 @@ function platformLabel(p) {
   return p || '—'
 }
 
-function StatTile({ label, value, mono, tone }) {
-  const toneClass = tone ? `stat-${tone}` : ''
-  return (
-    <div className={`stat ${toneClass}`}>
-      <div className="stat-label">{label}</div>
-      <div className={`stat-value ${mono ? 'mono' : ''}`}>{value}</div>
-    </div>
-  )
-}
 
 function OpLog({ open, onToggle }) {
   const [text, setText] = useState('')
@@ -65,105 +64,11 @@ function OpLog({ open, onToggle }) {
   )
 }
 
-function VersionPanel() {
-  const [info, setInfo] = useState(null)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
-  const [notice, setNotice] = useState('')
-  const [logOpen, setLogOpen] = useState(true)
-
-  const load = useCallback(async () => {
-    try {
-      setInfo(await window.api.getVersionInfo())
-      setError('')
-    } catch (e) {
-      setError(String(e?.message ?? e))
-    }
-  }, [])
-
-  useEffect(() => { void load() }, [load])
-
-  const run = async (fn, label) => {
-    setBusy(true)
-    setError('')
-    setNotice('')
-    try {
-      await fn()
-      setNotice(label)
-      await load()
-    } catch (e) {
-      setError(String(e?.message ?? e))
-    }
-    setBusy(false)
-  }
-
-  const installOrUpdate = () => run(
-    () => window.api.installDsh(),
-    info.installed ? '已执行更新(重启 dsh 生效)' : '已执行安装(可启动 dsh)',
-  )
-
-  const uninstall = () => {
-    if (!confirm('确定卸载 dsh?卸载后「启动 dsh」将不可用,需重新安装。')) return
-    void run(() => window.api.uninstallDsh(), '已卸载 dsh')
-  }
-
-  const state = !info ? 'loading' : !info.installed ? 'missing' : !info.latest ? 'unknown' : info.upToDate ? 'current' : 'outdated'
-
-  return (
-    <>
-      <section className="card">
-        <h2>dsh 版本 <span className="hint">npm 全局包 @deepseek-ai/dsh</span></h2>
-
-        <div className="version-cards">
-          <div className="vcard">
-            <div className="vcard-label">当前版本</div>
-            <div className="vcard-value mono">{info?.installed || '未安装'}</div>
-          </div>
-          <div className="vcard">
-            <div className="vcard-label">最新版本(npm)</div>
-            <div className="vcard-value mono">
-              {info?.latest || (info?.latestError ? '获取失败' : '—')}
-            </div>
-          </div>
-        </div>
-
-        <div className="version-status">
-          {state === 'current' ? <span className="pill pill-on">已是最新</span> : null}
-          {state === 'outdated' ? <span className="pill pill-warn">可更新到 {info.latest}</span> : null}
-          {state === 'missing' ? <span className="pill pill-off">未安装</span> : null}
-          {info?.latestError ? (
-            <span className="muted">获取最新版本失败:已尝试 npmjs 官方源、npmmirror 镜像与 npm CLI。请检查网络,或在 ~/.npmrc 配置可用 registry 后点「重新检测」</span>
-          ) : (state === 'outdated' || state === 'missing') ? (
-            <span className="muted">安装 / 更新完成后需重启 dsh 生效</span>
-          ) : null}
-        </div>
-
-        <div className="btn-row" style={{ marginTop: 14 }}>
-          <button type="button" className="btn" onClick={() => void load()} disabled={busy}>重新检测</button>
-          {info?.installed ? (
-            <>
-              <button type="button" className="btn primary" onClick={installOrUpdate} disabled={busy || info.upToDate}>
-                更新到最新
-              </button>
-              <button type="button" className="btn danger" onClick={uninstall} disabled={busy}>卸载 dsh</button>
-            </>
-          ) : (
-            <button type="button" className="btn primary" onClick={installOrUpdate} disabled={busy}>安装 dsh</button>
-          )}
-        </div>
-
-        {error ? <div className="banner banner-error" role="alert">{error}</div> : null}
-        {notice ? <div className="banner banner-ok" role="status">{notice}</div> : null}
-
-        <OpLog open={logOpen} onToggle={() => setLogOpen(v => !v)} />
-      </section>
-    </>
-  )
-}
-
-function PluginPanel({ dshVersion }) {
+function PluginPanel() {
+  const [dshVersion, setDshVersion] = useState(null)
   const [installed, setInstalled] = useState([])
   const [catalog, setCatalog] = useState([])
+  const [exemptions, setExemptions] = useState({})
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -173,12 +78,14 @@ function PluginPanel({ dshVersion }) {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const [inst, cat] = await Promise.all([
+      const [inst, cat, ex] = await Promise.all([
         window.api.listInstalledPlugins(),
         window.api.fetchPluginCatalog(),
+        window.api.listPluginExemptions(),
       ])
       setInstalled(inst)
       setCatalog(cat)
+      setExemptions(ex ?? {})
       setError('')
     } catch (e) {
       setError(String(e?.message ?? e))
@@ -186,15 +93,18 @@ function PluginPanel({ dshVersion }) {
     setLoading(false)
   }, [])
 
-  useEffect(() => { void load() }, [load])
+  useEffect(() => {
+    void load()
+    window.api.getDshVersion?.().then(v => setDshVersion(v)).catch(() => {})
+  }, [load])
 
   const run = async (fn, label) => {
     setBusy(true)
     setError('')
     setNotice('')
     try {
-      await fn()
-      setNotice(label)
+      const r = await fn()
+      setNotice(typeof label === 'function' ? label(r) : label)
       await load()
     } catch (e) {
       setError(String(e?.message ?? e))
@@ -207,6 +117,20 @@ function PluginPanel({ dshVersion }) {
     `已安装插件 ${p.name}${p.version ? ` v${p.version}` : ''}(重启 dsh 生效)`,
   )
 
+  const updateAll = () => run(
+    () => window.api.updateAllPlugins(),
+    (res) => {
+      const list = res ?? []
+      const ok = list.filter(p => p.ok).length
+      const bad = list.filter(p => !p.ok)
+      const hinted = list.filter(p => (p.hints ?? []).length)
+      let text = ok ? `已更新 ${ok} 个插件到最新版` : '没有需要更新的插件'
+      if (bad.length) text += `;失败:${bad.map(p => p.name).join('、')}(详见操作日志)`
+      if (hinted.length) text += `;${hinted.map(p => p.name).join('、')} 仍要求旧版 dsh,请点「授权兼容」`
+      return `${text}(重启 dsh 生效)`
+    },
+  )
+
   const remove = (name) => {
     if (!confirm(`确定卸载插件「${name}」?(重启 dsh 生效)`)) return
     void run(() => window.api.uninstallPlugin(name), `已卸载插件 ${name}(重启 dsh 生效)`)
@@ -214,93 +138,321 @@ function PluginPanel({ dshVersion }) {
 
   const restart = () => run(() => window.api.restartDsh(), '已重启 dsh')
 
+  const isIncompatible = (p) => !isPluginCompatible(p, dshVersion)
+  const isExempted = (p) => !!dshVersion && !!p.version &&
+    (exemptions[`${p.name}@${p.version}`] ?? []).includes(dshVersion)
+
+  const setExemption = (p, enable) => {
+    if (enable && !confirm(
+      `授权 ${p.name}@${p.version} 在 dsh ${dshVersion} 上运行?\n\n` +
+      '官方提示:不兼容插件可能导致崩溃或数据丢失;授权只对「这个插件版本 + 这个 dsh 版本」精确生效,插件或 dsh 升级后需重新授权。',
+    )) return
+    void run(
+      () => window.api.setVersionExemption(p.name, p.version, dshVersion, enable),
+      enable
+        ? `已授权 ${p.name}@${p.version} 兼容 dsh ${dshVersion}(重启 dsh 生效)`
+        : `已撤销 ${p.name} 的兼容授权`,
+    )
+  }
+
   const installedMap = useMemo(() => new Map(installed.map(p => [p.name, p])), [installed])
+  const catalogMap = useMemo(() => new Map(catalog.map(p => [p.name, p])), [catalog])
+  const [subTab, setSubTab] = useState('installed')
+
+  const available = catalog.filter(p => !installedMap.has(p.name))
 
   return (
-    <>
-      <section className="card">
-        <h2>已安装插件 <span className="hint">profile: web</span></h2>
-        {installed.length === 0 ? (
-          <p className="empty">暂无插件(目录 ~/.dsh/profiles/web/)</p>
-        ) : (
-          <div className="plugin-list">
-            {installed.map(p => (
-              <div key={p.name} className="plugin-row">
-                <div className="plugin-meta">
-                  <div className="plugin-name mono">{p.name}</div>
-                  <div className="plugin-spec mono">{p.spec}</div>
-                </div>
-                <div className="actions">
-                  <button type="button" className="btn danger" onClick={() => remove(p.name)} disabled={busy}>卸载</button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-
-      <section className="card">
-        <div className="panel-head">
-          <h2>插件仓库 <span className="hint">hub.ifunx.com/skyle1995/dsh-plugins</span></h2>
-          <div className="btn-row">
-            <button type="button" className="btn" onClick={() => void load()} disabled={busy}>刷新目录</button>
-            <button type="button" className="btn primary" onClick={restart} disabled={busy}>重启 dsh</button>
-          </div>
+    <section className="card">
+      <div className="panel-head">
+        <h2>插件中心 <span className="hint">自建仓库 · profile: desktop</span></h2>
+        <div className="btn-row">
+          <button type="button" className="btn" onClick={() => void load()} disabled={busy}>刷新目录</button>
+          <button type="button" className="btn" onClick={updateAll} disabled={busy || installed.length === 0}>全部更新</button>
+          <button type="button" className="btn primary" onClick={restart} disabled={busy}>重启桌面版</button>
         </div>
+      </div>
 
-        {error ? <div className="banner banner-error" role="alert">{error}</div> : null}
-        {notice ? <div className="banner banner-ok" role="status">{notice}</div> : null}
+      {error ? <div className="banner banner-error" role="alert">{error}</div> : null}
+      {notice ? <div className="banner banner-ok" role="status">{notice}</div> : null}
 
-        {loading ? (
-          <p className="empty">加载中…</p>
-        ) : catalog.length === 0 ? (
-          <p className="empty">仓库为空或无法访问</p>
+      <nav className="tabs" role="tablist" aria-label="插件列表" style={{ marginTop: 12 }}>
+        <button type="button" role="tab" aria-selected={subTab === 'installed'} className={`tab ${subTab === 'installed' ? 'active' : ''}`} onClick={() => setSubTab('installed')}>
+          已安装({installed.length})
+        </button>
+        <button type="button" role="tab" aria-selected={subTab === 'available'} className={`tab ${subTab === 'available' ? 'active' : ''}`} onClick={() => setSubTab('available')}>
+          可安装({available.length})
+        </button>
+      </nav>
+
+      {subTab === 'installed' ? (
+        installed.length === 0 ? (
+          <p className="empty">暂无插件;到「可安装」标签浏览仓库</p>
         ) : (
           <div className="plugin-list">
-            {catalog.map(p => {
-              const isInstalled = installedMap.has(p.name)
-              const compatible = !p.dshRequired || !dshVersion || p.dshRequired === dshVersion
+            {installed.map(p => {
+              const bad = isIncompatible(p)
+              const granted = isExempted(p)
+              const latest = catalogMap.get(p.name)?.version
+              const hasUpdate = !!(latest && p.version && latest !== p.version)
               return (
                 <div key={p.name} className="plugin-row">
                   <div className="plugin-meta">
                     <div className="plugin-name">
-                      {p.name} <span className="plugin-ver mono">v{p.version}</span>
-                      {isInstalled ? <span className="badge badge-installed">已安装</span> : null}
-                      {!compatible ? <span className="badge badge-warn">要求 dsh {p.dshRequired},与当前 {dshVersion || '—'} 不兼容</span> : null}
+                      {p.name} <span className="plugin-ver mono">v{p.version ?? '—'}</span>
+                      {hasUpdate ? <span className="badge badge-warn">可更新 v{latest}</span> : null}
+                      {bad && !granted
+                        ? <span className="badge badge-warn">要求 dsh {p.dshRequired},与当前 {dshVersion} 不兼容</span>
+                        : null}
+                      {bad && granted
+                        ? <span className="badge badge-installed">已授权兼容 {dshVersion}</span>
+                        : null}
                     </div>
-                    <div className="plugin-desc">{p.description || '无描述'}</div>
+                    <div className="plugin-spec mono">{p.spec}</div>
                   </div>
                   <div className="actions">
-                    {isInstalled ? (
-                      <>
-                        <button type="button" className="btn" onClick={() => installOrUpdate(p)} disabled={busy}>更新</button>
-                        <button type="button" className="btn danger" onClick={() => remove(p.name)} disabled={busy}>卸载</button>
-                      </>
-                    ) : (
-                      <button type="button" className="btn primary" onClick={() => installOrUpdate(p)} disabled={busy}>安装</button>
-                    )}
+                    {bad && !granted
+                      ? <button type="button" className="btn" onClick={() => setExemption(p, true)} disabled={busy}>授权兼容</button>
+                      : null}
+                    {bad && granted
+                      ? <button type="button" className="btn" onClick={() => setExemption(p, false)} disabled={busy}>撤销授权</button>
+                      : null}
+                    <button type="button" className={hasUpdate ? 'btn primary' : 'btn'} onClick={() => installOrUpdate(p)} disabled={busy}>
+                      {hasUpdate ? '更新' : '重装'}
+                    </button>
+                    <button type="button" className="btn danger" onClick={() => remove(p.name)} disabled={busy}>卸载</button>
                   </div>
                 </div>
               )
             })}
           </div>
-        )}
+        )
+      ) : (
+        loading ? (
+          <p className="empty">加载中…</p>
+        ) : available.length === 0 ? (
+          <p className="empty">仓库为空或全部已安装</p>
+        ) : (
+          <div className="plugin-list">
+            {available.map(p => {
+              const compatible = isPluginCompatible(p, dshVersion)
+              return (
+                <div key={p.name} className="plugin-row">
+                  <div className="plugin-meta">
+                    <div className="plugin-name">
+                      {p.name} <span className="plugin-ver mono">v{p.version}</span>
+                      {!compatible ? <span className="badge badge-warn">要求 dsh {p.dshRequired},与当前 {dshVersion || '—'} 不兼容</span> : null}
+                    </div>
+                    <div className="plugin-desc">{p.description || '无描述'}</div>
+                  </div>
+                  <div className="actions">
+                    <button type="button" className="btn primary" onClick={() => installOrUpdate(p)} disabled={busy}>安装</button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )
+      )}
 
-        <OpLog open={logOpen} onToggle={() => setLogOpen(v => !v)} />
-      </section>
-    </>
+      <OpLog open={logOpen} onToggle={() => setLogOpen(v => !v)} />
+    </section>
   )
 }
 
-function PackPanel() {
+// ── 红队技能包(统一入口)──
+function RedteamPackPanel() {
   const [info, setInfo] = useState(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
 
   const load = useCallback(async () => {
+    try { setInfo((await window.api.getPurgeSkills())?.redteam); setError('') }
+    catch (e) { setError(String(e?.message ?? e)) }
+  }, [])
+  useEffect(() => { void load() }, [load])
+
+  const run = async (fn, label) => {
+    setBusy(true); setError(''); setNotice('')
+    try { const r = await fn(); setNotice(typeof label === 'function' ? label(r) : label); await load() }
+    catch (e) { setError(String(e?.message ?? e)) }
+    setBusy(false)
+  }
+
+  const rt = info
+  const install = () => void run(
+    () => window.api.installPurgeSkills(),
+    (r) => `红队技能包已安装(v${r.version} 统一入口,dsh 新会话生效)${r.migrated?.length ? ';已自动迁移清理 ' + r.migrated.length + ' 个旧分散技能' : ''}`,
+  )
+  const uninstall = () => {
+    if (!confirm('确定卸载红队技能包?将删除统一入口目录 redteam-skill。')) return
+    void run(() => window.api.uninstallPurgeSkills(), (r) => `已卸载红队技能包`)
+  }
+
+  return (
+    <section className="card">
+      <h2>红队技能包 <span className="hint">统一入口 redteam-skill · 测绘 / 隧道 / 横向 / WebShell 等</span></h2>
+
+      <div className="version-cards">
+        <div className="vcard">
+          <div className="vcard-label">安装状态</div>
+          <div className="vcard-value mono">{rt?.installed ? (rt.upToDate ? '已安装·最新' : '已安装·可更新') : '未安装'}</div>
+        </div>
+        <div className="vcard">
+          <div className="vcard-label">技能数量</div>
+          <div className="vcard-value mono">{rt?.installed ? `${rt.skillCount} 个` : (rt?.available ? `${rt.available} 个可装` : '—')}</div>
+        </div>
+        <div className="vcard">
+          <div className="vcard-label">破甲插件</div>
+          <div className="vcard-value mono">{rt?.pluginInstalled ? `v${rt.pluginVersion ?? '?'}` : '未安装'}</div>
+        </div>
+      </div>
+
+      <div className="version-status">
+        {rt?.installed
+          ? <span className={`pill ${rt.upToDate ? 'pill-on' : 'pill-warn'}`}>{rt.upToDate ? '最新' : '插件已更新,技能可同步'}</span>
+          : <span className="pill pill-off">未安装</span>}
+        <span className="muted">
+          {rt?.installed
+            ? `提取自 v${rt.installedVersion ?? '?'} · 安装于 ${rt.installedAt ? new Date(rt.installedAt).toLocaleString() : '—'}`
+            : '安装为单一入口技能 redteam-skill,按描述路由,经索引进入子技能'}
+        </span>
+      </div>
+
+      {rt?.legacyScattered ? (
+        <p className="note-warn">⚠ 检测到 {rt.legacyScattered} 个旧版分散技能目录,点「安装」会自动迁移清理。</p>
+      ) : null}
+
+      <div className="btn-row" style={{ marginTop: 14 }}>
+        <button type="button" className="btn" onClick={() => void load()} disabled={busy}>刷新</button>
+        {rt?.installed ? (
+          <>
+            <button type="button" className="btn primary" onClick={install} disabled={busy}>
+              {rt.upToDate ? '重装' : '更新'}
+            </button>
+            <button type="button" className="btn danger" onClick={uninstall} disabled={busy}>卸载</button>
+          </>
+        ) : (
+          <button type="button" className="btn primary" onClick={install} disabled={busy || !rt?.pluginInstalled || !rt?.available}>
+            安装
+          </button>
+        )}
+      </div>
+
+      {!rt?.pluginInstalled ? (
+        <p className="note-warn">⚠ 技能源自破甲插件:请先在「破甲」页签安装破甲插件。</p>
+      ) : null}
+
+      {error ? <div className="banner banner-error" role="alert">{error}</div> : null}
+      {notice ? <div className="banner banner-ok" role="status">{notice}</div> : null}
+
+      <p className="muted" style={{ marginTop: 12, marginBottom: 0 }}>
+        安装为 <span className="mono">~/.dsh/skills/redteam-skill/</span>:入口 SKILL.md 提供全部子技能的路由索引,
+        子技能正文在 SKILLS/ 下,对所有 dsh 会话生效;版本跟随破甲插件。
+      </p>
+    </section>
+  )
+}
+
+// ── 逆向技能包(reverse-skill)──
+function ReversePackPanel() {
+  const [info, setInfo] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
+
+  const load = useCallback(async () => {
+    try { setInfo((await window.api.getPurgeSkills())?.reverse); setError('') }
+    catch (e) { setError(String(e?.message ?? e)) }
+  }, [])
+  useEffect(() => { void load() }, [load])
+
+  const run = async (fn, label) => {
+    setBusy(true); setError(''); setNotice('')
+    try { await fn(); setNotice(label); await load() }
+    catch (e) { setError(String(e?.message ?? e)) }
+    setBusy(false)
+  }
+
+  const install = () => void run(() => window.api.installReverseSkill(), '逆向技能包已安装(dsh 新会话生效)')
+  const uninstall = () => {
+    if (!confirm('确定卸载逆向技能包(reverse-skill)?')) return
+    void run(() => window.api.uninstallReverseSkill(), '逆向技能包已卸载')
+  }
+
+  const rv = info
+
+  return (
+    <section className="card">
+      <h2>逆向技能包 <span className="hint">reverse-skill · 逆向 / CTF / 安全研究路由包</span></h2>
+
+      <div className="version-cards">
+        <div className="vcard">
+          <div className="vcard-label">安装状态</div>
+          <div className="vcard-value mono">{rv?.installed ? (rv.upToDate ? '已安装·最新' : '已安装·可更新') : '未安装'}</div>
+        </div>
+        <div className="vcard">
+          <div className="vcard-label">版本</div>
+          <div className="vcard-value mono">
+            {rv?.installed
+              ? (String(rv.installedCommit ?? '').slice(0, 8) || '—') + (!rv.upToDate && rv.latest ? ' → ' + String(rv.latest).slice(0, 8) : '')
+              : (rv?.latest ? String(rv.latest).slice(0, 8) : '—')}
+          </div>
+        </div>
+        <div className="vcard">
+          <div className="vcard-label">技能数量</div>
+          <div className="vcard-value mono">{rv?.installed ? `${rv.skillCount ?? 0} 个` : '—'}</div>
+        </div>
+      </div>
+
+      <div className="version-status">
+        {rv?.installed
+          ? <span className={`pill ${rv.upToDate ? 'pill-on' : 'pill-warn'}`}>{rv.upToDate ? '最新' : '有更新'}</span>
+          : <span className="pill pill-off">未安装</span>}
+        <span className="muted">
+          {rv?.installed
+            ? (rv.upToDate ? '已装 ' + String(rv.installedCommit ?? '').slice(0, 8) + ' · 最新' : '已装 ' + String(rv.installedCommit ?? '').slice(0, 8) + ' → 最新 ' + String(rv.latest ?? '').slice(0, 8))
+            : (rv?.latest ? '最新 ' + String(rv.latest).slice(0, 8) : '检测自建源版本…')}
+        </span>
+      </div>
+
+      <div className="btn-row" style={{ marginTop: 14 }}>
+        <button type="button" className="btn" onClick={() => void load()} disabled={busy}>刷新</button>
+        <button type="button" className="btn primary" onClick={install} disabled={busy}>
+          {rv?.installed ? (rv.upToDate ? '重装' : '更新') : '安装'}
+        </button>
+        {rv?.installed ? (
+          <button type="button" className="btn danger" onClick={uninstall} disabled={busy}>卸载</button>
+        ) : null}
+      </div>
+
+      {error ? <div className="banner banner-error" role="alert">{error}</div> : null}
+      {notice ? <div className="banner banner-ok" role="status">{notice}</div> : null}
+
+      <p className="muted" style={{ marginTop: 12, marginBottom: 0 }}>
+        安装为 <span className="mono">~/.dsh/skills/reverse-skill/</span>(入口 SKILL.md + RULES.md 路由矩阵)。
+        从自建 Git 克隆下发(hub.ifunx.com/skyle1995/reverse-skill),commit 作版本,插件自动比对已装/最新。
+      </p>
+    </section>
+  )
+}
+
+// ── 破甲(dsh-purge)── 控制器只做外部编排,补丁逻辑由插件自身完成 ──
+const PURGE_INJECT_MODES = ['head', 'tail', 'both']
+const fmtTime = (iso) => {
+  try { return new Date(iso).toLocaleString() } catch { return String(iso ?? '') }
+}
+
+function PurgePanel() {
+  const [state, setState] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
+  const [check, setCheck] = useState(null)
+
+  const load = useCallback(async () => {
     try {
-      setInfo(await window.api.getPackInfo())
+      setState(await window.api.getPurgeState())
       setError('')
     } catch (e) {
       setError(String(e?.message ?? e))
@@ -323,62 +475,266 @@ function PackPanel() {
     setBusy(false)
   }
 
-  const install = () => run(
-    () => window.api.installPack(),
-    info?.installed ? '技能包已更新(dsh 新会话生效)' : '技能包已安装(dsh 新会话生效)',
+  const install = () => void run(
+    () => window.api.installPurge(),
+    state?.installed ? '破甲插件已更新(重启 dsh 后生效)' : '破甲插件已安装(重启 dsh 后生效)',
   )
 
-  const uninstall = () => {
-    if (!confirm('确定卸载 reverse-skill 技能包?')) return
-    void run(() => window.api.uninstallPack(), '技能包已卸载')
+  const apply = () => {
+    if (!confirm('确定应用破甲补丁?将修改本机 dsh 安装目录的文件(写入前自动备份),重启 dsh 后生效。')) return
+    void run(() => window.api.applyPurge(), '破甲已应用,重启 dsh 后生效')
   }
+
+  const applyAndRestart = () => {
+    if (!confirm('确定应用破甲补丁并重启 dsh?修改宿主文件前会自动备份。')) return
+    void run(async () => {
+      await window.api.applyPurge()
+      await window.api.restartDsh()
+    }, '破甲已应用,dsh 已重启')
+  }
+
+  const revert = () => {
+    if (!confirm('确定回滚破甲补丁?被修改的 dsh 文件会还原为补丁前备份,重启 dsh 后生效。')) return
+    void run(() => window.api.revertPurge(), '破甲补丁已回滚,重启 dsh 后生效')
+  }
+
+  const uninstall = () => {
+    if (!confirm('确定卸载破甲插件?会先还原已应用的补丁,再清理插件文件,重启 dsh 后生效。')) return
+    void run(() => window.api.uninstallPurge(), '破甲插件已卸载,重启 dsh 后生效')
+  }
+
+  const selfcheck = () => void run(async () => {
+    setCheck(await window.api.selfcheckPurge())
+  }, '自检完成')
+
+  const unrestrict = () => {
+    if (!confirm('确定解除公网/银行域名拦截(region gate)?将修改破甲插件文件 lib/net-scope.js(自动备份,可恢复),重启 dsh 后生效。请自行确保在已授权环境中使用。')) return
+    void run(() => window.api.unrestrictPurge(), '已解除拦截,重启 dsh 后生效;插件更新后会自动重打')
+  }
+
+  const restoreRestrict = () => void run(
+    () => window.api.restoreRestrictPurge(),
+    '已恢复插件默认拦截,重启 dsh 后生效',
+  )
+
+  const grantDrill = () => void run(
+    () => window.api.grantPurgeDrill(),
+    '演练台已授权(写入 drill-grant.json)',
+  )
+
+  const backup = () => void run(() => window.api.backupPurge(), '已创建备份')
+
+  const rollbackTo = (id) => {
+    if (!confirm(`确定回滚到备份 ${id}?当前插件状态会被该备份覆盖。`)) return
+    void run(() => window.api.rollbackPurge(id), `已回滚到备份 ${id}`)
+  }
+
+  const prune = () => void run(() => window.api.prunePurge(), '旧备份已清理')
+
+  const tune = (key, value) => void run(
+    () => window.api.tunePurge(key, value),
+    `已设置 ${key} = ${value}(下一轮对话生效,无需重启)`,
+  )
+
+  const compat = state?.compatibility
+  const compatLevelText = { qualified: '已验证', unverified: '未验证', mixed: '组件混装', 'no-host': '未定位宿主' }
+  const tuning = state?.tuning
+  const boostOn = tuning?.boost !== false // purge 默认全开
+  const rewindOn = tuning ? tuning.rewind !== false : true
+  const retryOn = tuning?.refusalRetry === true // 默认关
+  const injectMode = tuning?.injectPosition || 'head'
+
+  const Toggle = ({ label, on, onKey, desc }) => (
+    <div className="purge-tune-row">
+      <div>
+        <strong>{label}</strong>
+        {desc ? <span className="hint"> {desc}</span> : null}
+      </div>
+      <div className="btn-row">
+        <button type="button" className={`btn small ${on ? 'primary' : ''}`} disabled={busy || on} onClick={() => tune(onKey, 'on')}>开</button>
+        <button type="button" className={`btn small ${!on ? 'primary' : ''}`} disabled={busy || !on} onClick={() => tune(onKey, 'off')}>关</button>
+      </div>
+    </div>
+  )
 
   return (
     <>
       <section className="card">
-        <h2>reverse-skill 技能包 <span className="hint">逆向 / 渗透 / 安全研究路由包</span></h2>
+        <h2>破甲 dsh-purge <span className="hint">宿主策略补丁 · 提示词注入 · 备份回滚</span></h2>
 
         <div className="version-cards">
           <div className="vcard">
-            <div className="vcard-label">捆绑版本</div>
-            <div className="vcard-value mono">{info?.available ? `v${info.version}` : '未就绪'}</div>
+            <div className="vcard-label">已装版本</div>
+            <div className="vcard-value mono">{state?.installed ? `v${state.version ?? '?'}` : '未安装'}</div>
           </div>
           <div className="vcard">
-            <div className="vcard-label">安装状态</div>
-            <div className="vcard-value mono">{info?.installed ? `已安装 v${info.installedVersion}` : '未安装'}</div>
+            <div className="vcard-label">自建源最新</div>
+            <div className="vcard-value mono">{state?.latest ? `v${state.latest}` : '—'}</div>
           </div>
           <div className="vcard">
-            <div className="vcard-label">技能数量</div>
-            <div className="vcard-value mono">{info?.skillCount ?? '—'}</div>
+            <div className="vcard-label">宿主兼容</div>
+            <div className="vcard-value mono">{compat ? (compatLevelText[compat.level] ?? compat.level) : '—'}</div>
           </div>
         </div>
 
         <div className="version-status">
-          {info?.installed ? <span className="pill pill-on">已安装</span> : <span className="pill pill-off">未安装</span>}
-          <span className="muted">目标目录 {info?.dest ?? '~/.dsh/skills/reverse-skill'}</span>
+          {state?.installed
+            ? <span className="pill pill-on">已安装</span>
+            : <span className="pill pill-off">未安装</span>}
+          <span className="muted">
+            {state?.installed
+              ? `包 ${state.package}${state.cliAvailable ? '' : '(CLI 缺失,部分功能不可用)'} · 备份 ${state.backups?.length ?? 0} 份`
+              : '一键安装破甲插件,应用后重启 dsh 生效'}
+          </span>
         </div>
+
+        {compat?.message ? <p className="muted">{compat.message}</p> : null}
+        {state?.dshBase ? <p className="muted" style={{ fontSize: 12 }}>宿主目录(CLI 版自动定位):{state.dshBase}</p> : null}
 
         <div className="btn-row" style={{ marginTop: 14 }}>
           <button type="button" className="btn" onClick={() => void load()} disabled={busy}>刷新</button>
-          <button type="button" className="btn primary" onClick={install} disabled={busy || !info?.available}>
-            {info?.installed ? '更新技能包' : '安装技能包'}
-          </button>
-          <button type="button" className="btn danger" onClick={uninstall} disabled={busy || !info?.installed}>卸载</button>
+          {state?.installed ? (
+            <>
+              <button type="button" className="btn primary" onClick={applyAndRestart} disabled={busy || !state.cliAvailable}>应用并重启</button>
+              <button type="button" className="btn" onClick={apply} disabled={busy || !state.cliAvailable}>应用</button>
+              <button type="button" className="btn" onClick={revert} disabled={busy || !state.cliAvailable}>回滚补丁</button>
+              <button type="button" className="btn" onClick={selfcheck} disabled={busy || !state.cliAvailable}>自检</button>
+              <button type="button" className="btn" onClick={backup} disabled={busy || !state.cliAvailable}>备份</button>
+              <button type="button" className="btn" onClick={install} disabled={busy || !state.latest}>更新插件</button>
+              <button type="button" className="btn danger" onClick={uninstall} disabled={busy}>卸载</button>
+            </>
+          ) : (
+            <button type="button" className="btn primary" onClick={install} disabled={busy || !state?.latest}>安装破甲插件</button>
+          )}
         </div>
-
-        <p className="note-warn">
-          ⚠ 该技能包会引导 AI 执行逆向 / 渗透 / 安全研究任务。请仅在目标已获明确授权时使用;安装后对 dsh 新会话生效。
-        </p>
 
         {error ? <div className="banner banner-error" role="alert">{error}</div> : null}
         {notice ? <div className="banner banner-ok" role="status">{notice}</div> : null}
       </section>
 
+      {state?.installed ? (
+        <>
+          <section className="card">
+            <h2>运行时开关 <span className="hint">下一轮对话生效,无需重启 dsh</span></h2>
+            <Toggle label="强化尾段 boost" on={boostOn} onKey="boost" desc="系统提示词尾部加固段,长上下文抗漂移" />
+            <Toggle label="拒绝自动重试 retry" on={retryOn} onKey="retry" desc="模型推脱时自动加固并重试一次" />
+            <Toggle label="输入框回退按钮 rewind" on={rewindOn} onKey="rewind" desc="会话输入框旁的「回退一次」" />
+            <div className="purge-tune-row">
+              <div><strong>注入位置 inject</strong><span className="hint"> 系统提示词里的注入段位置</span></div>
+              <div className="btn-row">
+                {PURGE_INJECT_MODES.map(m => (
+                  <button key={m} type="button" className={`btn small ${injectMode === m ? 'primary' : ''}`}
+                    disabled={busy || injectMode === m} onClick={() => tune('inject', m)}>{m}</button>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          <section className="card">
+            <h2>限制管理 <span className="hint">插件手动加的拦截,可解除 / 恢复</span></h2>
+            <div className="purge-tune-row">
+              <div>
+                <strong>公网 / 银行域名拦截(region gate)</strong>
+                <span className="hint"> 攻击任务里的 CN/HK/MO 域名与银行域名会被直接拒绝;私网与本机不拦</span>
+              </div>
+              <div className="btn-row">
+                {state?.unrestricted
+                  ? <button type="button" className="btn" onClick={restoreRestrict} disabled={busy}>恢复拦截</button>
+                  : <button type="button" className="btn primary" onClick={unrestrict} disabled={busy}>解除拦截</button>}
+              </div>
+            </div>
+            <div className="purge-tune-row">
+              <div>
+                <strong>演练台授权</strong>
+                <span className="hint"> 红队演练台的启动确认,授权后不再每次弹窗</span>
+              </div>
+              <div className="btn-row">
+                {state?.drillGranted
+                  ? <span className="pill pill-on">已授权</span>
+                  : <button type="button" className="btn" onClick={grantDrill} disabled={busy}>一键授权</button>}
+              </div>
+            </div>
+            {state?.unrestrictMarked && !state?.unrestricted ? (
+              <p className="muted" style={{ marginBottom: 0 }}>检测到「已解除」标记但补丁不在(插件可能刚更新),点「解除拦截」重打即可。</p>
+            ) : null}
+            <p className="note-warn" style={{ marginBottom: 0 }}>
+              ⚠ 解除拦截只移除插件作者的手动限制,不改变你的授权边界;请在已获授权的环境中使用。
+            </p>
+          </section>
+
+          {check ? (
+            <section className="card">
+              <h2>自检结果 <span className="hint">逐层证据,不适用项单独标注</span></h2>
+              {check.summary ? (
+                <div className="version-status" style={{ marginBottom: 10, flexWrap: 'wrap', gap: 6 }}>
+                  {['host', 'runtime', 'config', 'layout'].map(k => (
+                    check.summary[k] ? (
+                      <span key={k} className={`pill ${check.summary[k].ok ? 'pill-on' : 'pill-off'}`}>
+                        {k} {check.summary[k].passed}/{check.summary[k].total}
+                      </span>
+                    ) : null
+                  ))}
+                  {check.summary.uncertain?.layers ? <span className="pill pill-warn">待核实 {check.summary.uncertain.layers} 层</span> : null}
+                  {check.summary.broken?.layers ? <span className="pill pill-off">损坏 {check.summary.broken.layers} 层</span> : null}
+                </div>
+              ) : null}
+              <ul className="purge-layers">
+                {(check.layers ?? []).map((l, i) => (
+                  <li key={i} className={l.ok ? 'purge-layer-ok' : 'purge-layer-bad'}>
+                    <span className="mono">{l.ok ? '✓' : (l.applicable === false ? '·' : '✗')}</span>{' '}
+                    {l.title} <span className="muted">{l.applicable === false ? '不适用' : `${l.applied ?? 0}/${l.total ?? '?'}`}</span>
+                    {l.note ? <span className="hint"> {l.note}</span> : null}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
+          <section className="card">
+            <h2>备份 <span className="hint">应用 / 安装 / 回滚前自动快照</span></h2>
+            {state.backups?.length ? (
+              <>
+                <ul className="purge-backups">
+                  {state.backups.map(b => (
+                    <li key={b.id}>
+                      <span className="mono">{b.id}</span>
+                      <span className="muted"> {fmtTime(b.created_at)} · {b.reason ?? ''}{b.host_version ? ` · dsh ${b.host_version}` : ''}</span>
+                      <button type="button" className="btn small" disabled={busy} onClick={() => rollbackTo(b.id)}>回滚到此</button>
+                    </li>
+                  ))}
+                </ul>
+                <div className="btn-row" style={{ marginTop: 10 }}>
+                  <button type="button" className="btn" onClick={prune} disabled={busy}>清理旧备份</button>
+                </div>
+              </>
+            ) : (
+              <p className="muted">暂无备份。「应用」或「备份」操作会自动创建。</p>
+            )}
+          </section>
+
+          <section className="card">
+            <h2>最近动作 <span className="hint">插件审计日志(audit.jsonl)</span></h2>
+            {state.auditTail?.length ? (
+              <ul className="purge-audit">
+                {state.auditTail.map((a, i) => (
+                  <li key={i}><span className="mono">{a.event}</span> <span className="muted">{fmtTime(a.at)}</span></li>
+                ))}
+              </ul>
+            ) : (
+              <p className="muted">暂无记录。插件的应用 / 回滚 / 开关操作会写入审计。</p>
+            )}
+          </section>
+        </>
+      ) : null}
+
       <section className="card">
         <h2>说明</h2>
         <p className="muted">
-          安装后 dsh 会把该技能加入技能目录:遇到 APK / 二进制 / JS 加密 / 协议逆向等任务时,
-          按技能描述路由进入包内 RULES.md 路由矩阵,并自举所需工具链。
+          破甲功能由 DSH 插件实现:控制器负责安装、状态展示与操作编排,
+          宿主文件修改与备份还原全部由插件自身完成。应用后需重启 dsh 才生效。
+        </p>
+        <p className="note-warn">
+          ⚠ 破甲补丁会修改本机 dsh 安装目录的文件(写入前自动备份)。请在你拥有或已获授权的环境中使用。
         </p>
       </section>
     </>
@@ -386,112 +742,7 @@ function PackPanel() {
 }
 
 export default function App() {
-  const [tab, setTab] = useState('status')
-  const [status, setStatus] = useState(null)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
-  const [events, setEvents] = useState([])
-  const [now, setNow] = useState(() => Date.now())
-  const prevRunning = useRef(null)
-
-  const refresh = useCallback(async () => {
-    try {
-      const st = await window.api.getDshStatus()
-      setStatus(st)
-      setError('')
-    } catch (e) {
-      setError(String(e?.message ?? e))
-    }
-  }, [])
-
-  // 每 2 秒轮询 + 窗口聚焦时立即刷新
-  useEffect(() => {
-    void refresh()
-    const id = setInterval(() => void refresh(), POLL_MS)
-    const onFocus = () => void refresh()
-    window.addEventListener('focus', onFocus)
-    return () => {
-      clearInterval(id)
-      window.removeEventListener('focus', onFocus)
-    }
-  }, [refresh])
-
-  // 运行时长每秒跳动
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(id)
-  }, [])
-
-  const pushEvent = useCallback((text) => {
-    setEvents(prev => [{ time: Date.now(), text }, ...prev].slice(0, MAX_EVENTS))
-  }, [])
-
-  // 状态变化时记录事件
-  useEffect(() => {
-    if (!status) return
-    if (prevRunning.current === null) {
-      prevRunning.current = status.running
-      return
-    }
-    if (prevRunning.current !== status.running) {
-      prevRunning.current = status.running
-      pushEvent(status.running
-        ? (status.managedByUs ? 'dsh 已启动(本应用)' : '检测到 dsh 已运行(外部进程)')
-        : 'dsh 已停止')
-    }
-  }, [status, pushEvent])
-
-  const act = useCallback(async (fn, label) => {
-    setBusy(true)
-    try {
-      await fn()
-      if (label) pushEvent(label)
-    } catch (e) {
-      setError(String(e?.message ?? e))
-    }
-    setBusy(false)
-    await refresh()
-  }, [pushEvent, refresh])
-
-  const running = !!status?.running
-
-  const uptimeMs = useMemo(() => {
-    if (!running || status.startedAtMs == null) return null
-    return Math.max(0, now - status.startedAtMs)
-  }, [running, status, now])
-
-  const toggleDsh = () => act(
-    running ? () => window.api.stopDsh() : () => window.api.startDsh(),
-    null,
-  )
-  const restartDsh = () => act(() => window.api.restartDsh(), '已重启 dsh')
-  const openUi = () => act(() => window.api.openSessionUi(), '已打开 Web 界面')
-  const manualRefresh = () => void refresh()
-
-  if (!status) {
-    return (
-      <main className="app">
-        <header className="hero">
-          <div className="brand">
-            <span className="brand-mark" />
-            <div>
-              <h1>DSH Controller</h1>
-              <p className="subtitle">DeepSeek Harness 服务状态管理</p>
-            </div>
-          </div>
-        </header>
-        <section className="card"><p className="empty">正在获取服务状态…</p></section>
-      </main>
-    )
-  }
-
-  const webLabel = !running
-    ? '—'
-    : !status.web
-      ? '检测中…'
-      : (status.web.ok ? (status.web.ms < 1 ? '<1 ms' : `${status.web.ms} ms`) : '无响应')
-
-  const webTone = running && status.web && !status.web.ok ? 'warn' : (running && status.web?.ok ? 'good' : null)
+  const [tab, setTab] = useState('plugins')
 
   return (
     <main className="app">
@@ -500,132 +751,25 @@ export default function App() {
           <span className="brand-mark" />
           <div>
             <h1>DSH Controller</h1>
-            <p className="subtitle">DeepSeek Harness 服务状态管理</p>
+            <p className="subtitle">DeepSeek Harness 桌面管理 · 插件 / 破甲 / 技能包</p>
           </div>
         </div>
-        <span className={`pill ${running ? 'pill-on' : 'pill-off'}`}>
-          {running ? '服务运行中' : '服务已停止'}
-        </span>
       </header>
 
       <nav className="tabs" role="tablist" aria-label="功能导航">
-        <button type="button" role="tab" aria-selected={tab === 'status'} className={`tab ${tab === 'status' ? 'active' : ''}`} onClick={() => setTab('status')}>服务状态</button>
-        <button type="button" role="tab" aria-selected={tab === 'version'} className={`tab ${tab === 'version' ? 'active' : ''}`} onClick={() => setTab('version')}>版本管理</button>
         <button type="button" role="tab" aria-selected={tab === 'plugins'} className={`tab ${tab === 'plugins' ? 'active' : ''}`} onClick={() => setTab('plugins')}>插件中心</button>
-        <button type="button" role="tab" aria-selected={tab === 'pack'} className={`tab ${tab === 'pack' ? 'active' : ''}`} onClick={() => setTab('pack')}>技能包</button>
+        <button type="button" role="tab" aria-selected={tab === 'purge'} className={`tab ${tab === 'purge' ? 'active' : ''}`} onClick={() => setTab('purge')}>破甲</button>
+        <button type="button" role="tab" aria-selected={tab === 'redteam'} className={`tab ${tab === 'redteam' ? 'active' : ''}`} onClick={() => setTab('redteam')}>红队技能包</button>
+        <button type="button" role="tab" aria-selected={tab === 'reverse'} className={`tab ${tab === 'reverse' ? 'active' : ''}`} onClick={() => setTab('reverse')}>逆向技能包</button>
       </nav>
 
-      {tab === 'status' ? (
-        <>
-          <section className="card status-card">
-            <div className="status-main">
-              <div className="status-indicator">
-                <span className={`status-dot ${running ? 'on' : 'off'}`} aria-hidden="true" />
-                <div className="status-copy">
-                  <div className="status-title">{running ? '运行中' : '已停止'}</div>
-                  <div className="status-sub" title={running ? status.url : undefined}>
-                    {running ? status.url : '服务未启动,点击「启动 dsh」开始'}
-                  </div>
-                </div>
-              </div>
-              <div className="btn-row">
-                <button type="button" className="btn" onClick={manualRefresh} disabled={busy}>刷新</button>
-                <button type="button" className="btn" onClick={openUi} disabled={busy || !running}>打开界面</button>
-                <button type="button" className="btn" onClick={restartDsh} disabled={busy || !running}>重启</button>
-                <button
-                  type="button"
-                  className={`btn ${running ? 'danger' : 'primary'}`}
-                  onClick={toggleDsh}
-                  disabled={busy}
-                >
-                  {busy ? '处理中…' : running ? '停止 dsh' : '启动 dsh'}
-                </button>
-              </div>
-            </div>
-
-            {error ? <div className="banner banner-error" role="alert">{error}</div> : null}
-
-            <div className="status-foot">
-              <span className="foot-item">端口 <b className="mono">{status.port}</b></span>
-              <span className="foot-item">PID <b className="mono">{status.pid ?? '—'}</b></span>
-              <span className={`foot-tag ${!running ? 'tag-off' : status.managedByUs ? 'tag-self' : 'tag-ext'}`}>
-                {!running ? '未运行' : status.managedByUs ? '本应用启动' : '外部进程'}
-              </span>
-              <span className="foot-item foot-right">⟳ 每 2 秒自动刷新</span>
-            </div>
-          </section>
-
-          <section aria-label="服务指标">
-            <div className="grid">
-              <StatTile label="运行时长" value={formatUptime(uptimeMs)} />
-              <StatTile label="进程 PID" value={status.pid ?? '—'} mono />
-              <StatTile label="CPU 占用" value={fmtCpu(status.cpu)} mono />
-              <StatTile label="内存占用" value={fmtMem(status.rssMB)} mono />
-              <StatTile label="Web UI 延迟" value={webLabel} mono tone={webTone} />
-            </div>
-            {running && status.procBlocked ? (
-              <p className="note-warn">⚠ 当前环境禁止读取进程详情,CPU / 内存等指标暂不可用</p>
-            ) : null}
-          </section>
-
-          <section className="card">
-            <h2>服务详情</h2>
-            <dl className="kv">
-              <div>
-                <dt>dsh 版本</dt>
-                <dd className="mono">{status.version || '—'}</dd>
-              </div>
-              <div>
-                <dt>访问地址</dt>
-                <dd className="mono">{status.url}</dd>
-              </div>
-              <div>
-                <dt>监听端口</dt>
-                <dd className="mono">{status.port}</dd>
-              </div>
-              <div>
-                <dt>进程名称</dt>
-                <dd className="mono">{status.procName || '—'}</dd>
-              </div>
-              <div>
-                <dt>运行平台</dt>
-                <dd>{platformLabel(status.platform)}</dd>
-              </div>
-              <div>
-                <dt>Web UI 状态码</dt>
-                <dd className="mono">{running && status.web?.code != null ? status.web.code : '—'}</dd>
-              </div>
-              <div>
-                <dt>启动时间</dt>
-                <dd className="mono">{status.startedAtMs ? new Date(status.startedAtMs).toLocaleString() : '—'}</dd>
-              </div>
-            </dl>
-          </section>
-
-          <section className="card">
-            <h2>事件记录 <span className="hint">本次会话</span></h2>
-            {events.length === 0 ? (
-              <p className="empty">暂无事件</p>
-            ) : (
-              <ul className="events">
-                {events.map((e, i) => (
-                  <li key={`${e.time}-${i}`}>
-                    <span className="event-time mono">{clock(e.time)}</span>
-                    <span className="event-text">{e.text}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-        </>
-      ) : null}
-
-      {tab === 'version' ? <VersionPanel /> : null}
-      {tab === 'plugins' ? <PluginPanel dshVersion={status.version} /> : null}
-      {tab === 'pack' ? <PackPanel /> : null}
+      {tab === 'plugins' ? <PluginPanel /> : null}
+      {tab === 'purge' ? <PurgePanel /> : null}
+      {tab === 'redteam' ? <RedteamPackPanel /> : null}
+      {tab === 'reverse' ? <ReversePackPanel /> : null}
 
       <footer className="foot">
-        关闭窗口后应用驻留菜单栏托盘 · 「停止 dsh」会结束占用 3080 端口的进程
+        关闭窗口即退出应用 · 桌面版进程由 DeepSeek Harness 自身管理
       </footer>
     </main>
   )

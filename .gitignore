@@ -7,3 +7,5 @@ dist-win/
 *.log
 resources/
 文件/
+docs/*.exe
+dsh-purge-self-*.tgz

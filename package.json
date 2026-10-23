@@ -26,12 +26,6 @@
     "files": [
       "out/**"
     ],
-    "extraResources": [
-      {
-        "from": "resources/reverse-skill",
-        "to": "resources/reverse-skill"
-      }
-    ],
     "directories": {
       "output": "dist"
     },
@@ -47,5 +41,8 @@
         "nsis"
       ]
     }
+  },
+  "dependencies": {
+    "semver": "^7.8.5"
   }
 }
