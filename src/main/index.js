@@ -534,38 +534,23 @@ ipcMain.handle('plugins:setVersionExemption', (_e, name, version, dshVersion, en
 // ── 破甲 IPC ────────────────────────────────────────────────
 ipcMain.handle('purge:state', () => getPurgeState())
 
-// 安装/更新统一走官方市场最新版 tarball(重新 add 即更新)
+// 安装/更新:git 下发——浅克隆本项目仓库,取 dsh-purge-self/ 子目录重打标准 tarball 后本地安装。
+// 不用 dsh 的 git path-spec:CLI 会对 spec 二次追加 #main 导致 pnpm 解析失败。
 ipcMain.handle('purge:install', async () => {
   const market = await purgeMarketInfo()
-  // 安装走「仓库归档 → 提取子目录 → 重打标准 tarball → 本地安装」:
-  // git path-spec 会被 dsh CLI 二次追加 #main 导致 pnpm 解析失败,本地 tarball 最稳
-  const archiveUrl = SELF_REPO_GIT.replace(/\.git$/, '') + '/archive/main.tar.gz'
   const tmpDir = path.join(os.tmpdir(), `dshc-purge-self-${Date.now()}`)
-  let tarball = null
   try {
     await mkdir(tmpDir, { recursive: true })
-    const res = await fetch(archiveUrl, { signal: AbortSignal.timeout(120_000) })
-    if (!res.ok) throw new Error(`仓库归档下载失败:HTTP ${res.status}`)
-    const buf = Buffer.from(await res.arrayBuffer())
-    if (!buf.length || buf.length > 200 * 1024 * 1024) throw new Error('归档大小异常')
-    // gzip magic 校验:代理拦截/登录页会返回 200 的 HTML,直接解压会得到误导性错误
-    if (buf[0] !== 0x1f || buf[1] !== 0x8b) {
-      throw new Error(`归档内容异常(可能是系统代理拦截):前 16 字节 ${buf.slice(0, 16).toString('hex')}`)
+    const repoDir = path.join(tmpDir, 'repo')
+    await gitClone(SELF_REPO_GIT, repoDir)
+    const srcDir = path.join(repoDir, 'dsh-purge-self')
+    if (!existsSync(path.join(srcDir, 'package.json'))) {
+      throw new Error('仓库里没有 dsh-purge-self/(先提交推送本项目仓库)')
     }
-    const arc = path.join(tmpDir, 'repo.tgz')
-    await writeFile(arc, buf)
-    await extractTar(arc, path.join(tmpDir, 'repo'))
-    // 归档根目录名为 <repo>-<ref> 或 <repo>,定位 dsh-purge-self 子目录
-    let srcDir = null
-    let topDirs = []
-    for (const e of await readdir(path.join(tmpDir, 'repo'), { withFileTypes: true })) {
-      if (e.isDirectory()) topDirs.push(e.name)
-      const cand = path.join(tmpDir, 'repo', e.name, 'dsh-purge-self')
-      if (e.isDirectory() && existsSync(path.join(cand, 'package.json'))) { srcDir = cand; break }
-    }
-    if (!srcDir) throw new Error(`归档里没有 dsh-purge-self/(归档顶层目录: ${topDirs.join(', ') || '空'});请确认已提交推送 dsh-purge-self/`)
+    // 复制子目录 → 重打 package/ 结构的 tarball(去掉 .git 等杂质)
     await cp(srcDir, path.join(tmpDir, 'package'), { recursive: true })
-    tarball = path.join(tmpDir, 'dsh-purge-self.tgz')
+    await rm(path.join(tmpDir, 'package', '.git'), { recursive: true, force: true })
+    const tarball = path.join(tmpDir, 'dsh-purge-self.tgz')
     await new Promise((resolve, reject) => {
       const child = spawn('tar', ['-czf', tarball, '-C', tmpDir, 'package'], { env: spawnEnv(), stdio: 'ignore' })
       child.once('error', reject)
