@@ -1,11 +1,11 @@
 // Updater network layer.
-// Derived from YuJunZhiXue/dsh-purge lib/update.js (MIT, Copyright (c) 2026 小杨).
+// Derived from dsh-purge-self lib/update.js (MIT, Copyright (c) 2026 小杨).
 // Community fork keeps the hardened redirect allowlist and byte caps; every
 // request now has an explicit timeout and every listing runs under withBudget(),
 // so a blocked network degrades to ok:false instead of hanging the host.
 import { requestUpdate, UPDATE_HOSTS } from "./update-http.js";
 
-// 上游仓库（YuJunZhiXue/dsh-purge）已被删除并换成无关项目，beta/zip 通道曾因此 404。
+// 上游仓库（dsh-purge-self）已被删除并换成无关项目，beta/zip 通道曾因此 404。
 // 本 fork 现在以自己为发布源；UPSTREAM_REPO 保留旧名字，避免外部脚本引用失效。
 export const SOURCE_REPO = "skyle1995/dsh-purge-self";
 export const UPSTREAM_REPO = SOURCE_REPO;

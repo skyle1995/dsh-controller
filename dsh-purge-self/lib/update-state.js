@@ -1,5 +1,5 @@
 // Updater persisted state: channel, version history, install stamp, auto-update guard.
-// Derived from YuJunZhiXue/dsh-purge lib/update.js (MIT, Copyright (c) 2026 小杨).
+// Derived from dsh-purge-self lib/update.js (MIT, Copyright (c) 2026 小杨).
 import fs from "node:fs";
 import path from "node:path";
 import { atomicWriteSync, findDshHome } from "./core.js";
