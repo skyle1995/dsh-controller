@@ -412,6 +412,7 @@ function ReversePackPanel() {
         <span className="muted">
           {rv?.installed
             ? (rv.upToDate ? '已装 v' + (rv.installedVersion ?? '—') + ' · 最新' : '已装 v' + (rv.installedVersion ?? '—') + ' → 最新 v' + (rv.latest ?? '?'))
+              + (rv.installedAt ? ' · 装于 ' + new Date(rv.installedAt).toLocaleString() : '')
             : (rv?.latest ? '最新 v' + rv.latest : '检测自建源版本…')}
         </span>
       </div>

@@ -863,6 +863,7 @@ async function reverseSkillsState() {
   return {
     installed: existsSync(path.join(REVERSE_SKILL_DIR, 'SKILL.md')),
     installedVersion,
+    installedAt: state?.installedAt ?? null,
     latest,
     upToDate: !!(installedVersion && latest && installedVersion === latest),
     skillCount,
