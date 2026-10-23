@@ -399,8 +399,8 @@ function ReversePackPanel() {
           <div className="vcard-label">版本</div>
           <div className="vcard-value mono">
             {rv?.installed
-              ? (String(rv.installedCommit ?? '').slice(0, 8) || '—') + (!rv.upToDate && rv.latest ? ' → ' + String(rv.latest).slice(0, 8) : '')
-              : (rv?.latest ? String(rv.latest).slice(0, 8) : '—')}
+              ? ('v' + (rv.installedVersion ?? '—')) + (!rv.upToDate && rv.latest ? ' → v' + rv.latest : '')
+              : (rv?.latest ? 'v' + rv.latest : '—')}
           </div>
         </div>
       </div>
@@ -411,8 +411,8 @@ function ReversePackPanel() {
           : <span className="pill pill-off">未安装</span>}
         <span className="muted">
           {rv?.installed
-            ? (rv.upToDate ? '已装 ' + String(rv.installedCommit ?? '').slice(0, 8) + ' · 最新' : '已装 ' + String(rv.installedCommit ?? '').slice(0, 8) + ' → 最新 ' + String(rv.latest ?? '').slice(0, 8))
-            : (rv?.latest ? '最新 ' + String(rv.latest).slice(0, 8) : '检测自建源版本…')}
+            ? (rv.upToDate ? '已装 v' + (rv.installedVersion ?? '—') + ' · 最新' : '已装 v' + (rv.installedVersion ?? '—') + ' → 最新 v' + (rv.latest ?? '?'))
+            : (rv?.latest ? '最新 v' + rv.latest : '检测自建源版本…')}
         </span>
       </div>
 

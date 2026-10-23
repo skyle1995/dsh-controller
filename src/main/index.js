@@ -791,16 +791,20 @@ description: 逆向工程 / 授权渗透测试 / 安全研究 / CTF 技能路由
 let reverseSkillLatestCache = null
 let reverseSkillLatestAt = 0
 
+// 独立语义版本:读本项目仓库 reverse-skill/package.json 的 version 字段,
+// 与仓库 commit 解耦——只有技能内容升版本才提示更新
 async function reverseSkillLatest() {
   if (reverseSkillLatestCache && Date.now() - reverseSkillLatestAt < 5 * 60_000) return reverseSkillLatestCache
-  const res = await hubFetch(`${REVERSE_SKILL_API}/commits?sha=main&limit=1`)
+  const res = await hubFetch(`${REVERSE_SKILL_API}/contents/reverse-skill/package.json?ref=main`)
   if (!res.ok) throw new Error(res.status === 404 ? '自建源未发布(先提交推送 reverse-skill/ 到本项目仓库)' : `自建源接口返回 ${res.status}`)
-  const sha = (await res.json())?.[0]?.sha ?? null
-  if (sha) {
-    reverseSkillLatestCache = sha
+  const meta = await res.json()
+  const pkg = JSON.parse(Buffer.from(meta?.content ?? '', meta?.encoding === 'base64' ? 'base64' : 'utf8').toString('utf8'))
+  const version = pkg?.version ?? null
+  if (version) {
+    reverseSkillLatestCache = version
     reverseSkillLatestAt = Date.now()
   }
-  return sha
+  return version
 }
 
 function reverseSkillLocalResource() {
@@ -828,13 +832,18 @@ async function reverseSkillsState() {
       if (skillCount) break
     }
   } catch {}
+  // 兼容旧状态(commit 版)→ 升级为 version;已装版本也可从安装目录 package.json 兜底读取
+  let installedVersion = state?.version ?? null
+  if (!installedVersion) {
+    try {
+      installedVersion = JSON.parse(await readFile(path.join(REVERSE_SKILL_DIR, 'package.json'), 'utf8'))?.version ?? null
+    } catch {}
+  }
   return {
     installed: existsSync(path.join(REVERSE_SKILL_DIR, 'SKILL.md')),
-    installedCommit: state?.commit ?? null,
-    installedAt: state?.installedAt ?? null,
-    installedFrom: state?.source ?? null,
+    installedVersion,
     latest,
-    upToDate: !!(state?.commit && latest && state.commit === latest),
+    upToDate: !!(installedVersion && latest && installedVersion === latest),
     skillCount,
     localFallback: !!reverseSkillLocalResource(),
   }
@@ -875,8 +884,8 @@ function gitClone(url, destDir) {
 }
 
 async function installReverseSkill() {
-  let commit = null
-  try { commit = await reverseSkillLatest() } catch { /* 版本拿不到不阻塞安装 */ }
+  let version = null
+  try { version = await reverseSkillLatest() } catch { /* 版本拿不到不阻塞安装 */ }
   const tmpDir = path.join(os.tmpdir(), `dshc-reverse-skill-${Date.now()}`)
   try {
     await mkdir(tmpDir, { recursive: true })
@@ -891,12 +900,17 @@ async function installReverseSkill() {
     await writeFile(path.join(REVERSE_SKILL_DIR, 'SKILL.md'), REVERSE_SKILL_ENTRY_MD, 'utf8')
     await rm(path.join(REVERSE_SKILL_DIR, '.git'), { recursive: true, force: true })
     await rm(path.join(DSH_SKILLS_DIR, '__MACOSX'), { recursive: true, force: true })
+    // 以安装包内的 package.json 版本为准(仓库侧漏改时兜底)
+    try {
+      const pkg = JSON.parse(await readFile(path.join(REVERSE_SKILL_DIR, 'package.json'), 'utf8'))
+      if (pkg?.version) version = pkg.version
+    } catch {}
     await writeFile(REVERSE_SKILL_STATE, JSON.stringify({
       source: 'git',
-      commit,
+      version,
       installedAt: Date.now(),
     }, null, 2), 'utf8')
-    return { ok: true, source: 'git', commit }
+    return { ok: true, source: 'git', version }
   } finally {
     await rm(tmpDir, { recursive: true, force: true }).catch(() => {})
   }
