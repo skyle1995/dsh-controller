@@ -1,5 +1,5 @@
 // Generated from src/ by npm run build. Do not edit.
-;try{var __ds=document.createElement("style");__ds.textContent=":root{--dshpp-fb-bg-base:#f7f7f8;--dshpp-fb-bg-1:#ffffff;--dshpp-fb-bg-2:#f2f2f3;--dshpp-fb-bg-overlay:#ffffff;--dshpp-fb-border-1:#e2e2e4;--dshpp-fb-border-2:#d3d3d6;--dshpp-fb-brand:#6dbf8c;--dshpp-fb-label-1:#171717;--dshpp-fb-label-2:#666668;--dshpp-fb-label-3:#8f8f94;--dshpp-fb-label-brand:#2f6b4f;--dshpp-fb-hover:rgba(0,0,0,.06);--dshpp-fb-err:#d23b3b;--dshpp-fb-ok:#218838;--dshpp-fb-warn:#b7791f;--dshpp-fb-elev:0 16px 64px rgba(0,0,0,.18);--dshpp-fb-mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;--dshpp-fb-menu:#ffffff;}@media (prefers-color-scheme: dark){:root{--dshpp-fb-bg-base:#101012;--dshpp-fb-bg-1:#1c1c1f;--dshpp-fb-bg-2:#26262a;--dshpp-fb-bg-overlay:#1c1c1f;--dshpp-fb-border-1:#33333a;--dshpp-fb-border-2:#40404a;--dshpp-fb-brand:#6dbf8c;--dshpp-fb-label-1:#f2f2f3;--dshpp-fb-label-2:#a8a8b0;--dshpp-fb-label-3:#7c7c86;--dshpp-fb-label-brand:#7fd0a0;--dshpp-fb-hover:rgba(255,255,255,.08);--dshpp-fb-err:#f87171;--dshpp-fb-ok:#34d17b;--dshpp-fb-warn:#fbbf24;--dshpp-fb-elev:0 16px 64px rgba(0,0,0,.5);--dshpp-fb-menu:#1c1c1f;}}";(document.head||document.documentElement).appendChild(__ds)}catch(e){};
+;try{var __ds=document.createElement("style");__ds.textContent=":root{--dshpp-fb-bg-base:#f7f7f8;--dshpp-fb-bg-1:#ffffff;--dshpp-fb-bg-2:#f2f2f3;--dshpp-fb-bg-overlay:#ffffff;--dshpp-fb-border-1:#e2e2e4;--dshpp-fb-border-2:#d3d3d6;--dshpp-fb-brand:#6dbf8c;--dshpp-fb-label-1:#171717;--dshpp-fb-label-2:#666668;--dshpp-fb-label-3:#8f8f94;--dshpp-fb-label-brand:#2f6b4f;--dshpp-fb-hover:rgba(0,0,0,.06);--dshpp-fb-err:#d23b3b;--dshpp-fb-ok:#218838;--dshpp-fb-warn:#b7791f;--dshpp-fb-elev:0 16px 64px rgba(0,0,0,.18);--dshpp-fb-mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;--dshpp-fb-menu:#ffffff;}@media (prefers-color-scheme: dark){:root{--dshpp-fb-bg-base:#101012;--dshpp-fb-bg-1:#1c1c1f;--dshpp-fb-bg-2:#26262a;--dshpp-fb-bg-overlay:#1c1c1f;--dshpp-fb-border-1:#33333a;--dshpp-fb-border-2:#40404a;--dshpp-fb-brand:#6dbf8c;--dshpp-fb-label-1:#f2f2f3;--dshpp-fb-label-2:#a8a8b0;--dshpp-fb-label-3:#7c7c86;--dshpp-fb-label-brand:#7fd0a0;--dshpp-fb-hover:rgba(255,255,255,.08);--dshpp-fb-err:#f87171;--dshpp-fb-ok:#34d17b;--dshpp-fb-warn:#fbbf24;--dshpp-fb-elev:0 16px 64px rgba(0,0,0,.5);--dshpp-fb-menu:#1c1c1f;}}[data-ds-dark-theme]:not([data-ds-dark-theme=\"false\"]){--dshpp-fb-bg-base:#101012;--dshpp-fb-bg-1:#1c1c1f;--dshpp-fb-bg-2:#26262a;--dshpp-fb-bg-overlay:#1c1c1f;--dshpp-fb-border-1:#33333a;--dshpp-fb-border-2:#40404a;--dshpp-fb-brand:#6dbf8c;--dshpp-fb-label-1:#f2f2f3;--dshpp-fb-label-2:#a8a8b0;--dshpp-fb-label-3:#7c7c86;--dshpp-fb-label-brand:#7fd0a0;--dshpp-fb-hover:rgba(255,255,255,.08);--dshpp-fb-err:#f87171;--dshpp-fb-ok:#34d17b;--dshpp-fb-warn:#fbbf24;--dshpp-fb-elev:0 16px 64px rgba(0,0,0,.5);--dshpp-fb-menu:#1c1c1f;}";(document.head||document.documentElement).appendChild(__ds)}catch(e){};
 // Derived UI. See LICENSE.
 window.__ModuleLoader__.load({id:"dsh-purge-self",factory:(require)=>{
 var module={exports:{}};var exports=module.exports;
@@ -12826,7 +12826,7 @@ function SettingsRoot(props = {}) {
       h(
         "span",
         { className: "dshpp-native-badge" },
-        (true ? "Purge Self " : "\u72EC\u7ACB\u754C\u9762 ") + "1.1.1"
+        (true ? "Purge Self " : "\u72EC\u7ACB\u754C\u9762 ") + "1.1.2"
       )
     ),
     h(CompatibilityNote, { status: backendStatus }),
@@ -12982,7 +12982,7 @@ function StatusStrip({ info }) {
       "span",
       { className: "dshpp-strip-item" },
       "\u63D2\u4EF6 ",
-      h("b", null, info?.plugin_version || "1.1.1")
+      h("b", null, info?.plugin_version || "1.1.2")
     )
   );
 }
@@ -13017,11 +13017,11 @@ function VersionNotice({ info }) {
     );
   }
   const backend = info?.plugin_version;
-  if (!backend || backend === "1.1.1") return null;
+  if (!backend || backend === "1.1.2") return null;
   return h(
     "p",
     { className: "dshpp-warn", role: "status" },
-    `\u5B98\u65B9\u7248\u672C ${backend}\uFF1B\u754C\u9762 ${"1.1.1"}\u3002\u4E24\u8005\u4E0D\u4E00\u81F4\u65F6\u8BBE\u7F6E\u53EF\u80FD\u4E0D\u751F\u6548\uFF0C\u8BF7\u66F4\u65B0\u5230\u540C\u4E00\u7248\u672C\u540E\u91CD\u542F DSH\u3002`
+    `\u5B98\u65B9\u7248\u672C ${backend}\uFF1B\u754C\u9762 ${"1.1.2"}\u3002\u4E24\u8005\u4E0D\u4E00\u81F4\u65F6\u8BBE\u7F6E\u53EF\u80FD\u4E0D\u751F\u6548\uFF0C\u8BF7\u66F4\u65B0\u5230\u540C\u4E00\u7248\u672C\u540E\u91CD\u542F DSH\u3002`
   );
 }
 function PurgePage() {
@@ -13078,7 +13078,7 @@ function PurgePage() {
           true ? h(
             "span",
             { className: "dshpp-page-ver" },
-            "Purge Self 1.1.1"
+            "Purge Self 1.1.2"
           ) : null
         )
       )
