@@ -392,16 +392,16 @@ function ReversePackPanel() {
           <div className="vcard-value mono">{rv?.installed ? (rv.upToDate ? '已安装·最新' : '已安装·可更新') : '未安装'}</div>
         </div>
         <div className="vcard">
+          <div className="vcard-label">技能数量</div>
+          <div className="vcard-value mono">{rv?.installed ? `${rv.skillCount ?? 0} 个` : '—'}</div>
+        </div>
+        <div className="vcard">
           <div className="vcard-label">版本</div>
           <div className="vcard-value mono">
             {rv?.installed
               ? (String(rv.installedCommit ?? '').slice(0, 8) || '—') + (!rv.upToDate && rv.latest ? ' → ' + String(rv.latest).slice(0, 8) : '')
               : (rv?.latest ? String(rv.latest).slice(0, 8) : '—')}
           </div>
-        </div>
-        <div className="vcard">
-          <div className="vcard-label">技能数量</div>
-          <div className="vcard-value mono">{rv?.installed ? `${rv.skillCount ?? 0} 个` : '—'}</div>
         </div>
       </div>
 
