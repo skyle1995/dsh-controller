@@ -537,15 +537,45 @@ ipcMain.handle('purge:state', () => getPurgeState())
 // 安装/更新统一走官方市场最新版 tarball(重新 add 即更新)
 ipcMain.handle('purge:install', async () => {
   const market = await purgeMarketInfo()
-  const { output } = await runOp(resolveDshCmd(), ['plugin', '--profile', pluginProfile(), 'add', market.url], { capture: true })
-  purgeCliCache = null
-  // 插件更新会重装 node_modules、覆盖补丁;用户解除过限制的话按持久标记自动重打
-  let reapplied = false
-  if (existsSync(PURGE_UNRESTRICT_MARK)) {
-    try { await purgeUnrestricted(); reapplied = true } catch {}
+  // 安装走「仓库归档 → 提取子目录 → 重打标准 tarball → 本地安装」:
+  // git path-spec 会被 dsh CLI 二次追加 #main 导致 pnpm 解析失败,本地 tarball 最稳
+  const archiveUrl = SELF_REPO_GIT.replace(/\.git$/, '') + '/archive/main.tar.gz'
+  const tmpDir = path.join(os.tmpdir(), `dshc-purge-self-${Date.now()}`)
+  let tarball = null
+  try {
+    await mkdir(tmpDir, { recursive: true })
+    const res = await fetch(archiveUrl, { signal: AbortSignal.timeout(120_000) })
+    if (!res.ok) throw new Error(`仓库归档下载失败:HTTP ${res.status}`)
+    const buf = Buffer.from(await res.arrayBuffer())
+    if (!buf.length || buf.length > 200 * 1024 * 1024) throw new Error('归档大小异常')
+    const arc = path.join(tmpDir, 'repo.tgz')
+    await writeFile(arc, buf)
+    await extractTar(arc, path.join(tmpDir, 'repo'))
+    // 归档根目录名为 <repo>-<ref> 或 <repo>,定位 dsh-purge-self 子目录
+    let srcDir = null
+    for (const e of await readdir(path.join(tmpDir, 'repo'), { withFileTypes: true })) {
+      const cand = path.join(tmpDir, 'repo', e.name, 'dsh-purge-self')
+      if (e.isDirectory() && existsSync(path.join(cand, 'package.json'))) { srcDir = cand; break }
+    }
+    if (!srcDir) throw new Error('归档里没有 dsh-purge-self/(先提交推送到本项目仓库)')
+    await cp(srcDir, path.join(tmpDir, 'package'), { recursive: true })
+    tarball = path.join(tmpDir, 'dsh-purge-self.tgz')
+    await new Promise((resolve, reject) => {
+      const child = spawn('tar', ['-czf', tarball, '-C', tmpDir, 'package'], { env: spawnEnv(), stdio: 'ignore' })
+      child.once('error', reject)
+      child.once('exit', (code) => code === 0 ? resolve() : reject(new Error(`tar 打包失败(退出码 ${code})`)))
+    })
+    const { output } = await runOp(resolveDshCmd(), ['plugin', '--profile', pluginProfile(), 'add', tarball], { capture: true })
+    purgeCliCache = null
+    let reapplied = false
+    if (existsSync(PURGE_UNRESTRICT_MARK)) {
+      try { await purgeUnrestricted(); reapplied = true } catch {}
+    }
+    try { await applyClientNoticePatch() } catch {}
+    return { ok: true, version: market.version, output, reapplied }
+  } finally {
+    await rm(tmpDir, { recursive: true, force: true }).catch(() => {})
   }
-  try { await applyClientNoticePatch() } catch {}
-  return { ok: true, version: market.version, output, reapplied }
 })
 
 // 应用/回滚/卸载补丁:原版 CLI,输出为文本进度(操作日志区实时可见)
