@@ -747,9 +747,9 @@ function PurgePanel() {
               ) : null}
               <ul className="purge-layers">
                 {(check.layers ?? []).map((l, i) => (
-                  <li key={i} className={l.ok ? 'purge-layer-ok' : 'purge-layer-bad'}>
-                    <span className="mono">{l.ok ? '✓' : (l.applicable === false ? '·' : '✗')}</span>{' '}
-                    {l.title} <span className="muted">{l.applicable === false ? '不适用' : `${l.applied ?? 0}/${l.total ?? '?'}`}</span>
+                  <li key={i} className={l.ok ? 'purge-layer-ok' : (l.state === 'unknown' || l.applicable === false ? '' : 'purge-layer-bad')}>
+                    <span className="mono">{l.ok ? '✓' : (l.applicable === false ? '·' : (l.state === 'unknown' ? '?' : '✗'))}</span>{' '}
+                    {l.title} <span className="muted">{l.applicable === false ? '不适用' : (l.state === 'unknown' ? '待确认' : `${l.applied ?? 0}/${l.total ?? '?'}`)}</span>
                     {l.note ? <span className="hint"> {l.note}</span> : null}
                   </li>
                 ))}
