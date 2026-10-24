@@ -635,6 +635,15 @@ function PurgePanel() {
               <button type="button" className="btn primary" onClick={applyAndRestart} disabled={busy || !state.cliAvailable}>应用并重启</button>
               <button type="button" className="btn" onClick={apply} disabled={busy || !state.cliAvailable}>应用</button>
               <button type="button" className="btn" onClick={reseal} disabled={busy || !state.cliAvailable}>还原签名</button>
+              <button
+                type="button"
+                className="btn"
+                disabled={busy}
+                onClick={() => {
+                  if (!confirm('确认 dsh 已完全退出(⌘Q)?此操作把 app.asar 改名为 .bak,让宿主下次从解包目录加载补丁。')) return
+                  void run(() => window.api.finishPurgeHandoff(), r => r?.ok ? (r.skipped ? r.reason : '换包已完成,重开 dsh 即生效') : ('换包未完成:' + (r?.reason ?? '未知')))
+                }}
+              >完成换包</button>
               <button type="button" className="btn" onClick={selfcheck} disabled={busy || !state.cliAvailable}>自检</button>
               <button type="button" className="btn" onClick={backup} disabled={busy || !state.cliAvailable}>备份</button>
               <button type="button" className="btn" onClick={install} disabled={busy || !state.latest}>更新插件</button>

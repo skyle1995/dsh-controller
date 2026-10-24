@@ -657,13 +657,55 @@ async function getPurgeState() {
   return state
 }
 
+// ── 换包收尾(handoff)────────────────────────────────────────
+// 插件的换包助手只等 dsh 退出再改名,助手进程一旦退出/超时就永远完不成。
+// 控制器是独立进程,退出 dsh 后由它完成:app.asar → app.asar.purge-<token>.bak,
+// 宿主下次启动即从解包目录 app/ 加载补丁后的代码。
+const HANDOFF_SUFFIX = '.purge-handoff.json'
+const RENAME_LOCK_SUFFIX = '.rename-pending'
+
+async function finishHostHandoff() {
+  const base = await detectDshBase()
+  if (!base) return { ok: false, reason: '未定位宿主目录' }
+  // base = .../Resources/app|app.asar/dsh/node_modules/@deepseek-ai
+  const resources = base.includes('/app.asar/') ? base.slice(0, base.indexOf('/app.asar/')) : base.slice(0, base.indexOf('/app/dsh/'))
+  const asar = path.join(resources, 'app.asar')
+  const statePath = asar + HANDOFF_SUFFIX
+  let state = null
+  try { state = JSON.parse(await readFile(statePath, 'utf8')) } catch { return { ok: false, reason: '没有待完成的换包记录(先点应用)' } }
+  const unpacked = path.join(resources, 'app')
+  if (!existsSync(path.join(unpacked, 'dsh', 'node_modules', '@deepseek-ai'))) {
+    return { ok: false, reason: '解包目录不完整,请重新点「应用」' }
+  }
+  if (!existsSync(asar)) {
+    return { ok: true, skipped: true, reason: 'app.asar 已不在(可能已完成换包)' }
+  }
+  const backup = state.backup || asar + '.purge-' + (state.token || Date.now()) + '.bak'
+  try { await rename(asar, backup) } catch (e) {
+    return { ok: false, reason: '改名失败(宿主可能仍在运行,请完全退出后重试):' + String(e?.message ?? e) }
+  }
+  try {
+    await writeFile(statePath, JSON.stringify({ ...state, phase: 'complete', updated_at: new Date().toISOString(), detail: 'completed by DSH Controller' }, null, 2), 'utf8')
+  } catch {}
+  try { await rm(asar + RENAME_LOCK_SUFFIX, { force: true }) } catch {}
+  return { ok: true, renamed: true, backup, resources }
+}
+
 // ── IPC ─────────────────────────────────────────────────────
 // 服务管理已移除(桌面版自带);保留重启供破甲「应用并重启」使用
 ipcMain.handle('dsh:restart', async () => {
   await quitDesktop()
   await new Promise(r => setTimeout(r, 1200))
-  return launchDesktop()
+  // 关键:dsh 已退出,由控制器完成换包改名(不再依赖插件助手)
+  let handoff = null
+  try { handoff = await finishHostHandoff() } catch (e) { handoff = { ok: false, reason: String(e?.message ?? e) } }
+  sendOpLog(`\n[换包] ${handoff?.ok ? (handoff.skipped ? handoff.reason : '已完成 app.asar → .bak') : (handoff?.reason || '未执行')}\n`)
+  const launched = await launchDesktop()
+  return { ...launched, handoff }
 })
+
+// 手动完成换包(适用于只点了「应用」、dsh 已退出的场景)
+ipcMain.handle('purge:finishHandoff', () => finishHostHandoff())
 ipcMain.handle('dsh:version', () => getDshVersion())
 ipcMain.handle('plugins:installed', () => listInstalledPlugins())
 ipcMain.handle('plugins:catalog', () => fetchPluginCatalog())
