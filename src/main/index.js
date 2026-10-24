@@ -723,9 +723,12 @@ ipcMain.handle('purge:revert', async () => {
   return { ok: true, output }
 })
 ipcMain.handle('purge:uninstall', async () => {
+  // 卸载内部会 reseal(discard) 丢掉解包目录,和「还原签名」共用同一条还原路径;
+  // 先让 dsh 退出,否则正在被加载的 Resources/app 会在进程还活着时被搬走。
+  const quit = await quitDesktop()
   const { output } = await runOp('node', [purgeBin('dsh-purge.js'), '--uninstall'], { capture: true, extraEnv: await purgeExtraEnv() })
   purgeCliCache = null
-  return { ok: true, output }
+  return { ok: true, quit, output }
 })
 // 还原官方封签:先退出 dsh(解包目录不能在运行时被搬走),再把 asar / CLI 备份写回,
 // 让 codesign 重新通过 —— electron-updater 的 Squirrel.Mac 才肯接手更新。
