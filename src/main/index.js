@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, nativeTheme } from 'electron'
 import { spawn, exec, execSync } from 'child_process'
 import { copyFile, cp, mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'fs/promises'
-import { existsSync, readFileSync, appendFileSync } from 'fs'
+import { existsSync, readFileSync, writeFileSync, appendFileSync } from 'fs'
 import path from 'path'
 import os from 'os'
 import net from 'net'
