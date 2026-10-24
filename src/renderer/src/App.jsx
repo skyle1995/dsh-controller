@@ -652,8 +652,8 @@ function PurgePanel() {
           <button type="button" className="btn" onClick={selfcheck} disabled={busy || !state?.installed || !state.cliAvailable}>自检</button>
           {state?.installed ? (
             <>
-              <button type="button" className="btn small" onClick={reseal} disabled={busy || !state.cliAvailable}>还原签名</button>
-              <button type="button" className="btn small danger" onClick={uninstall} disabled={busy}>卸载</button>
+              <button type="button" className="btn" onClick={reseal} disabled={busy || !state.cliAvailable}>还原签名</button>
+              <button type="button" className="btn danger" onClick={uninstall} disabled={busy}>卸载</button>
             </>
           ) : null}
         </div>
