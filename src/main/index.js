@@ -178,13 +178,27 @@ function winQuote(a) {
   return /[\s&|<>^()]/.test(s) ? `"${s}"` : s
 }
 
+// CLI 用的 node:GUI 启动的 App PATH 里通常没有 node(Homebrew/nvm 路径都不在),
+// 优先桌面版自带 runtime node,再回退 Electron 自身(ELECTRON_RUN_AS_NODE),最后才是 PATH 的 node。
+function nodeExec() {
+  // 控制器自身就是 Electron 二进制:ELECTRON_RUN_AS_NODE=1 时按 node 运行(实测 v24)。
+  // 打包后 execPath 是 App 内的可执行文件,不依赖 GUI 进程的 PATH。
+  return { cmd: process.execPath, env: { ELECTRON_RUN_AS_NODE: '1' } }
+}
+
 function runOp(cmd, args, { log = true, capture = false, extraEnv } = {}) {
   return new Promise((resolve, reject) => {
     if (opRunning) return reject(new Error('已有操作正在进行,请稍候'))
     opRunning = true
+    let nodeExtra = {}
+    if (cmd === 'node') {
+      const n = nodeExec()
+      cmd = n.cmd
+      nodeExtra = n.env
+    }
     if (log) sendOpLog(`$ ${cmd} ${args.join(' ')}\n`)
     let output = ''
-    const childEnv = extraEnv ? { ...spawnEnv(), ...extraEnv } : spawnEnv()
+    const childEnv = extraEnv ? { ...spawnEnv(), ...nodeExtra, ...extraEnv } : { ...spawnEnv(), ...nodeExtra }
     // Windows 上必须逐参数引号包裹后交给 cmd /c:插件 spec 里的 & 会被 cmd 当成命令分隔符
     const child = IS_WIN
       ? spawn('cmd', ['/d', '/s', '/c', [cmd, ...args.map(winQuote)].join(' ')], {
@@ -454,7 +468,8 @@ async function detectDshBase() {
     }
   }
   dshBaseCache = base
-  dshBaseAt = Date.now()
+  // 命中才长缓存;未命中短缓存,避免一次探测失败后 5 分钟内 CLI 全部丢掉 DSH_BASE
+  dshBaseAt = base ? Date.now() : Date.now() - 5 * 60_000 + 20_000
   return base
 }
 
@@ -462,7 +477,14 @@ async function purgeExtraEnv() {
   // 桌面版场景:强制 surface=desktop,插件 CLI 才会走桌面宿主解析(自动定位解包目录);
   // DSH_BASE 作显式补充(原版 CLI 在 web surface 下会拒绝桌面安装内的路径,故 surface 必须先对)
   const base = await detectDshBase()
-  return { DSH_SURFACE: 'desktop', ...(base ? { DSH_BASE: base } : {}) }
+  // PURGE_PROFILE_DIR / DSH_HOME 显式传给插件 CLI:GUI 进程环境里 CLI 自行探测 profile
+  // 依赖 PATH 工具,受限 PATH 下会失败,导致 status 返回空 backups。
+  return {
+    DSH_SURFACE: 'desktop',
+    DSH_HOME,
+    PURGE_PROFILE_DIR: path.join(DSH_HOME, 'profiles', 'desktop'),
+    ...(base ? { DSH_BASE: base } : {}),
+  }
 }
 
 async function getPurgeState() {
