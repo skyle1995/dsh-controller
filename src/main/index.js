@@ -214,7 +214,8 @@ function runOp(cmd, args, { log = true, capture = false, extraEnv } = {}) {
       if (log) sendOpLog(`\n[完成] 退出码 ${code}\n`)
       if (code === 0) resolve({ code, output })
       else {
-        const err = new Error(`命令退出码 ${code}`)
+        const tail = String(output ?? '').trim().split('\n').filter(Boolean).slice(-4).join(' | ').slice(0, 400)
+        const err = new Error(`命令退出码 ${code}${tail ? `:${tail}` : ''}`)
         err.output = output
         reject(err)
       }
