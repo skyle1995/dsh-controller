@@ -1586,6 +1586,18 @@ export function apply(ctx, config) {
             fs.rmSync(dir,{recursive:true,force:true});
             result={ok:true,deleted:id};
           }
+          else if(body.op==="deleteBackups") {
+            const manager=maintenance();
+            const ids=Array.isArray(body.ids)?body.ids:[];
+            const removed=[];
+            for(const raw of ids) {
+              const id=String(raw||"");
+              if(!/^[0-9TZa-f-]{15,80}$/.test(id)) continue;
+              const dir=path.join(manager.backups,id);
+              if(fs.existsSync(dir)){fs.rmSync(dir,{recursive:true,force:true});removed.push(id);}
+            }
+            result={ok:true,deleted:removed};
+          }
           else if(body.op==="deleteAllBackups") {
             const manager=maintenance();
             const removed=[];
