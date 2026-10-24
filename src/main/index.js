@@ -792,7 +792,7 @@ function spawnHandoffWorker() {
     "const running=()=>{const rows=execFileSync('/bin/ps',['-axo','pid=,command='],{encoding:'utf8',maxBuffer:16*1024*1024});return rows.split('\n').some(r=>{const pid=parseInt(r.trim(),10);return pid!==process.pid&&r.includes(MARK)})}",
     "const deadline=Date.now()+3600e3",
     "while(Date.now()<deadline){let on=false;try{on=running()}catch(e){}",
-    "if(!on){log('dsh 已退出,3 秒后改名');try{execFileSync('/bin/sleep',['3'])}catch{}",
+    "if(!on){log('dsh 已退出,3 秒后改名');try{execFileSync('/bin/sleep',['3'])}catch{};if(!fs.existsSync(ASAR)){log('asar 已不在(此前已完成),直接结束');try{const st=JSON.parse(fs.readFileSync(statePath,'utf8'));st.phase='complete';st.updated_at=new Date().toISOString();fs.writeFileSync(statePath,JSON.stringify(st,null,2))}catch{};try{fs.rmSync(ASAR+'.rename-pending',{force:true})}catch{};process.exit(0)}",
     "try{fs.renameSync(ASAR,backup);log('改名成功 -> '+backup)}catch(e){log('改名失败: '+e.message);process.exit(2)}",
     "try{const st=JSON.parse(fs.readFileSync(statePath,'utf8'));st.phase='complete';st.detail='completed by one-click worker';st.updated_at=new Date().toISOString();fs.writeFileSync(statePath,JSON.stringify(st,null,2));if(fs.readFileSync(ASAR+'.rename-pending','utf8').trim()===token)fs.unlinkSync(ASAR+'.rename-pending')}catch(e){log('收尾异常: '+e.message)}",
     "log('完成');process.exit(0)}",
@@ -865,7 +865,7 @@ ipcMain.handle('purge:oneClick', async () => {
   step('换包', handoff)
   // 7) 重启 dsh
   const launched = await launchDesktop()
-  step('重启 dsh', { ok: !!launched })
+  step('重启 dsh', { ok: launched?.ok !== false, detail: launched?.error || '' })
   purgeCliCache = null
   return { ok: handoff?.ok !== false, steps, handoff }
 })
