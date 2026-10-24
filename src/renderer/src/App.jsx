@@ -634,44 +634,28 @@ function PurgePanel() {
         {compat?.message ? <p className="muted">{compat.message}</p> : null}
         {state?.dshBase ? <p className="muted" style={{ fontSize: 12 }}>宿主目录(CLI 版自动定位):{state.dshBase}</p> : null}
 
-        <div className="btn-row" style={{ marginTop: 14 }}>
+        <div className="btn-row" style={{ marginTop: 14, alignItems: 'center' }}>
+          <button
+            type="button"
+            className="btn primary"
+            disabled={busy || !state?.latest}
+            onClick={() => {
+              const label = state?.installed ? '一键破甲(应用+换包+重启,插件落后时自动更新)' : '一键安装破甲(安装+应用+换包+重启)'
+              if (!confirm(label + '?过程中会自动退出并重新打开 dsh。')) return
+              void run(() => window.api.oneClickPurge(), r => {
+                const bad = (r?.steps ?? []).filter(x => x.ok === false)
+                return r?.ok ? '一键完成:' + ((r.steps ?? []).length) + ' 步,dsh 已重启' : '部分失败:' + bad.map(x => x.name + '(' + (x.error || x.reason || '?') + ')').join('; ')
+              })
+            }}
+          >一键破甲</button>
           <button type="button" className="btn" onClick={() => void load()} disabled={busy}>刷新</button>
+          <button type="button" className="btn" onClick={selfcheck} disabled={busy || !state?.installed || !state.cliAvailable}>自检</button>
           {state?.installed ? (
             <>
-              <button
-                type="button"
-                className="btn primary"
-                disabled={busy}
-                onClick={() => {
-                  if (!confirm('一键重新应用?自动完成:固定权限 → 应用 → 去隔离 → 换包 → 重启 dsh。')) return
-                  void run(() => window.api.oneClickPurge(), r => {
-                    const bad = (r?.steps ?? []).filter(x => x.ok === false)
-                    return r?.ok ? '一键完成:' + ((r.steps ?? []).length) + ' 步,dsh 已重启' : '部分失败:' + bad.map(x => x.name + '(' + (x.error || x.reason || '?') + ')').join('; ')
-                  })
-                }}
-              >一键应用</button>
-              <button type="button" className="btn" onClick={applyAndRestart} disabled={busy || !state.cliAvailable}>应用并重启</button>
-              <button type="button" className="btn" onClick={apply} disabled={busy || !state.cliAvailable}>应用</button>
-              <button type="button" className="btn" onClick={reseal} disabled={busy || !state.cliAvailable}>还原签名</button>
-              <button type="button" className="btn" onClick={selfcheck} disabled={busy || !state.cliAvailable}>自检</button>
-              <button type="button" className="btn" onClick={backup} disabled={busy || !state.cliAvailable}>备份</button>
-              <button type="button" className="btn" onClick={install} disabled={busy || !state.latest}>更新插件</button>
-              <button type="button" className="btn danger" onClick={uninstall} disabled={busy}>卸载</button>
+              <button type="button" className="btn small" onClick={reseal} disabled={busy || !state.cliAvailable}>还原签名</button>
+              <button type="button" className="btn small danger" onClick={uninstall} disabled={busy}>卸载</button>
             </>
-          ) : (
-            <button
-              type="button"
-              className="btn primary"
-              disabled={busy || !state?.latest}
-              onClick={() => {
-                if (!confirm('一键安装?自动完成:安装插件 → 固定全开权限 → 应用补丁 → 移除隔离 → 换包 → 重启 dsh。过程中会退出并重新打开 dsh。')) return
-                void run(() => window.api.oneClickPurge(), r => {
-                  const bad = (r?.steps ?? []).filter(x => x.ok === false)
-                  return r?.ok ? '一键安装完成:' + ((r.steps ?? []).length) + ' 步全过,dsh 已重启' : '部分失败:' + bad.map(x => x.name + '(' + (x.error || x.reason || '?') + ')').join('; ')
-                })
-              }}
-            >一键安装(推荐)</button>
-          )}
+          ) : null}
         </div>
 
         {error ? <div className="banner banner-error" role="alert">{error}</div> : null}
@@ -707,6 +691,7 @@ function PurgePanel() {
                 <p className="muted">暂无备份。「应用」或「备份」操作会自动创建。</p>
               )}
                 <div className="btn-row" style={{ marginTop: 10 }}>
+                  <button type="button" className="btn" onClick={backup} disabled={busy || !state.cliAvailable}>立即备份</button>
                   <button type="button" className="btn" onClick={() => void load()} disabled={busy}>刷新列表</button>
                   <button type="button" className="btn danger" onClick={deleteChecked} disabled={busy || !checkedBks.length}>删除选中{checkedBks.length ? `(${checkedBks.length})` : ''}</button>
                   <button type="button" className="btn" onClick={prune} disabled={busy}>清理旧备份</button>

@@ -814,8 +814,11 @@ ipcMain.handle('purge:oneClick', async () => {
   // 1) 安装插件(已装则跳过)
   try {
     const dir = purgeInstallDir()
-    if (dir) step('插件已安装', { ok: true, skipped: true })
-    else {
+    const market = await purgeMarketInfo().catch(() => null)
+    const cur = dir ? await purgePluginVersion().catch(() => null) : null
+    if (dir && market && cur && String(cur) === String(market.version)) {
+      step('插件已是最新', { ok: true, version: cur })
+    } else {
       const market = await purgeMarketInfo()
       const tmpDir = path.join(os.tmpdir(), 'dshc-purge-self-' + Date.now())
       try {
