@@ -761,6 +761,18 @@ function PurgePanel() {
 
           <section className="card">
             <h2>最近动作 <span className="hint">插件审计日志(audit.jsonl)</span></h2>
+            <div className="btn-row" style={{ marginBottom: 10 }}>
+              <button type="button" className="btn" onClick={() => void load()} disabled={busy}>刷新</button>
+              <button
+                type="button"
+                className="btn danger"
+                disabled={busy || !state.auditTail?.length}
+                onClick={() => {
+                  if (!confirm('清空全部审计日志?原文件会先留一份 .bak 备份。')) return
+                  void run(() => window.api.clearPurgeAudit(), r => `审计日志已清空(${r?.cleared ?? 0} 条,已留备份)`)
+                }}
+              >清空日志</button>
+            </div>
             {state.auditTail?.length ? (
               <ul className="purge-audit">
                 {state.auditTail.map((a, i) => (

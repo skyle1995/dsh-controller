@@ -407,6 +407,19 @@ function purgeTuning() {
 }
 
 // 审计日志尾部(~/.dsh/dash-purge-community/audit.jsonl,JSONL)
+// 清空审计日志:先把现有文件留一份 .bak-<时间戳>,再清空原文件
+ipcMain.handle('purge:clearAudit', async () => {
+  const file = path.join(DSH_HOME, 'dsh-purge-community', 'audit.jsonl')
+  if (!existsSync(file)) return { ok: true, cleared: 0, backup: null }
+  const raw = await readFile(file, 'utf8')
+  const lines = raw.trim() ? raw.trim().split('\n').filter(Boolean).length : 0
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+  const backup = `${file}.bak-${stamp}`
+  await writeFile(backup, raw, 'utf8')
+  await writeFile(file, '', 'utf8')
+  return { ok: true, cleared: lines, backup }
+})
+
 function purgeAuditTail(limit = 8) {
   try {
     const raw = readFileSync(path.join(DSH_HOME, 'dsh-purge-community', 'audit.jsonl'), 'utf8').trim()
