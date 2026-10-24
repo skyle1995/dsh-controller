@@ -48,7 +48,7 @@ export function readMacAsarHandoff(asar) {
         ...state,
         phase: "helper_stopped",
         detail:
-          "Helper stopped before completion; original archive may still be active.",
+          "换包助手已退出、未完成改名(原 asar 仍生效)。重新点「应用」可重试:这次请让 dsh 完全退出(⌘Q)后保持关闭,助手会在退出瞬间完成换包。",
       };
     return state;
   } catch (e) {
