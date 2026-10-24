@@ -10281,6 +10281,8 @@ function maintenanceNotice(op, result) {
       throw new Error("\u5907\u4EFD\u64CD\u4F5C\u672A\u8FD4\u56DE\u5907\u4EFD\u7F16\u53F7\uFF0C\u8BF7\u5237\u65B0\u5217\u8868\u6838\u5BF9\u7ED3\u679C");
     return `\u5907\u4EFD\u5DF2\u521B\u5EFA\uFF1A${result.id}`;
   }
+  if (op === "deleteBackup") return result.deleted ? "备份已删除:" + result.deleted : "备份已删除";
+  if (op === "deleteAllBackups") return "已删除 " + (Array.isArray(result.deleted) ? result.deleted.length : 0) + " 个备份";
   if (op === "rollback")
     return (result.note || "\u63D2\u4EF6\u56DE\u6EDA\u5DF2\u5B8C\u6210") + "\u3002\u8BF7\u91CD\u542F DSH \u8FDB\u7A0B\uFF1B\u4EC5\u5237\u65B0\u6D4F\u89C8\u5668\u4E0D\u4F1A\u52A0\u8F7D\u65B0\u7248\u540E\u7AEF\u3002";
   if (op === "update") {
@@ -10419,6 +10421,8 @@ function CommunityMaintenance() {
   }, [load]);
   async function run(op) {
     if (running.current) return;
+    if (op === "deleteBackup" && !window.confirm("确定删除所选备份?此操作不可撤销。")) return;
+    if (op === "deleteAllBackups" && !window.confirm("确定删除全部备份?此操作不可撤销。")) return;
     if (op === "rollback" && !window.confirm(
       "\u53EA\u56DE\u6EDA Purge \u63D2\u4EF6\u53CA\u5176\u5165\u53E3\uFF0C\u4FDD\u7559\u5F53\u524D\u63D0\u793A\u8BCD\u548C\u8BBE\u7F6E\uFF1B\u5B8C\u6210\u540E\u9700\u91CD\u542F DSH \u8FDB\u7A0B\uFF1B\u4EC5\u5237\u65B0\u6D4F\u89C8\u5668\u4E0D\u4F1A\u52A0\u8F7D\u65B0\u7248\u540E\u7AEF\u3002\u7EE7\u7EED\uFF1F"
     ))
@@ -10554,7 +10558,9 @@ function CommunityMaintenance() {
           onClick: () => run("rollback")
         },
         "\u56DE\u6EDA\u63D2\u4EF6"
-      )
+      ),
+      h(Btn, { disabled: busy || !selected || listState !== "ready", onClick: () => run("deleteBackup") }, "\u5220\u9664\u6240\u9009"),
+      h(Btn, { disabled: busy || !(value?.backups || []).length || listState !== "ready", onClick: () => run("deleteAllBackups") }, "\u5168\u90E8\u5220\u9664")
     ),
     h(
       "p",
@@ -12850,7 +12856,7 @@ function SettingsRoot(props = {}) {
       h(
         "span",
         { className: "dshpp-native-badge" },
-        (true ? "Purge Self " : "\u72EC\u7ACB\u754C\u9762 ") + "1.1.6"
+        (true ? "Purge Self " : "\u72EC\u7ACB\u754C\u9762 ") + "1.1.7"
       )
     ),
     h(CompatibilityNote, { status: backendStatus }),
@@ -13006,7 +13012,7 @@ function StatusStrip({ info }) {
       "span",
       { className: "dshpp-strip-item" },
       "\u63D2\u4EF6 ",
-      h("b", null, info?.plugin_version || "1.1.6")
+      h("b", null, info?.plugin_version || "1.1.7")
     )
   );
 }
@@ -13041,11 +13047,11 @@ function VersionNotice({ info }) {
     );
   }
   const backend = info?.plugin_version;
-  if (!backend || backend === "1.1.6") return null;
+  if (!backend || backend === "1.1.7") return null;
   return h(
     "p",
     { className: "dshpp-warn", role: "status" },
-    `\u5B98\u65B9\u7248\u672C ${backend}\uFF1B\u754C\u9762 ${"1.1.6"}\u3002\u4E24\u8005\u4E0D\u4E00\u81F4\u65F6\u8BBE\u7F6E\u53EF\u80FD\u4E0D\u751F\u6548\uFF0C\u8BF7\u66F4\u65B0\u5230\u540C\u4E00\u7248\u672C\u540E\u91CD\u542F DSH\u3002`
+    `\u5B98\u65B9\u7248\u672C ${backend}\uFF1B\u754C\u9762 ${"1.1.7"}\u3002\u4E24\u8005\u4E0D\u4E00\u81F4\u65F6\u8BBE\u7F6E\u53EF\u80FD\u4E0D\u751F\u6548\uFF0C\u8BF7\u66F4\u65B0\u5230\u540C\u4E00\u7248\u672C\u540E\u91CD\u542F DSH\u3002`
   );
 }
 function PurgePage() {
@@ -13102,7 +13108,7 @@ function PurgePage() {
           true ? h(
             "span",
             { className: "dshpp-page-ver" },
-            "Purge Self 1.1.6"
+            "Purge Self 1.1.7"
           ) : null
         )
       )
@@ -13184,11 +13190,7 @@ function PurgePage() {
         )
       ) : null
     ),
-    h(
-      "footer",
-      { className: "dshpp-page-foot" },
-      true ? "\u57FA\u4E8E \u81EA\u5EFA\u6E90 \u72EC\u7ACB\u7EF4\u62A4 \xB7 MIT \xB7 " : "\u754C\u9762\u72EC\u7ACB\u7EF4\u62A4 \xB7 \u57FA\u4E8E \u81EA\u5EFA\u6E90\uFF08MIT\uFF09"
-    )
+    null
   );
 }
 

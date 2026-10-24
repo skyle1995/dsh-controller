@@ -1577,6 +1577,27 @@ export function apply(ctx, config) {
           else if(body.op==="backup")result={ok:true,...await maintenance().backup("manual")};
           else if(body.op==="rollback")result=await maintenance().rollback(body.id);
           else if(body.op==="prune")result=maintenance().prune({keepLast:body.keepLast,keepDays:body.keepDays,maxTotalBytes:body.maxTotalBytes});
+          else if(body.op==="deleteBackup") {
+            const manager=maintenance();
+            const id=String(body.id||"");
+            if(!/^[0-9TZa-f-]{15,80}$/.test(id)) throw Error("备份 ID 非法");
+            const dir=path.join(manager.backups,id);
+            if(!fs.existsSync(dir)) throw Error("备份不存在(可能已被清理)");
+            fs.rmSync(dir,{recursive:true,force:true});
+            result={ok:true,deleted:id};
+          }
+          else if(body.op==="deleteAllBackups") {
+            const manager=maintenance();
+            const removed=[];
+            if(fs.existsSync(manager.backups)) {
+              for(const name of fs.readdirSync(manager.backups)) {
+                if(!/^[0-9TZa-f-]{15,80}$/.test(name)) continue;
+                fs.rmSync(path.join(manager.backups,name),{recursive:true,force:true});
+                removed.push(name);
+              }
+            }
+            result={ok:true,deleted:removed};
+          }
           else if(body.op==="check")result=await updater.checkUpdate();
           else if(body.op==="update")result=await updater.handleUpdateOp({ref:body.ref});
           else throw Error("维护操作无效");

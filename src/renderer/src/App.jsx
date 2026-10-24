@@ -713,6 +713,7 @@ function PurgePanel() {
                   ))}
                 </ul>
                 <div className="btn-row" style={{ marginTop: 10 }}>
+                  <button type="button" className="btn" onClick={() => void load()} disabled={busy}>刷新列表</button>
                   <button type="button" className="btn" onClick={prune} disabled={busy}>清理旧备份</button>
                 </div>
               </>
