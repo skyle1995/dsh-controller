@@ -620,43 +620,7 @@ function PurgePanel() {
 
         <div className="btn-row" style={{ marginTop: 14 }}>
           <button type="button" className="btn" onClick={() => void load()} disabled={busy}>刷新</button>
-          {state ? (
-          <section className="card">
-            <h2>备份 <span className="hint">应用 / 安装 / 回滚前自动快照</span></h2>
-            {state.backups?.length ? (
-              <>
-                <ul className="purge-backups">
-                  {state.backups.map(b => (
-                    <li key={b.id}>
-                      <input
-                        type="checkbox"
-                        aria-label={`选择备份 ${b.id}`}
-                        checked={checkedBks.includes(b.id)}
-                        onChange={() => toggleChecked(b.id)}
-                        disabled={busy}
-                      />
-                      <span className="mono">{b.id}</span>
-                      <span className="muted"> {fmtTime(b.created_at)} · {b.reason ?? ''}{b.host_version ? ` · dsh ${b.host_version}` : ''}</span>
-                      <span className="actions" style={{ marginLeft: 'auto' }}>
-                        <button type="button" className="btn small" disabled={busy} onClick={() => rollbackTo(b.id)}>回滚到此</button>
-                        <button type="button" className="btn small danger" disabled={busy} onClick={() => deleteBackup(b.id)}>删除</button>
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-                <div className="btn-row" style={{ marginTop: 10 }}>
-                  <button type="button" className="btn" onClick={() => void load()} disabled={busy}>刷新列表</button>
-                  <button type="button" className="btn danger" onClick={deleteChecked} disabled={busy || !checkedBks.length}>删除选中{checkedBks.length ? `(${checkedBks.length})` : ''}</button>
-                  <button type="button" className="btn" onClick={prune} disabled={busy}>清理旧备份</button>
-                </div>
-              </>
-            ) : (
-              <p className="muted">暂无备份。「应用」或「备份」操作会自动创建。</p>
-            )}
-          </section>
-      ) : null}
-
-      {state?.installed ? (
+          {state?.installed ? (
             <>
               <button type="button" className="btn primary" onClick={applyAndRestart} disabled={busy || !state.cliAvailable}>应用并重启</button>
               <button type="button" className="btn" onClick={apply} disabled={busy || !state.cliAvailable}>应用</button>
@@ -674,6 +638,42 @@ function PurgePanel() {
         {error ? <div className="banner banner-error" role="alert">{error}</div> : null}
         {notice ? <div className="banner banner-ok" role="status">{notice}</div> : null}
       </section>
+
+      {state ? (
+            <section className="card">
+              <h2>备份 <span className="hint">应用 / 安装 / 回滚前自动快照</span></h2>
+              {state.backups?.length ? (
+                <>
+                  <ul className="purge-backups">
+                    {state.backups.map(b => (
+                      <li key={b.id}>
+                        <input
+                          type="checkbox"
+                          aria-label={`选择备份 ${b.id}`}
+                          checked={checkedBks.includes(b.id)}
+                          onChange={() => toggleChecked(b.id)}
+                          disabled={busy}
+                        />
+                        <span className="mono">{b.id}</span>
+                        <span className="muted"> {fmtTime(b.created_at)} · {b.reason ?? ''}{b.host_version ? ` · dsh ${b.host_version}` : ''}</span>
+                        <span className="actions" style={{ marginLeft: 'auto' }}>
+                          <button type="button" className="btn small" disabled={busy} onClick={() => rollbackTo(b.id)}>回滚到此</button>
+                          <button type="button" className="btn small danger" disabled={busy} onClick={() => deleteBackup(b.id)}>删除</button>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="btn-row" style={{ marginTop: 10 }}>
+                    <button type="button" className="btn" onClick={() => void load()} disabled={busy}>刷新列表</button>
+                    <button type="button" className="btn danger" onClick={deleteChecked} disabled={busy || !checkedBks.length}>删除选中{checkedBks.length ? `(${checkedBks.length})` : ''}</button>
+                    <button type="button" className="btn" onClick={prune} disabled={busy}>清理旧备份</button>
+                  </div>
+                </>
+              ) : (
+                <p className="muted">暂无备份。「应用」或「备份」操作会自动创建。</p>
+              )}
+            </section>
+      ) : null}
 
       {state?.installed ? (
         <>
