@@ -519,6 +519,10 @@ function PurgePanel() {
     if (!confirm('确定卸载破甲插件?会先还原已应用的补丁,再清理插件文件,重启 dsh 后生效。')) return
     void run(() => window.api.uninstallPurge(), '破甲插件已卸载,重启 dsh 后生效')
   }
+  const reseal = () => {
+    if (!confirm('还原官方代码签名封签?\n\n会先退出 dsh,再丢弃解包目录、把 app.asar 与 CLI 备份写回原位。\n完成后 codesign 恢复有效,官方更新才能装上;补丁需要重新应用。')) return
+    void run(() => window.api.resealPurge(), "封签已还原,现在可以正常更新 dsh")
+  }
 
   const selfcheck = () => void run(async () => {
     setCheck(await window.api.selfcheckPurge())
@@ -630,7 +634,7 @@ function PurgePanel() {
             <>
               <button type="button" className="btn primary" onClick={applyAndRestart} disabled={busy || !state.cliAvailable}>应用并重启</button>
               <button type="button" className="btn" onClick={apply} disabled={busy || !state.cliAvailable}>应用</button>
-              <button type="button" className="btn" onClick={revert} disabled={busy || !state.cliAvailable}>回滚补丁</button>
+              <button type="button" className="btn" onClick={reseal} disabled={busy || !state.cliAvailable}>还原签名</button>
               <button type="button" className="btn" onClick={selfcheck} disabled={busy || !state.cliAvailable}>自检</button>
               <button type="button" className="btn" onClick={backup} disabled={busy || !state.cliAvailable}>备份</button>
               <button type="button" className="btn" onClick={install} disabled={busy || !state.latest}>更新插件</button>
@@ -758,6 +762,40 @@ function PurgePanel() {
               </ul>
             </section>
           ) : null}
+
+          <section className="card">
+            <h2>原始宿主备份 <span className="hint">应用前的宿主原文件归档 · 升级保护</span></h2>
+            <p className="muted" style={{ marginTop: 0 }}>
+              破甲补丁会修改桌面版宿主文件。这里保存被修改<b>之前</b>的原始文件;桌面版升级失败、或需要彻底还原宿主时,
+              用「恢复」把原始文件写回。应用补丁前会自动创建一份。
+            </p>
+            <div className="btn-row" style={{ marginBottom: 10 }}>
+              <button type="button" className="btn" onClick={() => void run(() => window.api.backupHostOriginals(), r => `原始宿主已归档(${r?.snapshot?.count ?? 0} 个文件)`)} disabled={busy}>创建快照</button>
+              <button type="button" className="btn" onClick={() => void load()} disabled={busy}>刷新</button>
+            </div>
+            {state.hostOriginals?.length ? (
+              <ul className="purge-backups">
+                {state.hostOriginals.map(s => (
+                  <li key={s.id}>
+                    <span className="mono">{s.id}</span>
+                    <span className="muted"> {fmtTime(s.createdAt)} · {s.count} 个文件 · {(s.bytes / 1024 / 1024).toFixed(1)} MB · {s.reason ?? ''}</span>
+                    <span className="actions" style={{ marginLeft: 'auto' }}>
+                      <button type="button" className="btn small" disabled={busy} onClick={() => {
+                        if (!confirm(`确定把 ${s.count} 个原始宿主文件写回?恢复后需重启桌面版。`)) return
+                        void run(() => window.api.restoreHostOriginals(s.id), r => `已恢复 ${r?.restored ?? 0} 个宿主文件,请重启桌面版`)
+                      }}>恢复</button>
+                      <button type="button" className="btn small danger" disabled={busy} onClick={() => {
+                        if (!confirm('删除该原始备份快照?')) return
+                        void run(() => window.api.deleteHostOriginals(s.id), '原始备份已删除')
+                      }}>删除</button>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="muted">暂无原始备份。应用补丁时会自动创建;也可手动点「创建快照」。</p>
+            )}
+          </section>
 
           <section className="card">
             <h2>最近动作 <span className="hint">插件审计日志(audit.jsonl)</span></h2>

@@ -36,14 +36,16 @@ function printStatus(state) {
 }
 
 async function main() {
-  const mode = args.find((a) => ["--apply", "--revert", "--uninstall", "--status", "--edit", "--help"].includes(a));
+  const mode = args.find((a) => ["--apply", "--revert", "--uninstall", "--status", "--edit", "--reseal", "--help"].includes(a));
 
   if (mode === "--help" || args.includes("-h")) {
     console.log(`dsh-purge 用法:
   dsh-purge --status     显示状态
   dsh-purge --apply      应用全部清洗（提示词+代码+shim+override）
   dsh-purge --revert     回滚还原
-  dsh-purge --uninstall  卸载插件（已应用则先还原）
+  dsh-purge --uninstall  卸载插件（已应用则先还原，并还原官方封签）
+  dsh-purge --reseal     还原官方代码签名封签（修 electron-updater 更新失败）
+                         --dry-run 只出计划；--discard 直接丢弃解包目录；--json 机器可读
   dsh-purge --edit       编辑注入文件 prompt-inject.md
   dsh-purge --help       帮助`);
     return;
@@ -119,13 +121,38 @@ async function main() {
     else console.log("  未检测到已应用补丁，仍会清除插件文件。");
     if (result.override?.removed) console.log(`  已删除 ${result.override.path}`);
     if (result.stripped?.length) console.log(`  已从 profile 移除: ${result.stripped.join(", ")}`);
-    for (const e of result.errors || []) console.log(`  ⚠ ${e}`);
+    for (const w of result.warnings || []) console.log(`  ⚠ ${w}`);
+    for (const e of result.errors || []) console.log(`  ✗ ${e}`);
     if (!result.ok) {
       console.log("  卸载未完成：请检查上面的还原、注销或文件清理错误。");
       process.exit(1);
     }
     console.log("");
     console.log("卸载完成。请重启 dsh。");
+  } else if (mode === "--reseal") {
+    const { resealDesktopHost } = await import("../lib/reseal.js");
+    const dryRun = args.includes("--dry-run");
+    const discard = args.includes("--discard");
+    const result = resealDesktopHost({}, { dryRun, discard });
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(result, null, 2));
+      if (!result.ok && !dryRun) process.exit(1);
+      return;
+    }
+    console.log(dryRun ? "封签还原计划 / reseal plan:" : "封签还原 / reseal:");
+    console.log(`  bundle   ${result.bundle || "-"}`);
+    for (const a of result.actions || []) {
+      const detail = a.detail || (a.from ? `${a.from} → ${a.to}` : a.to) || "";
+      console.log(`  · ${a.action}${detail ? " — " + detail : ""}`);
+    }
+    for (const e of result.errors || []) console.log(`  ✗ ${e}`);
+    if (result.verify && !result.verify.skipped) {
+      console.log(`  codesign ${result.verify.codesign?.ok ? "valid" : "invalid"}  spctl ${result.verify.spctl?.ok ? "accepted" : "rejected"}`);
+    }
+    if (dryRun) console.log("  (dry-run，未改动文件)");
+    else if (result.ok) console.log("  ✓ 封签已还原，官方更新通道恢复。重启 dsh 后补丁需重新应用。");
+    else console.log("  ✗ 封签还原未完成，见上面的错误。");
+    if (!result.ok && !dryRun) process.exit(1);
   } else if (mode === "--edit") {
     const r = core.editOverride(state.dsh_home);
     if (!r.ok && r.needCreate) {

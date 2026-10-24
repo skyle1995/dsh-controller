@@ -217,6 +217,8 @@ export async function uninstallPurge() {
     profiles: [],
     cleanup: [],
     errors: [],
+    warnings: [],
+    reseal: null,
   };
 
   try {
@@ -225,13 +227,25 @@ export async function uninstallPurge() {
       if (applied) report.reverted = true;
     }
   } catch (e) {
-    report.errors.push(`revert patches: ${e.message || e}`);
+    report.warnings.push(`revert patches: ${e.message || e}`);
   }
-  if (applied && (report.patches?.errors?.length || report.errors.some((e) => /^revert patches:/.test(e)))) {
-    report.ok = false;
-    report.needRestart = false;
-    report.cleanup = [];
-    return report;
+  // 旧行为:revert 有错就直接判定卸载失败并清空清理计划,但错误只留在
+  // patches.errors 里,CLI 一条都不打印 —— 用户只看到「卸载未完成」却无从下手。
+  // 现在 revert 失败降级为警告,末尾统一靠 reseal 丢弃解包目录收尾。
+  for (const item of report.patches?.errors || []) {
+    const pair = Array.isArray(item) ? item : [item?.patch_id ?? item?.name ?? "", item?.error ?? item?.message ?? String(item)];
+    report.warnings.push(`revert ${String(pair[0] || "patch")}: ${String(pair[1] ?? "")}`);
+  }
+
+  // 卸载前把官方 bundle 还原成封签状态:补丁都写在解包目录里,目录一丢就等于还原完;
+  // 同时修掉「卸载后 app.asar 仍是 .bak、签名继续坏、更新继续失败」的残留。
+  try {
+    const { resealDesktopHost } = await import("./reseal.js");
+    report.reseal = resealDesktopHost({}, { discard: true });
+    for (const e of report.reseal?.errors || []) report.errors.push(`reseal: ${e}`);
+    if (report.reseal?.sealed === false) report.errors.push("reseal: codesign 校验未通过");
+  } catch (e) {
+    report.errors.push(`reseal: ${e.message || e}`);
   }
 
   try {

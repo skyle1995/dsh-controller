@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain, nativeTheme } from 'electron'
 import { spawn, exec, execSync } from 'child_process'
-import { cp, mkdir, readFile, readdir, rename, rm, writeFile } from 'fs/promises'
+import { copyFile, cp, mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'fs/promises'
 import { existsSync, readFileSync } from 'fs'
 import path from 'path'
 import os from 'os'
@@ -454,6 +454,107 @@ async function purgeCliJson(args, opts) {
   return JSON.parse(output.slice(from, to + 1))
 }
 
+// ── 原始宿主备份(升级保护)──────────────────────────────────
+// 破甲补丁修改宿主文件前会留下 <file>.dshpurge.bak 原始副本。
+// 这里把这些原始副本按相对路径归档成独立快照,桌面版升级失败/需要还原时可一键写回。
+const HOST_ORIGINALS_DIR = path.join(DSH_HOME, 'dsh-controller', 'host-originals')
+
+function hostOriginalId(id) {
+  const v = String(id ?? '')
+  if (!/^[0-9A-Za-z.\-]{10,64}$/.test(v)) throw new Error('快照 ID 非法')
+  return v
+}
+
+async function walkBak(dir, out = []) {
+  let entries = []
+  try { entries = await readdir(dir, { withFileTypes: true }) } catch { return out }
+  for (const e of entries) {
+    if (e.name.startsWith('._')) continue
+    const p = path.join(dir, e.name)
+    if (e.isDirectory()) await walkBak(p, out)
+    else if (e.name.endsWith('.dshpurge.bak')) out.push(p)
+  }
+  return out
+}
+
+async function createHostOriginals(reason = 'manual') {
+  const base = await detectDshBase()
+  if (!base) throw new Error('未定位到宿主目录,无法创建原始备份')
+  const baks = await walkBak(base)
+  if (!baks.length) throw new Error('宿主里没有补丁原始副本(.dshpurge.bak):请先在面板应用一次补丁,或插件从未修改宿主')
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+  const dir = path.join(HOST_ORIGINALS_DIR, stamp)
+  await mkdir(path.join(dir, 'files'), { recursive: true })
+  const files = []
+  let bytes = 0
+  for (const bak of baks) {
+    const rel = path.relative(base, bak).replace(/\.dshpurge\.bak$/, '')
+    const target = path.join(dir, 'files', rel)
+    await mkdir(path.dirname(target), { recursive: true })
+    await copyFile(bak, target)
+    const st = await stat(bak)
+    files.push({ rel, size: st.size })
+    bytes += st.size
+  }
+  const manifest = {
+    id: stamp,
+    base,
+    createdAt: Date.now(),
+    reason,
+    count: files.length,
+    bytes,
+    files,
+  }
+  await writeFile(path.join(dir, 'manifest.json'), JSON.stringify(manifest, null, 2), 'utf8')
+  return manifest
+}
+
+async function listHostOriginals() {
+  let names = []
+  try { names = await readdir(HOST_ORIGINALS_DIR) } catch { return [] }
+  const out = []
+  for (const name of names.sort().reverse()) {
+    try {
+      const raw = await readFile(path.join(HOST_ORIGINALS_DIR, name, 'manifest.json'), 'utf8')
+      const m = JSON.parse(raw)
+      out.push({ id: m.id, createdAt: m.createdAt, reason: m.reason, count: m.count, bytes: m.bytes, base: m.base })
+    } catch { /* 跳过损坏快照 */ }
+  }
+  return out
+}
+
+async function restoreHostOriginals(id) {
+  const snap = hostOriginalId(id)
+  const dir = path.join(HOST_ORIGINALS_DIR, snap)
+  const m = JSON.parse(await readFile(path.join(dir, 'manifest.json'), 'utf8'))
+  const base = await detectDshBase()
+  if (!base || path.resolve(base) !== path.resolve(m.base)) {
+    throw new Error('宿主目录与快照记录不一致(可能已升级/移动),已拒绝恢复')
+  }
+  const baseResolved = path.resolve(base) + path.sep
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+  let restored = 0
+  for (const f of m.files ?? []) {
+    const target = path.resolve(path.join(base, f.rel))
+    if (!target.startsWith(baseResolved)) throw new Error('快照条目越界:' + f.rel)
+    const src = path.join(dir, 'files', f.rel)
+    if (!existsSync(src)) continue
+    if (existsSync(target)) {
+      try { await copyFile(target, target + '.restore-bak-' + stamp) } catch { /* 备份失败不阻塞 */ }
+    }
+    await mkdir(path.dirname(target), { recursive: true })
+    await copyFile(src, target)
+    restored += 1
+  }
+  return { ok: true, id: snap, restored }
+}
+
+async function deleteHostOriginals(id) {
+  const snap = hostOriginalId(id)
+  await rm(path.join(HOST_ORIGINALS_DIR, snap), { recursive: true, force: true })
+  return { ok: true, id: snap }
+}
+
 // CLI 版宿主定位:桌面版优先(app/ 解包目录、app.asar),退回 npm 全局(扁平/嵌套)
 function validDshBase(dir) {
   return !!(dir && existsSync(path.join(dir, 'dsh-agent-instructions', 'lib')))
@@ -513,6 +614,7 @@ async function getPurgeState() {
     engines: null,
     tuning: purgeTuning(),
     auditTail: purgeAuditTail(),
+    hostOriginals: await listHostOriginals(),
     backups: null,
     compatibility: null,
     unrestricted: await regionGatePatched(),
@@ -608,8 +710,13 @@ ipcMain.handle('purge:install', async () => {
 
 // 应用/回滚/卸载补丁:原版 CLI,输出为文本进度(操作日志区实时可见)
 ipcMain.handle('purge:apply', async () => {
+  // 升级保护:应用前先把宿主原始文件归档,失败则中止(否则改坏了无法回退)
+  let snapshot = null
+  try { snapshot = await createHostOriginals('pre-apply') } catch (e) {
+    throw new Error('原始宿主备份失败,已中止应用:' + String(e?.message ?? e))
+  }
   const { output } = await runOp('node', [purgeBin('dsh-purge.js'), '--apply'], { capture: true, extraEnv: await purgeExtraEnv() })
-  return { ok: true, output }
+  return { ok: true, output, snapshot: snapshot?.id ?? null }
 })
 ipcMain.handle('purge:revert', async () => {
   const { output } = await runOp('node', [purgeBin('dsh-purge.js'), '--revert'], { capture: true, extraEnv: await purgeExtraEnv() })
@@ -620,6 +727,14 @@ ipcMain.handle('purge:uninstall', async () => {
   purgeCliCache = null
   return { ok: true, output }
 })
+// 还原官方封签:先退出 dsh(解包目录不能在运行时被搬走),再把 asar / CLI 备份写回,
+// 让 codesign 重新通过 —— electron-updater 的 Squirrel.Mac 才肯接手更新。
+ipcMain.handle('purge:reseal', async () => {
+  const quit = await quitDesktop()
+  const { output } = await runOp('node', [purgeBin('dsh-purge.js'), '--reseal', '--discard'], { capture: true, extraEnv: await purgeExtraEnv() })
+  purgeCliCache = null
+  return { ok: true, quit, output }
+})
 
 // 自检(25 层,JSON)/ 备份 / 回滚到备份 / 清理
 ipcMain.handle('purge:selfcheck', () => purgeCliJson(['selfcheck', '--json'], { log: false }))
@@ -627,6 +742,23 @@ ipcMain.handle('purge:selfcheck', () => purgeCliJson(['selfcheck', '--json'], { 
 ipcMain.handle('purge:backup', async () => { purgeCliCache = null; return purgeCliJson(['backup']) })
 ipcMain.handle('purge:rollback', async (_e, id) => { purgeCliCache = null; return purgeCliJson(['rollback', String(id)]) })
 ipcMain.handle('purge:prune', async () => { purgeCliCache = null; return purgeCliJson(['prune']) })
+
+// 原始宿主备份:创建 / 列表 / 恢复 / 删除
+ipcMain.handle('purge:hostBackup', async () => {
+  purgeCliCache = null
+  const snap = await createHostOriginals('manual')
+  return { ok: true, snapshot: snap }
+})
+ipcMain.handle('purge:hostOriginals', () => listHostOriginals())
+ipcMain.handle('purge:restoreHost', async (_e, id) => {
+  const r = await restoreHostOriginals(id)
+  purgeCliCache = null
+  return r
+})
+ipcMain.handle('purge:deleteHostBackup', async (_e, id) => {
+  const r = await deleteHostOriginals(id)
+  return r
+})
 
 // 单独删除一个备份(插件无此命令,直接删备份目录;id 校验与插件 list 过滤一致)
 ipcMain.handle('purge:deleteBackup', async (_e, id) => {
