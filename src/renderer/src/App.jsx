@@ -58,7 +58,16 @@ function OpLog({ open, onToggle }) {
 
   return (
     <details className="op-log" open={open}>
-      <summary onClick={(e) => { e.preventDefault(); onToggle() }}>操作日志</summary>
+      <summary onClick={(e) => { e.preventDefault(); onToggle() }}>
+        操作日志
+        <button
+          type="button"
+          className="btn small"
+          style={{ float: 'right', marginTop: -4 }}
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setText('') }}
+          disabled={!text}
+        >清空</button>
+      </summary>
       <pre className="op-log-box" ref={boxRef}>{text || '暂无输出'}</pre>
     </details>
   )
@@ -450,6 +459,7 @@ function PurgePanel() {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [check, setCheck] = useState(null)
+  const [checkedBks, setCheckedBks] = useState([])
 
   const load = useCallback(async () => {
     try {
@@ -535,6 +545,17 @@ function PurgePanel() {
   const deleteBackup = (id) => {
     if (!confirm(`确定删除备份 ${id}?此操作不可撤销(快照占用的空间会在下次清理时回收)。`)) return
     void run(() => window.api.deletePurgeBackup(id), `备份 ${id} 已删除`)
+  }
+
+  const toggleChecked = (id) => setCheckedBks(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+
+  const deleteChecked = () => {
+    if (!checkedBks.length) return
+    if (!confirm(`确定删除选中的 ${checkedBks.length} 个备份?此操作不可撤销。`)) return
+    void run(async () => {
+      for (const id of checkedBks) await window.api.deletePurgeBackup(id)
+      setCheckedBks([])
+    }, `已删除 ${checkedBks.length} 个备份`)
   }
 
   const tune = (key, value) => void run(
@@ -703,6 +724,13 @@ function PurgePanel() {
                 <ul className="purge-backups">
                   {state.backups.map(b => (
                     <li key={b.id}>
+                      <input
+                        type="checkbox"
+                        aria-label={`选择备份 ${b.id}`}
+                        checked={checkedBks.includes(b.id)}
+                        onChange={() => toggleChecked(b.id)}
+                        disabled={busy}
+                      />
                       <span className="mono">{b.id}</span>
                       <span className="muted"> {fmtTime(b.created_at)} · {b.reason ?? ''}{b.host_version ? ` · dsh ${b.host_version}` : ''}</span>
                       <span className="actions" style={{ marginLeft: 'auto' }}>
@@ -714,6 +742,7 @@ function PurgePanel() {
                 </ul>
                 <div className="btn-row" style={{ marginTop: 10 }}>
                   <button type="button" className="btn" onClick={() => void load()} disabled={busy}>刷新列表</button>
+                  <button type="button" className="btn danger" onClick={deleteChecked} disabled={busy || !checkedBks.length}>删除选中{checkedBks.length ? `(${checkedBks.length})` : ''}</button>
                   <button type="button" className="btn" onClick={prune} disabled={busy}>清理旧备份</button>
                 </div>
               </>
