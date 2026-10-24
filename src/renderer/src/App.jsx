@@ -499,7 +499,7 @@ function PurgePanel() {
 
   const apply = () => {
     if (!confirm('确定应用破甲补丁?将修改本机 dsh 安装目录的文件(写入前自动备份),重启 dsh 后生效。')) return
-    void run(() => window.api.applyPurge(), '破甲已应用,重启 dsh 后生效')
+    void run(() => window.api.applyPurge(), r => (r?.snapshotNote ? r.snapshotNote + ';' : '') + '破甲已应用,重启 dsh 后生效')
   }
 
   const applyAndRestart = () => {

@@ -481,7 +481,11 @@ async function createHostOriginals(reason = 'manual') {
   const base = await detectDshBase()
   if (!base) throw new Error('未定位到宿主目录,无法创建原始备份')
   const baks = await walkBak(base)
-  if (!baks.length) throw new Error('宿主里没有补丁原始副本(.dshpurge.bak):请先在面板应用一次补丁,或插件从未修改宿主')
+  // 宿主当前是原始状态(未打补丁→没有 .dshpurge.bak):没有「被修改前的文件」可归档。
+  // 这不阻止应用——补丁会在本次应用时生成 .bak,之后就能归档。
+  if (!baks.length) {
+    return { id: null, base, createdAt: Date.now(), reason, count: 0, bytes: 0, files: [], skipped: true }
+  }
   const stamp = new Date().toISOString().replace(/[:.]/g, '-')
   const dir = path.join(HOST_ORIGINALS_DIR, stamp)
   await mkdir(path.join(dir, 'files'), { recursive: true })
@@ -712,11 +716,16 @@ ipcMain.handle('purge:install', async () => {
 ipcMain.handle('purge:apply', async () => {
   // 升级保护:应用前先把宿主原始文件归档,失败则中止(否则改坏了无法回退)
   let snapshot = null
-  try { snapshot = await createHostOriginals('pre-apply') } catch (e) {
-    throw new Error('原始宿主备份失败,已中止应用:' + String(e?.message ?? e))
+  let snapshotNote = null
+  try {
+    snapshot = await createHostOriginals('pre-apply')
+    if (snapshot?.skipped) snapshotNote = '首次应用:宿主当前未被修改,无需原始归档(补丁会在本次应用后生成 .dshpurge.bak)'
+  } catch (e) {
+    // 归档失败不再阻塞应用,只记录(否则首次应用/还原后无法应用)
+    snapshotNote = '原始宿主归档失败(不影响应用):' + String(e?.message ?? e)
   }
   const { output } = await runOp('node', [purgeBin('dsh-purge.js'), '--apply'], { capture: true, extraEnv: await purgeExtraEnv() })
-  return { ok: true, output, snapshot: snapshot?.id ?? null }
+  return { ok: true, output, snapshot: snapshot?.id ?? null, snapshotNote }
 })
 ipcMain.handle('purge:revert', async () => {
   const { output } = await runOp('node', [purgeBin('dsh-purge.js'), '--revert'], { capture: true, extraEnv: await purgeExtraEnv() })
