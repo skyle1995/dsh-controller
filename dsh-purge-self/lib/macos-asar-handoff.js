@@ -274,8 +274,28 @@ export function scheduleMacAsarHandoff({ exe, asar }, io = {}) {
       mode: 0o600,
       flag: "wx",
     });
+    // [self] macOS App Management:换包改名必须由 dsh 家族进程执行。
+    // 从外部工具(如 DSH Controller 的 node)发起时,process.execPath 是外部 App 身份,
+    // rename app.asar 会被 macOS 以 EPERM 拒绝。这里强制 worker 用 dsh 主二进制
+    // (ELECTRON_RUN_AS_NODE 下它就是 node),保持与面板内发起一致的进程身份。
+    const DSH_EXE_CANDIDATES = [
+      "/Applications/DeepSeek Harness.app/Contents/MacOS/DeepSeek Harness",
+    ];
+    let workerExe = io.execPath || null;
+    if (!workerExe) {
+      workerExe = process.execPath;
+      if (!workerExe.includes("DeepSeek Harness")) {
+        for (const c of DSH_EXE_CANDIDATES) {
+          try {
+            fs.accessSync(c, fs.constants.X_OK);
+            workerExe = c;
+            break;
+          } catch {}
+        }
+      }
+    }
     const child = (io.spawn || spawn)(
-      io.execPath || process.execPath,
+      workerExe,
       [script, statePath, token],
       {
         detached: true,

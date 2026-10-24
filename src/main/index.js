@@ -696,7 +696,12 @@ async function finishHostHandoff() {
       await new Promise(r => setTimeout(r, 1000))
     }
   }
-  if (renameErr) { handoffLog('结果:改名重试 12 次失败 ' + String(renameErr?.message ?? renameErr)); return { ok: false, reason: '改名失败(dsh 可能仍在运行):' + String(renameErr?.message ?? renameErr) } }
+  if (renameErr) {
+    const msg = String(renameErr?.message ?? renameErr)
+    handoffLog('结果:改名重试 12 次失败 ' + msg)
+    if (msg.includes('EPERM')) return { ok: false, eperm: true, reason: 'macOS 拒绝控制器修改 dsh(EPERM)。解决:① 打开 dsh 的 Purge 面板点「应用」,然后 ⌘Q 退出 dsh(由 dsh 自己完成换包);② 或在 系统设置 → 隐私与安全性 → App 管理 中添加 DSH Controller 后重试' }
+    return { ok: false, reason: '改名失败(dsh 可能仍在运行):' + msg }
+  }
   try {
     await writeFile(statePath, JSON.stringify({ ...state, phase: 'complete', updated_at: new Date().toISOString(), detail: 'completed by DSH Controller' }, null, 2), 'utf8')
   } catch {}
