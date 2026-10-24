@@ -58,15 +58,18 @@ function OpLog({ open, onToggle }) {
 
   return (
     <details className="op-log" open={open}>
-      <summary onClick={(e) => { e.preventDefault(); onToggle() }}>
-        操作日志
+      <summary
+        onClick={(e) => { e.preventDefault(); onToggle() }}
+        style={{ display: 'flex', alignItems: 'center', gap: 8 }}
+      >
+        <span>操作日志</span>
         <button
           type="button"
           className="btn small"
-          style={{ float: 'right', marginTop: -4 }}
+          style={{ marginLeft: 'auto' }}
           onClick={(e) => { e.preventDefault(); e.stopPropagation(); setText('') }}
           disabled={!text}
-        >清空</button>
+        >清空日志</button>
       </summary>
       <pre className="op-log-box" ref={boxRef}>{text || '暂无输出'}</pre>
     </details>
@@ -263,7 +266,6 @@ function PluginPanel() {
         )
       )}
 
-      <OpLog open={logOpen} onToggle={() => setLogOpen(v => !v)} />
     </section>
   )
 }
@@ -788,6 +790,7 @@ function PurgePanel() {
 
 export default function App() {
   const [tab, setTab] = useState('plugins')
+  const [logOpen, setLogOpen] = useState(false)
 
   return (
     <main className="app">
@@ -812,6 +815,8 @@ export default function App() {
       {tab === 'purge' ? <PurgePanel /> : null}
       {tab === 'redteam' ? <RedteamPackPanel /> : null}
       {tab === 'reverse' ? <ReversePackPanel /> : null}
+
+      <OpLog open={logOpen} onToggle={() => setLogOpen(v => !v)} />
 
       <footer className="foot">
         关闭窗口即退出应用 · 桌面版进程由 DeepSeek Harness 自身管理
