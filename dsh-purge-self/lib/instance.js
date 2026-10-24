@@ -118,6 +118,8 @@ export function resolveProfile(home, options = {}) {
   } catch {}
   if (candidates.length === 1)
     return select(candidates[0], "唯一已初始化 profile");
+  // 桌面版自用:存在 desktop 时优先选它,避免模板残留(web/headless)造成歧义
+  if (candidates.includes("desktop")) return select("desktop", "desktop 优先");
   throw Error(
     `无法唯一确定当前 profile${candidates.length ? "（" + candidates.join("、") + "）" : ""}；请传入 --profile，或设置 DSH_PROFILE / PURGE_PROFILE_DIR`,
   );

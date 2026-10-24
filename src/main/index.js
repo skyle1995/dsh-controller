@@ -482,6 +482,7 @@ async function purgeExtraEnv() {
   return {
     DSH_SURFACE: 'desktop',
     DSH_HOME,
+    DSH_PROFILE: 'desktop',
     PURGE_PROFILE_DIR: path.join(DSH_HOME, 'profiles', 'desktop'),
     ...(base ? { DSH_BASE: base } : {}),
   }
