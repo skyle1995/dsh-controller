@@ -312,8 +312,12 @@ function RedteamPackPanel() {
           <div className="vcard-value mono">{rt?.installed ? `${rt.skillCount} 个` : (rt?.available ? `${rt.available} 个可装` : '—')}</div>
         </div>
         <div className="vcard">
-          <div className="vcard-label">破甲插件</div>
-          <div className="vcard-value mono">{rt?.pluginInstalled ? `v${rt.pluginVersion ?? '?'}` : '未安装'}</div>
+          <div className="vcard-label">版本</div>
+          <div className="vcard-value mono">
+            {rt?.installed
+              ? ('v' + (rt.installedVersion ?? '—')) + (!rt.upToDate && rt.latestVersion ? ' → v' + rt.latestVersion : '')
+              : (rt?.latestVersion ? 'v' + rt.latestVersion : '—')}
+          </div>
         </div>
       </div>
 
@@ -323,7 +327,7 @@ function RedteamPackPanel() {
           : <span className="pill pill-off">未安装</span>}
         <span className="muted">
           {rt?.installed
-            ? `提取自 v${rt.installedVersion ?? '?'} · 安装于 ${rt.installedAt ? new Date(rt.installedAt).toLocaleString() : '—'}`
+            ? `${rt.source === 'resources/redteam-skill' ? '仓库源' : '插件源'} v${rt.installedVersion ?? '?'} · 安装于 ${rt.installedAt ? new Date(rt.installedAt).toLocaleString() : '—'}`
             : '安装为单一入口技能 redteam-skill,按描述路由,经索引进入子技能'}
         </span>
       </div>

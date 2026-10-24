@@ -622,6 +622,29 @@ const PURGE_UNRESTRICT_MARK = path.join(DSH_HOME, 'dsh-purge-community', 'contro
 const REGION_GATE_ANCHOR = 'export function installRegionGate(ctx) {\n  if (!ctx || typeof ctx.on !== "function") return;'
 const REGION_GATE_DISABLED_TAG = '// [dsh-controller] region gate disabled'
 
+// 红队技能包仓库源:列文件 + 逐文件拉取(比 clone 全仓轻)
+async function redteamRepoList() {
+  if (redteamRepoCache && Date.now() - redteamRepoAt < 5 * 60_000) return redteamRepoCache
+  const res = await hubFetch(`${SELF_REPO_API}/contents/${REDTEAM_SKILL_REPO_PATH}?ref=main`)
+  if (!res.ok) throw new Error(res.status === 404 ? '自建源未发布 redteam-skill(先提交推送 resources/redteam-skill/)' : `自建源接口返回 ${res.status}`)
+  const items = await res.json()
+  if (!Array.isArray(items)) throw new Error('自建源目录响应异常')
+  const files = items.filter(i => i.type === 'file' && i.name.endsWith('.md'))
+  redteamRepoCache = files.map(f => ({ name: f.name, url: f.download_url || f.url }))
+  redteamRepoAt = Date.now()
+  return redteamRepoCache
+}
+
+async function redteamRepoVersion() {
+  try {
+    const res = await hubFetch(`${SELF_REPO_API}/contents/${REDTEAM_SKILL_REPO_PATH}/package.json?ref=main`)
+    if (!res.ok) return null
+    const meta = await res.json()
+    const pkg = JSON.parse(Buffer.from(meta?.content ?? '', meta?.encoding === 'base64' ? 'base64' : 'utf8').toString('utf8'))
+    return pkg?.version ?? null
+  } catch { return null }
+}
+
 function purgeSkillsSrcDir() {
   const dir = purgeInstallDir()
   if (!dir) return null
@@ -659,6 +682,9 @@ async function purgePluginVersion() {
 // 入口 SKILL.md 汇总全部子技能的路由索引,子技能正文放 SKILLS/<name>.md;
 // 旧版分散安装的 23 个独立技能目录在安装时自动迁移清理。
 const REDTEAM_SKILL_DIR = path.join(DSH_SKILLS_DIR, 'redteam-skill')
+const REDTEAM_SKILL_REPO_PATH = 'resources/redteam-skill' // 仓库内规范源(与 reverse-skill 同级)
+let redteamRepoCache = null
+let redteamRepoAt = 0
 
 function parseSkillFrontmatter(md) {
   const fm = String(md).match(/^---\n([\s\S]*?)\n---/)
@@ -723,17 +749,34 @@ async function cleanupLegacyRedteamSkills() {
 }
 
 async function installPurgeSkills() {
-  const src = purgeSkillsSrcDir()
-  if (!src) throw new Error('请先在「破甲」页签安装破甲插件')
-  const skills = await listPurgeSkills()
-  if (!skills.length) throw new Error('插件内没有可安装的红队技能')
-  const version = await purgePluginVersion()
   await mkdir(DSH_SKILLS_DIR, { recursive: true })
-  // 读全部子技能并解析 frontmatter
-  const entries = []
-  for (const sk of skills) {
-    const md = await readFile(path.join(src, sk.file), 'utf8')
-    entries.push({ name: sk.name, md, meta: parseSkillFrontmatter(md) })
+  // 优先仓库规范源 resources/redteam-skill(git 下发,带独立版本);失败回退插件内 skills/redteam
+  let entries = []
+  let version = null
+  let source = 'repo'
+  try {
+    const files = await redteamRepoList()
+    if (!files.length) throw new Error('仓库里没有红队子技能')
+    version = await redteamRepoVersion()
+    for (const f of files) {
+      const res = await hubFetch(f.url)
+      if (!res.ok) throw new Error(`拉取 ${f.name} 失败:HTTP ${res.status}`)
+      const md = await res.text()
+      const name = parseSkillName(md) || f.name.replace(/.md$/, '')
+      entries.push({ name, md, meta: parseSkillFrontmatter(md) })
+    }
+  } catch (repoErr) {
+    const src = purgeSkillsSrcDir()
+    if (!src) throw new Error(`仓库源不可用(${repoErr.message}),且破甲插件未安装`)
+    const skills = await listPurgeSkills()
+    if (!skills.length) throw new Error('插件内没有可安装的红队技能')
+    version = await purgePluginVersion()
+    source = 'plugin'
+    entries = []
+    for (const sk of skills) {
+      const md = await readFile(path.join(src, sk.file), 'utf8')
+      entries.push({ name: sk.name, md, meta: parseSkillFrontmatter(md) })
+    }
   }
   // 统一入口布局
   await rm(REDTEAM_SKILL_DIR, { recursive: true, force: true })
@@ -746,7 +789,7 @@ async function installPurgeSkills() {
   // 迁移清理旧分散技能
   const migrated = await cleanupLegacyRedteamSkills()
   await writeFile(PURGE_SKILL_STATE, JSON.stringify({
-    source: 'dsh-purge-self', version, layout: 'unified',
+    source: source === 'repo' ? 'resources/redteam-skill' : 'dsh-purge-self/skills/redteam', version, layout: 'unified',
     skills: entries.map(e => e.name), installedAt: Date.now(),
   }, null, 2), 'utf8')
   return { ok: true, version, installed: entries.map(e => e.name), migrated }
@@ -792,7 +835,9 @@ async function purgeSkillsState() {
       installedAt: state?.installedAt ?? null,
       skillCount: state?.skills?.length ?? 0,
       skills: state?.skills ?? [],
-      upToDate: !!(state?.version && pluginVersion && state.version === pluginVersion),
+      source: state?.source ?? null,
+      latestVersion: await redteamRepoVersion(),
+      upToDate: !!(state?.version && (await redteamRepoVersion()) && state.version === (await redteamRepoVersion())),
       legacyScattered: legacyCount,
     },
     reverse: await reverseSkillsState(),

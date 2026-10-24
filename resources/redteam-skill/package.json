@@ -1,0 +1,6 @@
+{
+  "name": "redteam-skill",
+  "version": "1.0.0",
+  "description": "红队技能包统一入口(23 个子技能:侦察/隧道/横向/WebShell/凭据/免杀等)",
+  "license": "MIT"
+}
