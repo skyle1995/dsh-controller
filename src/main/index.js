@@ -681,9 +681,15 @@ async function finishHostHandoff() {
     return { ok: true, skipped: true, reason: 'app.asar 已不在(可能已完成换包)' }
   }
   const backup = state.backup || asar + '.purge-' + (state.token || Date.now()) + '.bak'
-  try { await rename(asar, backup) } catch (e) {
-    return { ok: false, reason: '改名失败(宿主可能仍在运行,请完全退出后重试):' + String(e?.message ?? e) }
+  // dsh 刚退出时文件句柄可能还没释放:重试 12 次(≈12s),拿到明确结果再返回
+  let renameErr = null
+  for (let i = 0; i < 12; i++) {
+    try { await rename(asar, backup); renameErr = null; break } catch (e) {
+      renameErr = e
+      await new Promise(r => setTimeout(r, 1000))
+    }
   }
+  if (renameErr) return { ok: false, reason: '改名失败(dsh 可能仍在运行):' + String(renameErr?.message ?? renameErr) }
   try {
     await writeFile(statePath, JSON.stringify({ ...state, phase: 'complete', updated_at: new Date().toISOString(), detail: 'completed by DSH Controller' }, null, 2), 'utf8')
   } catch {}

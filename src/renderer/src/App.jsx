@@ -503,11 +503,17 @@ function PurgePanel() {
   }
 
   const applyAndRestart = () => {
-    if (!confirm('确定应用破甲补丁并重启 dsh?修改宿主文件前会自动备份。')) return
+    if (!confirm('确定应用破甲补丁并重启 dsh?(会退出 dsh、完成换包改名、再重新启动)')) return
     void run(async () => {
       await window.api.applyPurge()
-      await window.api.restartDsh()
-    }, '破甲已应用,dsh 已重启')
+      const r = await window.api.restartDsh()
+      return r
+    }, r => {
+      const h = r?.handoff
+      if (!h) return '破甲已应用,dsh 已重启(未检测到换包记录)'
+      if (h.ok) return h.skipped ? 'dsh 已重启;' + h.reason : '换包已完成(app.asar → .bak),补丁已生效'
+      return 'dsh 已重启,但换包未完成:' + (h.reason ?? '未知')
+    })
   }
 
   const revert = () => {
