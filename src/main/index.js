@@ -749,7 +749,20 @@ ipcMain.handle('purge:reseal', async () => {
 })
 
 // 自检(25 层,JSON)/ 备份 / 回滚到备份 / 清理
-ipcMain.handle('purge:selfcheck', () => purgeCliJson(['selfcheck', '--json'], { log: false }))
+// selfcheck 的退出码 1 表示「存在未通过的层」(结果信号),不是命令失败:仍按 JSON 解析展示报告。
+ipcMain.handle('purge:selfcheck', async () => {
+  try {
+    return await purgeCliJson(['selfcheck', '--json'], { log: false })
+  } catch (e) {
+    const out = typeof e?.output === 'string' ? e.output : ''
+    const from = out.indexOf('{')
+    const to = out.lastIndexOf('}')
+    if (from >= 0 && to > from) {
+      try { return JSON.parse(out.slice(from, to + 1)) } catch { /* 继续抛原错误 */ }
+    }
+    throw e
+  }
+})
 // 备份相关操作后清 status 缓存,保证列表立即反映最新状态
 ipcMain.handle('purge:backup', async () => { purgeCliCache = null; return purgeCliJson(['backup']) })
 ipcMain.handle('purge:rollback', async (_e, id) => { purgeCliCache = null; return purgeCliJson(['rollback', String(id)]) })
