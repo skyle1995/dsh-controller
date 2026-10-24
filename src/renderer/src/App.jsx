@@ -661,7 +661,7 @@ function PurgePanel() {
                           disabled={busy}
                         />
                         <span className="mono">{b.id}</span>
-                        <span className="muted"> {fmtTime(b.created_at)} · {b.reason ?? ''}{b.host_version ? ` · dsh ${b.host_version}` : ''}</span>
+                        <span className="muted"> {fmtTime(b.created_at)} · {b.reason ?? ''}{b.host_version ? ` · dsh ${b.host_version}` : ''}{b.plugins?.length ? ` · 破甲 v${b.plugins.map(p => p.version).join(' / ')}` : ''}</span>
                         <span className="actions" style={{ marginLeft: 'auto' }}>
                           <button type="button" className="btn small" disabled={busy} onClick={() => rollbackTo(b.id)}>回滚到此</button>
                           <button type="button" className="btn small danger" disabled={busy} onClick={() => deleteBackup(b.id)}>删除</button>

@@ -10541,7 +10541,7 @@ function CommunityMaintenance() {
     h("div", { className: "dshpp-bk-list" },
       ...(value?.backups || []).map((b) => h("div", { className: "dshpp-bk-row", key: b.id },
         h("input", { type: "checkbox", "aria-label": "选择备份 " + b.id, checked: checked.includes(b.id), onChange: (e) => setChecked((prev) => e.target.checked ? [...prev, b.id] : prev.filter((x) => x !== b.id)) }),
-        h("span", { className: "dshpp-bk-meta" }, new Date(b.created_at).toLocaleString() + (b.reason ? " · " + b.reason : "") + (b.host_version ? " · dsh " + b.host_version : "")),
+        h("span", { className: "dshpp-bk-meta" }, new Date(b.created_at).toLocaleString() + (b.reason ? " · " + b.reason : "") + (b.host_version ? " · dsh " + b.host_version : "") + (b.plugins && b.plugins.length ? " · 破甲 v" + b.plugins.map((p) => p.version).join(" / ") : "")),
         h(Btn, { disabled: busy, onClick: () => run("rollback", b.id) }, "\u56DE\u6EDA"),
         h(Btn, { disabled: busy, onClick: () => run("deleteBackup", b.id) }, "\u5220\u9664")
       ))
@@ -12840,7 +12840,7 @@ function SettingsRoot(props = {}) {
       h(
         "span",
         { className: "dshpp-native-badge" },
-        (true ? "Purge Self " : "\u72EC\u7ACB\u754C\u9762 ") + "1.1.11"
+        (true ? "Purge Self " : "\u72EC\u7ACB\u754C\u9762 ") + "1.1.12"
       )
     ),
     h(CompatibilityNote, { status: backendStatus }),
@@ -12996,7 +12996,7 @@ function StatusStrip({ info }) {
       "span",
       { className: "dshpp-strip-item" },
       "\u63D2\u4EF6 ",
-      h("b", null, info?.plugin_version || "1.1.11")
+      h("b", null, info?.plugin_version || "1.1.12")
     )
   );
 }
@@ -13031,11 +13031,11 @@ function VersionNotice({ info }) {
     );
   }
   const backend = info?.plugin_version;
-  if (!backend || backend === "1.1.11") return null;
+  if (!backend || backend === "1.1.12") return null;
   return h(
     "p",
     { className: "dshpp-warn", role: "status" },
-    `\u5B98\u65B9\u7248\u672C ${backend}\uFF1B\u754C\u9762 ${"1.1.11"}\u3002\u4E24\u8005\u4E0D\u4E00\u81F4\u65F6\u8BBE\u7F6E\u53EF\u80FD\u4E0D\u751F\u6548\uFF0C\u8BF7\u66F4\u65B0\u5230\u540C\u4E00\u7248\u672C\u540E\u91CD\u542F DSH\u3002`
+    `\u5B98\u65B9\u7248\u672C ${backend}\uFF1B\u754C\u9762 ${"1.1.12"}\u3002\u4E24\u8005\u4E0D\u4E00\u81F4\u65F6\u8BBE\u7F6E\u53EF\u80FD\u4E0D\u751F\u6548\uFF0C\u8BF7\u66F4\u65B0\u5230\u540C\u4E00\u7248\u672C\u540E\u91CD\u542F DSH\u3002`
   );
 }
 function PurgePage() {
@@ -13092,7 +13092,7 @@ function PurgePage() {
           true ? h(
             "span",
             { className: "dshpp-page-ver" },
-            "Purge Self 1.1.11"
+            "Purge Self 1.1.12"
           ) : null
         )
       )
