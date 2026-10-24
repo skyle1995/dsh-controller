@@ -499,7 +499,7 @@ function PurgePanel() {
 
   const apply = () => {
     if (!confirm('确定应用破甲补丁?将修改本机 dsh 安装目录的文件(写入前自动备份),重启 dsh 后生效。')) return
-    void run(() => window.api.applyPurge(), r => (r?.snapshotNote ? r.snapshotNote + ';' : '') + '破甲已应用,重启 dsh 后生效')
+    void run(() => window.api.applyPurge(), r => (r?.snapshotNote ? r.snapshotNote + ';' : '') + '破甲已应用。控制器会盯着 dsh:下次退出 dsh 时自动完成换包,重开即生效')
   }
 
   const applyAndRestart = () => {
@@ -641,15 +641,6 @@ function PurgePanel() {
               <button type="button" className="btn primary" onClick={applyAndRestart} disabled={busy || !state.cliAvailable}>应用并重启</button>
               <button type="button" className="btn" onClick={apply} disabled={busy || !state.cliAvailable}>应用</button>
               <button type="button" className="btn" onClick={reseal} disabled={busy || !state.cliAvailable}>还原签名</button>
-              <button
-                type="button"
-                className="btn"
-                disabled={busy}
-                onClick={() => {
-                  if (!confirm('确认 dsh 已完全退出(⌘Q)?此操作把 app.asar 改名为 .bak,让宿主下次从解包目录加载补丁。')) return
-                  void run(() => window.api.finishPurgeHandoff(), r => r?.ok ? (r.skipped ? r.reason : '换包已完成,重开 dsh 即生效') : ('换包未完成:' + (r?.reason ?? '未知')))
-                }}
-              >完成换包</button>
               <button type="button" className="btn" onClick={selfcheck} disabled={busy || !state.cliAvailable}>自检</button>
               <button type="button" className="btn" onClick={backup} disabled={busy || !state.cliAvailable}>备份</button>
               <button type="button" className="btn" onClick={install} disabled={busy || !state.latest}>更新插件</button>

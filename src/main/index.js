@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, nativeTheme } from 'electron'
 import { spawn, exec, execSync } from 'child_process'
 import { copyFile, cp, mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'fs/promises'
-import { existsSync, readFileSync } from 'fs'
+import { existsSync, readFileSync, appendFileSync } from 'fs'
 import path from 'path'
 import os from 'os'
 import net from 'net'
@@ -664,9 +664,16 @@ async function getPurgeState() {
 const HANDOFF_SUFFIX = '.purge-handoff.json'
 const RENAME_LOCK_SUFFIX = '.rename-pending'
 
+const HANDOFF_LOG = '/tmp/dsh-controller-handoff.log'
+function handoffLog(msg) {
+  try { appendFileSync(HANDOFF_LOG, new Date().toISOString() + ' ' + msg + '\n') } catch {}
+}
+
 async function finishHostHandoff() {
+  handoffLog('finishHostHandoff 开始')
   const base = await detectDshBase()
-  if (!base) return { ok: false, reason: '未定位宿主目录' }
+  handoffLog('base=' + base)
+  if (!base) { handoffLog('结果:未定位宿主目录'); return { ok: false, reason: '未定位宿主目录' } }
   // base = .../Resources/app|app.asar/dsh/node_modules/@deepseek-ai
   const resources = base.includes('/app.asar/') ? base.slice(0, base.indexOf('/app.asar/')) : base.slice(0, base.indexOf('/app/dsh/'))
   const asar = path.join(resources, 'app.asar')
@@ -675,7 +682,7 @@ async function finishHostHandoff() {
   try { state = JSON.parse(await readFile(statePath, 'utf8')) } catch { return { ok: false, reason: '没有待完成的换包记录(先点应用)' } }
   const unpacked = path.join(resources, 'app')
   if (!existsSync(path.join(unpacked, 'dsh', 'node_modules', '@deepseek-ai'))) {
-    return { ok: false, reason: '解包目录不完整,请重新点「应用」' }
+    { handoffLog('结果:解包目录不完整'); return { ok: false, reason: '解包目录不完整,请重新点「应用」' } }
   }
   if (!existsSync(asar)) {
     return { ok: true, skipped: true, reason: 'app.asar 已不在(可能已完成换包)' }
@@ -684,17 +691,44 @@ async function finishHostHandoff() {
   // dsh 刚退出时文件句柄可能还没释放:重试 12 次(≈12s),拿到明确结果再返回
   let renameErr = null
   for (let i = 0; i < 12; i++) {
-    try { await rename(asar, backup); renameErr = null; break } catch (e) {
+    try { await rename(asar, backup); renameErr = null; handoffLog('改名成功 -> ' + backup); break } catch (e) {
       renameErr = e
       await new Promise(r => setTimeout(r, 1000))
     }
   }
-  if (renameErr) return { ok: false, reason: '改名失败(dsh 可能仍在运行):' + String(renameErr?.message ?? renameErr) }
+  if (renameErr) { handoffLog('结果:改名重试 12 次失败 ' + String(renameErr?.message ?? renameErr)); return { ok: false, reason: '改名失败(dsh 可能仍在运行):' + String(renameErr?.message ?? renameErr) } }
   try {
     await writeFile(statePath, JSON.stringify({ ...state, phase: 'complete', updated_at: new Date().toISOString(), detail: 'completed by DSH Controller' }, null, 2), 'utf8')
   } catch {}
   try { await rm(asar + RENAME_LOCK_SUFFIX, { force: true }) } catch {}
   return { ok: true, renamed: true, backup, resources }
+}
+
+
+// 换包看护:「应用」后由控制器(常驻独立进程)盯着 dsh 退出,退出即完成改名。
+// 不再依赖插件的助手进程,也不需要用户手动点任何「完成换包」。
+let handoffWatchTimer = null
+function ensureHandoffWatcher() {
+  if (handoffWatchTimer) return
+  handoffLog('看护启动:等待 dsh 退出后自动完成换包')
+  let ticks = 0
+  handoffWatchTimer = setInterval(async () => {
+    ticks++
+    try {
+      const { mainPids } = await desktopProcessInfo()
+      if (mainPids.length) return
+      // dsh 已全部退出:再稳 2 秒后完成换包
+      clearInterval(handoffWatchTimer)
+      handoffWatchTimer = null
+      await new Promise(r => setTimeout(r, 2000))
+      const r = await finishHostHandoff()
+      handoffLog('看护完成:' + JSON.stringify(r))
+      purgeCliCache = null
+    } catch (e) {
+      handoffLog('看护异常:' + String(e?.message ?? e))
+    }
+    if (ticks > 7200) { clearInterval(handoffWatchTimer); handoffWatchTimer = null; handoffLog('看护超时退出(2 小时)') }
+  }, 1500)
 }
 
 // ── IPC ─────────────────────────────────────────────────────
@@ -710,8 +744,6 @@ ipcMain.handle('dsh:restart', async () => {
   return { ...launched, handoff }
 })
 
-// 手动完成换包(适用于只点了「应用」、dsh 已退出的场景)
-ipcMain.handle('purge:finishHandoff', () => finishHostHandoff())
 ipcMain.handle('dsh:version', () => getDshVersion())
 ipcMain.handle('plugins:installed', () => listInstalledPlugins())
 ipcMain.handle('plugins:catalog', () => fetchPluginCatalog())
@@ -773,6 +805,8 @@ ipcMain.handle('purge:apply', async () => {
     snapshotNote = '原始宿主归档失败(不影响应用):' + String(e?.message ?? e)
   }
   const { output } = await runOp('node', [purgeBin('dsh-purge.js'), '--apply'], { capture: true, extraEnv: await purgeExtraEnv() })
+  // 换包看护:控制器盯着 dsh 退出,自动完成 app.asar → .bak(合并进应用,无需手动步骤)
+  ensureHandoffWatcher()
   return { ok: true, output, snapshot: snapshot?.id ?? null, snapshotNote }
 })
 ipcMain.handle('purge:revert', async () => {
