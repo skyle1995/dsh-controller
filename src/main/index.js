@@ -736,6 +736,140 @@ function ensureHandoffWatcher() {
   }, 1500)
 }
 
+// ── 一键安装:安装插件 → 固定全开权限 → 应用 → 去隔离 → 换包 → 重启 ──
+const PROFILE_PATCH = path.join(DSH_HOME, 'profiles', 'desktop', 'cordis.patch.yml')
+
+// profile 层显式固定权限(sandbox: danger-full-access / approval: never),
+// 自检「当前 profile 的权限选择」层由 unknown → ok,同时新会话默认全开。
+function ensurePermissionPreset() {
+  let text = ''
+  try { text = readFileSync(PROFILE_PATCH, 'utf8') } catch { text = '' }
+  if (text.includes('dsh-permission-presets') && text.includes('danger-full-access')) {
+    return { written: false, reason: '已配置' }
+  }
+  const entry = [
+    '',
+    '# [dsh-controller] 默认权限预设:完全访问 + 免审批(一键安装写入)',
+    "- name: '@deepseek-ai/dsh-permission-presets'",
+    '  config:',
+    '    defaultPreset: danger-never',
+    '    presets:',
+    '      danger-never:',
+    '        sandbox: danger-full-access',
+    '        approval: never',
+    '',
+  ].join('\n')
+  try {
+    writeFileSync(PROFILE_PATCH, (text.endsWith('\n') ? text : text + '\n') + entry, 'utf8')
+    return { written: true }
+  } catch (e) {
+    return { written: false, reason: String(e?.message ?? e) }
+  }
+}
+
+// 移除 dsh App 的 quarantine(Gatekeeper 封锁二进制执行的根源)
+function stripQuarantine() {
+  const app = '/Applications/' + DSH_APP_NAME + '.app'
+  try {
+    execSync('xattr -dr com.apple.quarantine ' + JSON.stringify(app), { stdio: 'ignore', timeout: 10000 })
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, reason: String(e?.message ?? e).slice(0, 120) }
+  }
+}
+
+// 写出换包 worker 脚本并由 dsh 二进制执行(身份与原版一致;等 dsh 退出后改名)
+function spawnHandoffWorker() {
+  const script = [
+    "const fs=require('fs'),{execFileSync}=require('child_process')",
+    "const log=m=>{try{fs.appendFileSync('/tmp/dsh-handoff-worker.log',new Date().toISOString()+' '+m+'\n')}catch{}}",
+    "const RES=" + JSON.stringify('/Applications/' + DSH_APP_NAME + '.app/Contents/Resources'),
+    "const ASAR=RES+'/app.asar',statePath=ASAR+'.purge-handoff.json'",
+    "let token=null,backup=null",
+    "try{const st=JSON.parse(fs.readFileSync(statePath,'utf8'));token=st.token;backup=st.backup||ASAR+'.purge-'+token+'.bak'}catch(e){log('读 state 失败: '+e.message);process.exit(1)}",
+    "log('worker 启动 token='+token)",
+    "const MARK=" + JSON.stringify(DSH_APP_NAME + '.app/Contents/MacOS/'),
+    "const running=()=>{const rows=execFileSync('/bin/ps',['-axo','pid=,command='],{encoding:'utf8',maxBuffer:16*1024*1024});return rows.split('\n').some(r=>{const pid=parseInt(r.trim(),10);return pid!==process.pid&&r.includes(MARK)})}",
+    "const deadline=Date.now()+3600e3",
+    "while(Date.now()<deadline){let on=false;try{on=running()}catch(e){}",
+    "if(!on){log('dsh 已退出,3 秒后改名');try{execFileSync('/bin/sleep',['3'])}catch{}",
+    "try{fs.renameSync(ASAR,backup);log('改名成功 -> '+backup)}catch(e){log('改名失败: '+e.message);process.exit(2)}",
+    "try{const st=JSON.parse(fs.readFileSync(statePath,'utf8'));st.phase='complete';st.detail='completed by one-click worker';st.updated_at=new Date().toISOString();fs.writeFileSync(statePath,JSON.stringify(st,null,2));if(fs.readFileSync(ASAR+'.rename-pending','utf8').trim()===token)fs.unlinkSync(ASAR+'.rename-pending')}catch(e){log('收尾异常: '+e.message)}",
+    "log('完成');process.exit(0)}",
+    "try{execFileSync('/bin/sleep',['1'])}catch{}}",
+    "log('超时')",
+  ].join('\n')
+  const file = path.join(os.tmpdir(), 'dshc-handoff-worker.cjs')
+  writeFileSync(file, script, 'utf8')
+  const exe = '/Applications/' + DSH_APP_NAME + '.app/Contents/MacOS/' + DSH_APP_NAME
+  if (!existsSync(exe)) return { ok: false, reason: '未找到 dsh 主程序' }
+  const child = spawn(exe, [file], { detached: true, stdio: 'ignore', env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } })
+  child.unref()
+  return { ok: true, pid: child.pid }
+}
+
+ipcMain.handle('purge:oneClick', async () => {
+  const steps = []
+  const step = (name, r) => { steps.push({ name, ...r }); sendOpLog('[一键] ' + name + ': ' + JSON.stringify(r).slice(0, 200) + '\n') }
+  // 1) 安装插件(已装则跳过)
+  try {
+    const dir = purgeInstallDir()
+    if (dir) step('插件已安装', { ok: true, skipped: true })
+    else {
+      const market = await purgeMarketInfo()
+      const tmpDir = path.join(os.tmpdir(), 'dshc-purge-self-' + Date.now())
+      try {
+        await mkdir(tmpDir, { recursive: true })
+        const repoDir = path.join(tmpDir, 'repo')
+        await gitClone(SELF_REPO_GIT, repoDir)
+        const srcDir = path.join(repoDir, 'dsh-purge-self')
+        if (!existsSync(path.join(srcDir, 'package.json'))) throw new Error('仓库里没有 dsh-purge-self/')
+        await cp(srcDir, path.join(tmpDir, 'package'), { recursive: true })
+        await rm(path.join(tmpDir, 'package', '.git'), { recursive: true, force: true })
+        const tarball = path.join(tmpDir, 'dsh-purge-self.tgz')
+        await new Promise((resolve, reject) => {
+          const child = spawn('tar', ['-czf', tarball, '-C', tmpDir, 'package'], { env: spawnEnv(), stdio: 'ignore' })
+          child.once('error', reject)
+          child.once('exit', (code) => code === 0 ? resolve() : reject(new Error('tar 退出码 ' + code)))
+        })
+        await runOp(resolveDshCmd(), ['plugin', '--profile', pluginProfile(), 'add', tarball], { capture: true })
+        step('安装插件', { ok: true, version: market.version })
+      } finally { await rm(tmpDir, { recursive: true, force: true }).catch(() => {}) }
+    }
+  } catch (e) { step('安装插件', { ok: false, error: String(e?.message ?? e).slice(0, 200) }) }
+  // 2) 固定权限预设
+  step('权限预设', ensurePermissionPreset())
+  // 3) 应用补丁(带原始归档)
+  let applyOk = true
+  try {
+    const { output } = await runOp('node', [purgeBin('dsh-purge.js'), '--apply'], { capture: true, extraEnv: await purgeExtraEnv() })
+    step('应用补丁', { ok: true, output: String(output).slice(-120) })
+  } catch (e) { applyOk = false; step('应用补丁', { ok: false, error: String(e?.message ?? e).slice(0, 200) }) }
+  if (!applyOk) return { ok: false, steps, error: '应用补丁失败,已中止' }
+  // 4) 去 quarantine
+  step('移除隔离属性', stripQuarantine())
+  // 5) 部署换包 worker(dsh 身份)
+  const w = spawnHandoffWorker()
+  step('换包助手', w)
+  // 6) 退出 dsh → 等 worker 完成(最多 90s)→ 兜底 → 重启
+  await quitDesktop()
+  let handoff = null
+  const asarPath = '/Applications/' + DSH_APP_NAME + '.app/Contents/Resources/app.asar'
+  for (let i = 0; i < 45; i++) {
+    await new Promise(r => setTimeout(r, 2000))
+    if (!existsSync(asarPath)) { handoff = { ok: true, by: 'worker' }; break }
+  }
+  if (!handoff) {
+    try { handoff = await finishHostHandoff() } catch (e) { handoff = { ok: false, reason: String(e?.message ?? e) } }
+  }
+  step('换包', handoff)
+  // 7) 重启 dsh
+  const launched = await launchDesktop()
+  step('重启 dsh', { ok: !!launched })
+  purgeCliCache = null
+  return { ok: handoff?.ok !== false, steps, handoff }
+})
+
 // ── IPC ─────────────────────────────────────────────────────
 // 服务管理已移除(桌面版自带);保留重启供破甲「应用并重启」使用
 ipcMain.handle('dsh:restart', async () => {

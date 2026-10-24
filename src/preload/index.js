@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld('api', {
   prunePurge: () => ipcRenderer.invoke('purge:prune'),
   deletePurgeBackup: (id) => ipcRenderer.invoke('purge:deleteBackup', id),
   clearPurgeAudit: () => ipcRenderer.invoke('purge:clearAudit'),
+  oneClickPurge: () => ipcRenderer.invoke('purge:oneClick'),
   backupHostOriginals: () => ipcRenderer.invoke('purge:hostBackup'),
   listHostOriginals: () => ipcRenderer.invoke('purge:hostOriginals'),
   restoreHostOriginals: (id) => ipcRenderer.invoke('purge:restoreHost', id),
