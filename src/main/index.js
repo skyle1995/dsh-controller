@@ -629,7 +629,7 @@ async function redteamRepoList() {
   if (!res.ok) throw new Error(res.status === 404 ? '自建源未发布 redteam-skill(先提交推送 resources/redteam-skill/)' : `自建源接口返回 ${res.status}`)
   const items = await res.json()
   if (!Array.isArray(items)) throw new Error('自建源目录响应异常')
-  const files = items.filter(i => i.type === 'file' && i.name.endsWith('.md'))
+  const files = items.filter(i => i.type === 'file' && i.name.endsWith('.md') && !/^(README|INDEX|CONTRIBUTING)\.md$/i.test(i.name))
   redteamRepoCache = files.map(f => ({ name: f.name, url: f.download_url || f.url }))
   redteamRepoAt = Date.now()
   return redteamRepoCache
