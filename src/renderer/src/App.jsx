@@ -663,15 +663,15 @@ function PurgePanel() {
                       </li>
                     ))}
                   </ul>
-                  <div className="btn-row" style={{ marginTop: 10 }}>
-                    <button type="button" className="btn" onClick={() => void load()} disabled={busy}>刷新列表</button>
-                    <button type="button" className="btn danger" onClick={deleteChecked} disabled={busy || !checkedBks.length}>删除选中{checkedBks.length ? `(${checkedBks.length})` : ''}</button>
-                    <button type="button" className="btn" onClick={prune} disabled={busy}>清理旧备份</button>
-                  </div>
                 </>
               ) : (
                 <p className="muted">暂无备份。「应用」或「备份」操作会自动创建。</p>
               )}
+                <div className="btn-row" style={{ marginTop: 10 }}>
+                  <button type="button" className="btn" onClick={() => void load()} disabled={busy}>刷新列表</button>
+                  <button type="button" className="btn danger" onClick={deleteChecked} disabled={busy || !checkedBks.length}>删除选中{checkedBks.length ? `(${checkedBks.length})` : ''}</button>
+                  <button type="button" className="btn" onClick={prune} disabled={busy}>清理旧备份</button>
+                </div>
             </section>
       ) : null}
 
