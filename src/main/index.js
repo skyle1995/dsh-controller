@@ -831,7 +831,7 @@ ipcMain.handle('purge:oneClick', async () => {
         await rm(path.join(tmpDir, 'package', '.git'), { recursive: true, force: true })
         const tarball = path.join(tmpDir, 'dsh-purge-self.tgz')
         await new Promise((resolve, reject) => {
-          const child = spawn('tar', ['-czf', tarball, '-C', tmpDir, 'package'], { env: spawnEnv(), stdio: 'ignore' })
+          const child = spawn('tar', ['-czf', tarball, '-C', tmpDir, 'package'], { env: { ...spawnEnv(), COPYFILE_DISABLE: '1' }, stdio: 'ignore' })
           child.once('error', reject)
           child.once('exit', (code) => code === 0 ? resolve() : reject(new Error('tar 退出码 ' + code)))
         })
@@ -917,7 +917,7 @@ ipcMain.handle('purge:install', async () => {
     await rm(path.join(tmpDir, 'package', '.git'), { recursive: true, force: true })
     const tarball = path.join(tmpDir, 'dsh-purge-self.tgz')
     await new Promise((resolve, reject) => {
-      const child = spawn('tar', ['-czf', tarball, '-C', tmpDir, 'package'], { env: spawnEnv(), stdio: 'ignore' })
+      const child = spawn('tar', ['-czf', tarball, '-C', tmpDir, 'package'], { env: { ...spawnEnv(), COPYFILE_DISABLE: '1' }, stdio: 'ignore' })
       child.once('error', reject)
       child.once('exit', (code) => code === 0 ? resolve() : reject(new Error(`tar 打包失败(退出码 ${code})`)))
     })

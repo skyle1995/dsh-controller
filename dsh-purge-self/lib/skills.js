@@ -339,7 +339,7 @@ export async function listSkills(dshHome) {
       out.push(await skillFromFile(id, fp, "bundle"));
       continue;
     }
-    if (!entry.isFile() || !entry.name.endsWith(".md") || entry.name === "SKILL.md") continue;
+    if (!entry.isFile() || !entry.name.endsWith(".md") || entry.name === "SKILL.md" || entry.name.startsWith("._")) continue;
     const fallback = entry.name.slice(0, -3);
     const fp = path.join(dir, entry.name);
     const parsed = parseSkillDocument(await fsp.readFile(fp, "utf8"));
@@ -559,14 +559,14 @@ export async function findSkillRoots(root) {
     }
     for (const entry of entries) {
       if (entry.name === "." || entry.name === "..") continue;
-      if (entry.isFile() && entry.name.endsWith(".md") && entry.name !== "SKILL.md") {
+      if (entry.isFile() && entry.name.endsWith(".md") && !entry.name.startsWith("._") && entry.name !== "SKILL.md") {
         const raw = await fsp.readFile(path.join(dir, entry.name), "utf8");
         if (parseSkillDocument(raw).ok) flats.push(path.join(dir, entry.name));
       }
     }
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
-      if (entry.name === "." || entry.name === ".." || entry.name === ".system" || entry.name === "__MACOSX") continue;
+      if (entry.name === "." || entry.name === ".." || entry.name === ".system" || entry.name === "__MACOSX" || entry.name.startsWith("._")) continue;
       const next = path.join(dir, entry.name);
       assertInside(root, next);
       await visit(next, depth + 1);
