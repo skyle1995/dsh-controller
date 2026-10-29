@@ -45,7 +45,7 @@ function platformLabel(p) {
 }
 
 
-function HubAuthCard() {
+function SettingsPanel() {
   const [token, setToken] = useState('')
   const [state, setState] = useState(null)
   const [busy, setBusy] = useState(false)
@@ -74,26 +74,40 @@ function HubAuthCard() {
   }
 
   return (
-    <details className="card" style={{ padding: '12px 18px' }}>
-      <summary style={{ cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
-        自建源访问 {state?.token ? <span className="pill pill-on">密钥已配置</span> : <span className="pill pill-warn">未配置(用本机 git 凭证)</span>}
-      </summary>
-      <div className="btn-row" style={{ marginTop: 10 }}>
-        <input
-          type="password"
-          style={{ flex: 1, minWidth: 220 }}
-          placeholder={state?.token ? '已配置(输入新值覆盖)' : 'Gitea 访问令牌(Settings → 应用 → 生成令牌,勾选 repository 读取)'}
-          value={token}
-          onChange={(e) => setToken(e.target.value)}
-        />
-        <button type="button" className="btn" onClick={save} disabled={busy}>保存密钥</button>
-        <button type="button" className="btn" onClick={test} disabled={busy}>测试连接</button>
-      </div>
-      {notice ? <p className="muted" style={{ margin: '8px 0 0' }}>{notice}</p> : null}
-      <p className="muted" style={{ margin: '8px 0 0', fontSize: 12 }}>
-        仓库为私有:插件安装、技能包更新、版本检测都经此密钥(或本机 git 凭证)访问。密钥只保存在本机 ~/.dsh/dsh-controller/hub.json。
-      </p>
-    </details>
+    <>
+      <section className="card">
+        <h2>自建源访问密钥 <span className="hint">私有仓库 hub.ifunx.com/skyle1995/dsh-controller</span></h2>
+        <p className="muted" style={{ marginTop: 0 }}>
+          插件安装、技能包更新、版本检测都经此密钥访问私有仓库;未配置时回退用本机 git 凭证。
+          密钥只保存在本机 ~/.dsh/dsh-controller/hub.json,不会进入任何仓库。
+        </p>
+        <div className="version-status" style={{ marginBottom: 10 }}>
+          {state?.token
+            ? <span className="pill pill-on">密钥已配置</span>
+            : <span className="pill pill-warn">未配置(回退:本机 git 凭证)</span>}
+        </div>
+        <div className="btn-row">
+          <input
+            type="password"
+            style={{ flex: 1, minWidth: 240 }}
+            placeholder={state?.token ? '已配置(输入新值覆盖,留空提交即清除)' : 'Gitea 访问令牌:网页 → 头像 → 设置 → 应用 → 生成令牌(勾选 repository)'}
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+          />
+          <button type="button" className="btn primary" onClick={save} disabled={busy}>保存密钥</button>
+          <button type="button" className="btn" onClick={test} disabled={busy}>测试连接</button>
+        </div>
+        {notice ? <p className="muted" style={{ margin: '8px 0 0' }}>{notice}</p> : null}
+      </section>
+
+      <section className="card">
+        <h2>关于</h2>
+        <p className="muted" style={{ marginTop: 0 }}>
+          DSH Controller · DeepSeek Harness 桌面管理器(插件 / 一键破甲 / 红队技能包 / 逆向技能包)。
+          上游来源与协议见仓库 README「致谢与上游项目」。
+        </p>
+      </section>
+    </>
   )
 }
 
@@ -247,8 +261,6 @@ function PluginPanel() {
           可安装({available.length})
         </button>
       </nav>
-
-      <HubAuthCard />
 
       {subTab === 'installed' ? (
         installed.length === 0 ? (
@@ -924,15 +936,17 @@ export default function App() {
 
       <nav className="tabs" role="tablist" aria-label="功能导航">
         <button type="button" role="tab" aria-selected={tab === 'plugins'} className={`tab ${tab === 'plugins' ? 'active' : ''}`} onClick={() => setTab('plugins')}>插件中心</button>
-        <button type="button" role="tab" aria-selected={tab === 'purge'} className={`tab ${tab === 'purge' ? 'active' : ''}`} onClick={() => setTab('purge')}>破甲</button>
+        <button type="button" role="tab" aria-selected={tab === 'purge'} className={`tab ${tab === 'purge' ? 'active' : ''}`} onClick={() => setTab('purge')}>一键破甲</button>
         <button type="button" role="tab" aria-selected={tab === 'redteam'} className={`tab ${tab === 'redteam' ? 'active' : ''}`} onClick={() => setTab('redteam')}>红队技能包</button>
         <button type="button" role="tab" aria-selected={tab === 'reverse'} className={`tab ${tab === 'reverse' ? 'active' : ''}`} onClick={() => setTab('reverse')}>逆向技能包</button>
+        <button type="button" role="tab" aria-selected={tab === 'settings'} className={`tab ${tab === 'settings' ? 'active' : ''}`} onClick={() => setTab('settings')}>设置</button>
       </nav>
 
       {tab === 'plugins' ? <PluginPanel /> : null}
       {tab === 'purge' ? <PurgePanel /> : null}
       {tab === 'redteam' ? <RedteamPackPanel /> : null}
       {tab === 'reverse' ? <ReversePackPanel /> : null}
+      {tab === 'settings' ? <SettingsPanel /> : null}
 
       <OpLog open={logOpen} onToggle={() => setLogOpen(v => !v)} />
 
