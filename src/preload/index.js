@@ -2,6 +2,9 @@ import { contextBridge, ipcRenderer } from 'electron'
 
 contextBridge.exposeInMainWorld('api', {
   restartDsh: () => ipcRenderer.invoke('dsh:restart'),
+  getHubAuth: () => ipcRenderer.invoke('hub:getAuth'),
+  setHubAuth: (token) => ipcRenderer.invoke('hub:setAuth', token),
+  testHubAuth: () => ipcRenderer.invoke('hub:testAuth'),
   getDshVersion: () => ipcRenderer.invoke('dsh:version'),
   listInstalledPlugins: () => ipcRenderer.invoke('plugins:installed'),
   fetchPluginCatalog: () => ipcRenderer.invoke('plugins:catalog'),

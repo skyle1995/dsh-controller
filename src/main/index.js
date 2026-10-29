@@ -161,6 +161,32 @@ function getDshVersion() {
   }
   return dshVersionPromise
 }
+// ── 自建源访问认证:显式令牌 > 本机 git keychain > 匿名 ──────────
+const HUB_AUTH_FILE = path.join(DSH_HOME, 'dsh-controller', 'hub.json')
+
+function readHubToken() {
+  try { return JSON.parse(readFileSync(HUB_AUTH_FILE, 'utf8'))?.token || '' } catch { return '' }
+}
+
+ipcMain.handle('hub:getAuth', () => ({ token: readHubToken() ? '已配置' : '' }))
+ipcMain.handle('hub:setAuth', (_e, token) => {
+  const t = String(token ?? '').trim()
+  const dir = path.dirname(HUB_AUTH_FILE)
+  fs2.mkdirSync(dir, { recursive: true })
+  fs2.writeFileSync(HUB_AUTH_FILE, JSON.stringify({ token: t, updatedAt: Date.now() }, null, 2), { mode: 0o600 })
+  return { ok: true, configured: !!t }
+})
+ipcMain.handle('hub:testAuth', async () => {
+  const url = SELF_REPO_API + '/contents/resources/redteam-skill/package.json?ref=main'
+  try {
+    const res = await hubFetch(url)
+    if (!res.ok) return { ok: false, status: res.status }
+    const meta = await res.json()
+    const pkg = JSON.parse(Buffer.from(meta?.content ?? '', 'base64').toString('utf8'))
+    return { ok: true, repo: '可达', version: pkg?.version }
+  } catch (e) { return { ok: false, error: String(e?.message ?? e) } }
+})
+
 // Gitea 凭证(仓库转私有后自动复用本机 git keychain,零配置)
 let hubCredCache = null
 async function hubCredentials() {
@@ -184,13 +210,20 @@ async function hubCredentials() {
 }
 
 async function hubFetch(url) {
+  // 优先:用户在控制器里配置的访问令牌
+  const token = readHubToken()
+  if (token) {
+    const t = await fetch(url, { signal: AbortSignal.timeout(15000), headers: { Authorization: 'token ' + token } })
+    if (t.ok) return t
+  }
   const res = await fetch(url, { signal: AbortSignal.timeout(15000) })
-  if (res.status !== 401) return res
-  // 私有仓库:用本机 git 凭证重试(同一套凭证 push 一直在用)
+  if (res.status !== 401 && res.status !== 404) return res
+  // 私有仓库:Gitea 对匿名返回 401/404——用本机 git 凭证(keychain)重试
   const c = await hubCredentials()
   if (!c?.user) return res
   const basic = Buffer.from(c.user + ':' + c.pass).toString('base64')
-  return fetch(url, { signal: AbortSignal.timeout(15000), headers: { Authorization: 'Basic ' + basic } })
+  const authed = await fetch(url, { signal: AbortSignal.timeout(15000), headers: { Authorization: 'Basic ' + basic } })
+  return authed.ok ? authed : res
 }
 
 // ── 操作执行器(带进度流) ────────────────────────────────────
@@ -1404,7 +1437,10 @@ function extractTar(tarball, destDir) {
 
 function gitClone(url, destDir) {
   return new Promise((resolve, reject) => {
-    const child = spawn('git', ['clone', '--depth', '1', url, destDir], {
+    // 私有仓库:优先用控制器里配置的访问令牌(oauth2 方式);无 token 时走系统 git 的 keychain 凭证
+    const token = readHubToken()
+    const cloneUrl = token ? url.replace('https://hub.ifunx.com/', 'https://oauth2:' + token + '@hub.ifunx.com/') : url
+    const child = spawn('git', ['clone', '--depth', '1', cloneUrl, destDir], {
       env: spawnEnv(),
       stdio: ['ignore', 'ignore', 'pipe'],
     })

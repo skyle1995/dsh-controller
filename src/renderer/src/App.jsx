@@ -45,6 +45,58 @@ function platformLabel(p) {
 }
 
 
+function HubAuthCard() {
+  const [token, setToken] = useState('')
+  const [state, setState] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const [notice, setNotice] = useState('')
+
+  useEffect(() => { void window.api.getHubAuth().then(r => setState(r || {})) }, [])
+
+  const save = async () => {
+    setBusy(true); setNotice('')
+    try {
+      const r = await window.api.setHubAuth(token)
+      setNotice(r?.configured ? '密钥已保存(仅存本机,不入仓库)' : '已清除密钥(将回退用本机 git 凭证)')
+      setToken('')
+      setState(await window.api.getHubAuth())
+    } catch (e) { setNotice('保存失败:' + String(e?.message ?? e)) }
+    setBusy(false)
+  }
+
+  const test = async () => {
+    setBusy(true); setNotice('')
+    try {
+      const r = await window.api.testHubAuth()
+      setNotice(r?.ok ? '连接正常 · 红队包 v' + r.version : '连接失败:' + (r?.status ? 'HTTP ' + r.status : (r?.error ?? '未知')))
+    } catch (e) { setNotice('测试失败:' + String(e?.message ?? e)) }
+    setBusy(false)
+  }
+
+  return (
+    <details className="card" style={{ padding: '12px 18px' }}>
+      <summary style={{ cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
+        自建源访问 {state?.token ? <span className="pill pill-on">密钥已配置</span> : <span className="pill pill-warn">未配置(用本机 git 凭证)</span>}
+      </summary>
+      <div className="btn-row" style={{ marginTop: 10 }}>
+        <input
+          type="password"
+          style={{ flex: 1, minWidth: 220 }}
+          placeholder={state?.token ? '已配置(输入新值覆盖)' : 'Gitea 访问令牌(Settings → 应用 → 生成令牌,勾选 repository 读取)'}
+          value={token}
+          onChange={(e) => setToken(e.target.value)}
+        />
+        <button type="button" className="btn" onClick={save} disabled={busy}>保存密钥</button>
+        <button type="button" className="btn" onClick={test} disabled={busy}>测试连接</button>
+      </div>
+      {notice ? <p className="muted" style={{ margin: '8px 0 0' }}>{notice}</p> : null}
+      <p className="muted" style={{ margin: '8px 0 0', fontSize: 12 }}>
+        仓库为私有:插件安装、技能包更新、版本检测都经此密钥(或本机 git 凭证)访问。密钥只保存在本机 ~/.dsh/dsh-controller/hub.json。
+      </p>
+    </details>
+  )
+}
+
 function OpLog({ open, onToggle }) {
   const [text, setText] = useState('')
   const boxRef = useRef(null)
@@ -195,6 +247,8 @@ function PluginPanel() {
           可安装({available.length})
         </button>
       </nav>
+
+      <HubAuthCard />
 
       {subTab === 'installed' ? (
         installed.length === 0 ? (
