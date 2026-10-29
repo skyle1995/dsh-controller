@@ -35,6 +35,18 @@ npm run dist   # 按当前平台打包
 
 > 说明:当前未做代码签名,macOS 首次打开需右键 App →「打开」,Windows 安装时会提示 SmartScreen;暂用默认 Electron 图标。
 
+## 仓库私有化与更新
+
+仓库已设为**私有**。控制器获取更新的方式(零配置):
+
+- **git 操作**(插件安装/技能包安装):控制器调用系统 `git`,自动复用本机 keychain 里保存的 hub.ifunx.com 凭证(与你 `git push` 用的是同一套)
+- **版本检测**(Gitea contents API):匿名请求收到 401 时,控制器自动用 `git credential fill` 读取本机凭证重试
+
+因此:只要这台机器执行过一次 `git pull/push`(凭证已存),控制器在私有状态下所有更新功能照常工作。
+换新机器时:先 `git clone https://hub.ifunx.com/skyle1995/dsh-controller.git` 输一次账密(勾选钥匙串保存),控制器即可正常更新。
+
+> 控制器安装包(DMG/EXE)为本地构建产物,不入库、不受私有化影响。
+
 ## 致谢与上游项目
 
 本项目站在以下上游项目之上,感谢原作者的付出(相关 LICENSE / NOTICE 已随包保留):

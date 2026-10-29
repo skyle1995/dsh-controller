@@ -161,8 +161,36 @@ function getDshVersion() {
   }
   return dshVersionPromise
 }
-function hubFetch(url) {
-  return fetch(url, { signal: AbortSignal.timeout(15000) })
+// Gitea 凭证(仓库转私有后自动复用本机 git keychain,零配置)
+let hubCredCache = null
+async function hubCredentials() {
+  if (hubCredCache !== null) return hubCredCache
+  hubCredCache = {}
+  try {
+    const cred = await new Promise((resolve) => {
+      const child = spawn('git', ['credential', 'fill'], { stdio: ['pipe', 'pipe', 'ignore'] })
+      let out = ''
+      child.stdout.on('data', (d) => { out += d })
+      child.on('error', () => resolve(''))
+      child.on('close', () => resolve(out))
+      child.stdin.write('protocol=https\nhost=hub.ifunx.com\n\n')
+      child.stdin.end()
+    })
+    const user = /username=(.+)/.exec(cred || '')
+    const pass = /password=(.+)/.exec(cred || '')
+    if (user?.[1] && pass?.[1]) hubCredCache = { user: user[1].trim(), pass: pass[1].trim() }
+  } catch {}
+  return hubCredCache
+}
+
+async function hubFetch(url) {
+  const res = await fetch(url, { signal: AbortSignal.timeout(15000) })
+  if (res.status !== 401) return res
+  // 私有仓库:用本机 git 凭证重试(同一套凭证 push 一直在用)
+  const c = await hubCredentials()
+  if (!c?.user) return res
+  const basic = Buffer.from(c.user + ':' + c.pass).toString('base64')
+  return fetch(url, { signal: AbortSignal.timeout(15000), headers: { Authorization: 'Basic ' + basic } })
 }
 
 // ── 操作执行器(带进度流) ────────────────────────────────────
