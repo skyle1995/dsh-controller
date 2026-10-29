@@ -169,11 +169,10 @@ function readHubToken() {
 }
 
 ipcMain.handle('hub:getAuth', () => ({ token: readHubToken() ? '已配置' : '' }))
-ipcMain.handle('hub:setAuth', (_e, token) => {
+ipcMain.handle('hub:setAuth', async (_e, token) => {
   const t = String(token ?? '').trim()
-  const dir = path.dirname(HUB_AUTH_FILE)
-  fs2.mkdirSync(dir, { recursive: true })
-  fs2.writeFileSync(HUB_AUTH_FILE, JSON.stringify({ token: t, updatedAt: Date.now() }, null, 2), { mode: 0o600 })
+  await mkdir(path.dirname(HUB_AUTH_FILE), { recursive: true })
+  await writeFile(HUB_AUTH_FILE, JSON.stringify({ token: t, updatedAt: Date.now() }, null, 2), { mode: 0o600 })
   return { ok: true, configured: !!t }
 })
 ipcMain.handle('hub:testAuth', async () => {
