@@ -190,39 +190,48 @@ ipcMain.handle('hub:testAuth', async () => {
 let hubCredCache = null
 async function hubCredentials() {
   if (hubCredCache !== null) return hubCredCache
-  hubCredCache = {}
   try {
-    const cred = await new Promise((resolve) => {
-      const child = spawn('git', ['credential', 'fill'], { stdio: ['pipe', 'pipe', 'ignore'] })
-      let out = ''
-      child.stdout.on('data', (d) => { out += d })
-      child.on('error', () => resolve(''))
-      child.on('close', () => resolve(out))
-      child.stdin.write('protocol=https\nhost=hub.ifunx.com\n\n')
-      child.stdin.end()
-    })
+    const cred = await Promise.race([
+      new Promise((resolve) => {
+        const child = spawn('git', ['credential', 'fill'], { stdio: ['pipe', 'pipe', 'ignore'], env: spawnEnv() })
+        let out = ''
+        child.stdout.on('data', (d) => { out += d })
+        child.on('error', () => resolve(''))
+        child.on('close', () => resolve(out))
+        child.stdin.write('protocol=https\nhost=hub.ifunx.com\n\n')
+        child.stdin.end()
+      }),
+      new Promise((r) => setTimeout(() => r(''), 3000)),
+    ])
     const user = /username=(.+)/.exec(cred || '')
     const pass = /password=(.+)/.exec(cred || '')
-    if (user?.[1] && pass?.[1]) hubCredCache = { user: user[1].trim(), pass: pass[1].trim() }
+    if (user?.[1] && pass?.[1]) {
+      hubCredCache = { user: user[1].trim(), pass: pass[1].trim() }
+      return hubCredCache
+    }
   } catch {}
-  return hubCredCache
+  return null
 }
 
 async function hubFetch(url) {
   // 优先:用户在控制器里配置的访问令牌
   const token = readHubToken()
   if (token) {
-    const t = await fetch(url, { signal: AbortSignal.timeout(15000), headers: { Authorization: 'token ' + token } })
-    if (t.ok) return t
+    try {
+      const t = await fetch(url, { signal: AbortSignal.timeout(15000), headers: { Authorization: 'token ' + token } })
+      if (t.ok) return t
+    } catch {}
   }
   const res = await fetch(url, { signal: AbortSignal.timeout(15000) })
   if (res.status !== 401 && res.status !== 404) return res
-  // 私有仓库:Gitea 对匿名返回 401/404——用本机 git 凭证(keychain)重试
   const c = await hubCredentials()
   if (!c?.user) return res
-  const basic = Buffer.from(c.user + ':' + c.pass).toString('base64')
-  const authed = await fetch(url, { signal: AbortSignal.timeout(15000), headers: { Authorization: 'Basic ' + basic } })
-  return authed.ok ? authed : res
+  try {
+    const basic = Buffer.from(c.user + ':' + c.pass).toString('base64')
+    const authed = await fetch(url, { signal: AbortSignal.timeout(15000), headers: { Authorization: 'Basic ' + basic } })
+    if (authed.ok) return authed
+  } catch {}
+  return res
 }
 
 // ── 操作执行器(带进度流) ────────────────────────────────────
