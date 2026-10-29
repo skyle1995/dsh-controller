@@ -35,6 +35,8 @@ Ops gate: initialize `case-init.ps1` / `ops/scope-contract.md` before target ACT
 | API / REST / GraphQL | `api-security/` — BOLA/BFLA/JWT/OAuth | `pentest-tools/` for scanning |
 | Supply chain / SBOM / CI-CD | `supply-chain-security/` — Trivy/Syft/Gitleaks | — |
 | iOS app (IPA) | `mobile-reverse/` — class-dump/Hopper/Frida iOS | `reverse-engineering/platforms.md` |
+| Frida 动态插桩 / hook / 加固脱壳 / 反 Frida 对抗 | `../skill/frida-hook-mastery/SKILL.md` — Java/Native hook、dexdump、SSL Pinning | objection、frida-dexdump |
+| iOS 逆向砸壳/Keychain/重打包 | `../skill/ios-reverse-engineering/SKILL.md` — frida-ios-dump、class-dump、optool | `../skill/frida-hook-mastery/SKILL.md` |
 | **CTF competition (full stack)** | `../CTF-Sandbox-Orchestrator/ctf-sandbox-orchestrator/SKILL.md` — master entry | Route to 40+ sub-skills by evidence |
 | Web runtime / API | `../CTF-Sandbox-Orchestrator/competition-web-runtime/SKILL.md` | — |
 | Cloud / Container / K8s | `../CTF-Sandbox-Orchestrator/competition-agent-cloud/SKILL.md` | — |
