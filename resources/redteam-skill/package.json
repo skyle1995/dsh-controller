@@ -1,6 +1,6 @@
 {
   "name": "redteam-skill",
-  "version": "1.5.0",
-  "description": "红队技能包统一入口(35 个子技能:侦察/隧道/横向/WebShell/凭据/免杀/域渗透/C2/提权/钓鱼/外带/云容器/漏洞包 2024-2026/工具大全/报告)",
+  "version": "1.6.0",
+  "description": "红队技能包统一入口(35 个子技能,按 kill-chain 分类:recon/vuln-scan/exploit/internal/tunnel/plan)",
   "license": "MIT"
 }

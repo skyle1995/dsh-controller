@@ -1042,12 +1042,22 @@ const REGION_GATE_DISABLED_TAG = '// [dsh-controller] region gate disabled'
 // 红队技能包仓库源:列文件 + 逐文件拉取(比 clone 全仓轻)
 async function redteamRepoList() {
   if (redteamRepoCache && Date.now() - redteamRepoAt < 5 * 60_000) return redteamRepoCache
-  const res = await hubFetch(`${SELF_REPO_API}/contents/${REDTEAM_SKILL_REPO_PATH}?ref=main`)
-  if (!res.ok) throw new Error(res.status === 404 ? '自建源未发布 redteam-skill(先提交推送 resources/redteam-skill/)' : `自建源接口返回 ${res.status}`)
-  const items = await res.json()
+  // 技能按 kill-chain 分类存放于子目录(recon/exploit/...):先列顶层,再下钻每个分类目录
+  const top = await hubFetch(`${SELF_REPO_API}/contents/${REDTEAM_SKILL_REPO_PATH}?ref=main`)
+  if (!top.ok) throw new Error(top.status === 404 ? '自建源未发布 redteam-skill(先提交推送 resources/redteam-skill/)' : `自建源接口返回 ${top.status}`)
+  const items = await top.json()
   if (!Array.isArray(items)) throw new Error('自建源目录响应异常')
-  const files = items.filter(i => i.type === 'file' && i.name.endsWith('.md') && !/^(README|INDEX|CONTRIBUTING)\.md$/i.test(i.name))
-  redteamRepoCache = files.map(f => ({ name: f.name, url: f.download_url || f.url }))
+  const isSkill = (i) => i.type === 'file' && i.name.endsWith('.md') && !/^(README|INDEX|CONTRIBUTING)\.md$/i.test(i.name)
+  const out = items.filter(isSkill).map(f => ({ name: f.name, url: f.download_url || f.url, category: '' }))
+  for (const d of items.filter(i => i.type === 'dir')) {
+    const sub = await hubFetch(`${SELF_REPO_API}/contents/${REDTEAM_SKILL_REPO_PATH}/${d.name}?ref=main`)
+    if (!sub.ok) continue
+    const subItems = await sub.json().catch(() => [])
+    for (const f of (Array.isArray(subItems) ? subItems : []).filter(isSkill)) {
+      out.push({ name: f.name, url: f.download_url || f.url, category: d.name })
+    }
+  }
+  redteamRepoCache = out
   redteamRepoAt = Date.now()
   return redteamRepoCache
 }
