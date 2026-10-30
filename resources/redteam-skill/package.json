@@ -1,6 +1,6 @@
 {
   "name": "redteam-skill",
-  "version": "1.6.0",
-  "description": "红队技能包统一入口(35 个子技能,按 kill-chain 分类:recon/vuln-scan/exploit/internal/tunnel/plan)",
+  "version": "1.7.0",
+  "description": "红队技能包统一入口(38 个子技能,分类:recon/vuln-scan/exploit/internal/tunnel/plan)",
   "license": "MIT"
 }

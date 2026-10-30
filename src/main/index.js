@@ -250,8 +250,11 @@ function winQuote(a) {
 // CLI 用的 node:GUI 启动的 App PATH 里通常没有 node(Homebrew/nvm 路径都不在),
 // 优先桌面版自带 runtime node,再回退 Electron 自身(ELECTRON_RUN_AS_NODE),最后才是 PATH 的 node。
 function nodeExec() {
-  // 控制器自身就是 Electron 二进制:ELECTRON_RUN_AS_NODE=1 时按 node 运行(实测 v24)。
-  // 打包后 execPath 是 App 内的可执行文件,不依赖 GUI 进程的 PATH。
+  // 关键:插件 CLI 会改 dsh 宿主的文件(rename/写)。macOS App Management 只允许
+  // app 修改自己的 bundle——用 dsh 主二进制(ELECTRON_RUN_AS_NODE 下就是 node,实测 v24)
+  // 跑 CLI,身份=DeepSeek Harness 自己,reseal/换包等 rename 不再 EPERM。
+  const exe = '/Applications/' + DSH_APP_NAME + '.app/Contents/MacOS/' + DSH_APP_NAME
+  if (!IS_WIN && existsSync(exe)) return { cmd: exe, env: { ELECTRON_RUN_AS_NODE: '1' } }
   return { cmd: process.execPath, env: { ELECTRON_RUN_AS_NODE: '1' } }
 }
 
@@ -265,9 +268,11 @@ function runOp(cmd, args, { log = true, capture = false, extraEnv, asDsh = false
     // 责任进程就是 dsh 本身,改自己的 bundle 不会被拦(与内置换包 worker 同一思路)。
     const dshExe = !IS_WIN ? '/Applications/' + DSH_APP_NAME + '.app/Contents/MacOS/' + DSH_APP_NAME : ''
     if (asDsh && dshExe && existsSync(dshExe)) {
+      autoStripQuarantine()
       cmd = dshExe
       nodeExtra = { ELECTRON_RUN_AS_NODE: '1' }
     } else if (cmd === 'node') {
+      autoStripQuarantine()
       const n = nodeExec()
       cmd = n.cmd
       nodeExtra = n.env
@@ -647,6 +652,9 @@ async function detectDshBase() {
     ? path.join(process.env.LOCALAPPDATA || '', 'Programs', DSH_APP_NAME, 'resources')
     : '/Applications/' + DSH_APP_NAME + '.app/Contents/Resources'
   for (const layout of ['app', 'app.asar']) {
+    // app.asar 候选必须跳过:控制器(Electron)的 existsSync 能穿透 asar 返回 true,
+    // 但该路径传给外部 node CLI 后读不到(升级后未应用补丁时就踩这个)——真目录才算。
+    if (layout === 'app.asar') continue
     const candidate = path.join(resources, layout, 'dsh', 'node_modules', '@deepseek-ai')
     if (validDshBase(candidate)) { base = candidate; break }
   }
@@ -673,11 +681,14 @@ async function purgeExtraEnv() {
   const base = await detectDshBase()
   // PURGE_PROFILE_DIR / DSH_HOME 显式传给插件 CLI:GUI 进程环境里 CLI 自行探测 profile
   // 依赖 PATH 工具,受限 PATH 下会失败,导致 status 返回空 backups。
+  // 桌面版 CLI 启动文件(rollback/还原依赖它定位"当前实例")
+  const dshCli = '/Applications/' + DSH_APP_NAME + '.app/Contents/Resources/runtime/cli/bin/dsh'
   return {
     DSH_SURFACE: 'desktop',
     DSH_HOME,
     DSH_PROFILE: 'desktop',
     PURGE_PROFILE_DIR: path.join(DSH_HOME, 'profiles', 'desktop'),
+    ...(existsSync(dshCli) ? { PURGE_DSH_CLI: dshCli } : {}),
     ...(base ? { DSH_BASE: base } : {}),
   }
 }
@@ -841,6 +852,16 @@ function ensurePermissionPreset() {
   } catch (e) {
     return { written: false, reason: String(e?.message ?? e) }
   }
+}
+
+// 节流版自动去隔离:dsh 每次升级的新 bundle 都会带回 quarantine(下载标志),
+// 不去除则 dsh 二进制执行会被 Gatekeeper 拒绝(表现为 ENOENT),以它身份跑的
+// CLI / 换包助手全部起不来——于是 reseal/rollback/一键 全线失败。
+let lastStripAt = 0
+function autoStripQuarantine() {
+  if (Date.now() - lastStripAt < 60_000) return
+  lastStripAt = Date.now()
+  try { execSync('xattr -dr com.apple.quarantine "/Applications/' + DSH_APP_NAME + '.app"', { stdio: 'ignore', timeout: 8000 }) } catch {}
 }
 
 // 移除 dsh App 的 quarantine(Gatekeeper 封锁二进制执行的根源)
