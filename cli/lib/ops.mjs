@@ -1,0 +1,219 @@
+// 功能操作:破甲 / 技能包 / 插件 / 设置
+import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync, readdirSync } from 'node:fs'
+import path from 'node:path'
+import os from 'node:os'
+import { execSync, spawn } from 'node:child_process'
+import * as core from './core.mjs'
+
+const { PLUGIN_DIR, DSH_HOME, SKILLS_DIR, HUB, RES } = core
+
+// ── 破甲状态 ─────────────────────────────────────────────
+export async function purgeStatus() {
+  const out = { installed: existsSync(path.join(PLUGIN_DIR, 'package.json')), version: null, cli: existsSync(path.join(PLUGIN_DIR, 'bin', 'community.js')), layout: null, backups: [], apply: null }
+  try { out.version = JSON.parse(readFileSync(path.join(PLUGIN_DIR, 'package.json'), 'utf8')).version } catch {}
+  out.layout = core.detectBase() ? 'app' : (existsSync(RES + '/app.asar') ? 'asar' : 'unknown')
+  if (out.cli) {
+    const st = await core.cliJson('community.js', ['status'])
+    if (st && !st.error) { out.backups = st.backups || []; out.hostVersion = st.compatibility?.host_version; out.level = st.compatibility?.level }
+  }
+  return out
+}
+
+// ── 一键破甲:去隔离 → 解包 → 应用 → 换包改名 → 重启 ─────────
+export async function oneClickPurge({ restart = true } = {}) {
+  const steps = []
+  const push = (name, r) => { steps.push({ name, ...r }) }
+  push('移除隔离属性', { ok: core.stripQuarantine() })
+  const up = await core.ensureUnpacked()
+  push('宿主解包', up)
+  if (up.ok === false) return { ok: false, steps, error: '解包失败' }
+  const ap = await core.cliText('dsh-purge.js', ['--apply'], { stream: true })
+  push('应用补丁', { ok: ap.ok, note: ap.ok ? '退出码 0' : '退出码 ' + ap.code })
+  if (!ap.ok) return { ok: false, steps }
+  const rn = core.renameAsarToBak()
+  push('换包改名', rn)
+  if (restart) { const rs = core.restartDsh(); push('重启 dsh', rs) }
+  return { ok: steps.every(s => s.ok !== false), steps }
+}
+
+export async function purgeApply() {
+  const up = await core.ensureUnpacked()
+  if (!up.ok) return { ok: false, error: '解包失败:' + (up.error || '') }
+  const r = await core.cliText('dsh-purge.js', ['--apply'], { stream: true })
+  return { ok: r.ok, error: r.ok ? '' : '退出码 ' + r.code, output: r.output }
+}
+export async function purgeRevert() { const r = await core.cliText('dsh-purge.js', ['--revert'], { stream: true }); return { ok: r.ok, output: r.output } }
+export async function purgeReseal() { const r = await core.cliText('dsh-purge.js', ['--reseal'], { stream: true }); return { ok: r.ok, output: r.output } }
+export async function purgeBackup() { return core.cliJson('community.js', ['backup']) }
+export async function purgeRollback(id) { return core.cliJson('community.js', ['rollback', String(id)]) }
+export async function purgePrune() { return core.cliJson('community.js', ['prune']) }
+export async function purgeSelfcheck() {
+  const r = await core.run(process.execPath, [path.join(PLUGIN_DIR, 'bin', 'community.js'), 'selfcheck', '--json'], { env: core.purgeEnv() })
+  const s = r.output, a = s.indexOf('{'), b = s.lastIndexOf('}')
+  if (a >= 0 && b > a) { try { return JSON.parse(s.slice(a, b + 1)) } catch {} }
+  return { ok: false, error: s.slice(-300) }
+}
+
+// ── 原始宿主快照(升级保护)──────────────────────────────────
+const ORIG_DIR = path.join(DSH_HOME, 'dsh-controller', 'host-originals')
+export function listHostOriginals() {
+  try {
+    return readdirSync(ORIG_DIR).sort().reverse().map(id => {
+      try { const m = JSON.parse(readFileSync(path.join(ORIG_DIR, id, 'manifest.json'), 'utf8')); return { id, ...m } } catch { return { id } }
+    }).filter(Boolean)
+  } catch { return [] }
+}
+export async function createHostOriginals(reason = 'manual') {
+  const base = core.detectBase()
+  if (!base) return { ok: false, error: '未定位宿主(先应用补丁)' }
+  const baks = []
+  const walk = (d) => { for (const e of readdirSync(d, { withFileTypes: true })) { if (e.name.startsWith('._')) continue; const p = path.join(d, e.name); if (e.isDirectory()) walk(p); else if (e.name.endsWith('.dshpurge.bak')) baks.push(p) } }
+  walk(base)
+  if (!baks.length) return { ok: false, skipped: true, note: '宿主当前无 .bak(未打补丁),无需归档' }
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+  const dir = path.join(ORIG_DIR, stamp)
+  mkdirSync(path.join(dir, 'files'), { recursive: true })
+  const files = []
+  for (const bak of baks) {
+    const rel = path.relative(base, bak).replace(/\.dshpurge\.bak$/, '')
+    const target = path.join(dir, 'files', rel)
+    mkdirSync(path.dirname(target), { recursive: true })
+    writeFileSync(target, readFileSync(bak))
+    files.push({ rel, size: readFileSync(bak).length })
+  }
+  writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify({ id: stamp, base, createdAt: Date.now(), reason, count: files.length, files }, null, 2))
+  return { ok: true, id: stamp, count: files.length }
+}
+export function restoreHostOriginals(id) {
+  const base = core.detectBase()
+  if (!base) return { ok: false, error: '未定位宿主' }
+  const dir = path.join(ORIG_DIR, String(id))
+  const m = JSON.parse(readFileSync(path.join(dir, 'manifest.json'), 'utf8'))
+  let n = 0
+  for (const f of m.files || []) {
+    const target = path.resolve(path.join(base, f.rel))
+    if (!target.startsWith(path.resolve(base) + path.sep)) return { ok: false, error: '条目越界:' + f.rel }
+    const src = path.join(dir, 'files', f.rel)
+    if (!existsSync(src)) continue
+    mkdirSync(path.dirname(target), { recursive: true })
+    writeFileSync(target, readFileSync(src)); n++
+  }
+  return { ok: true, restored: n }
+}
+export function deleteHostOriginals(id) { rmSync(path.join(ORIG_DIR, String(id)), { recursive: true, force: true }); return { ok: true } }
+
+// ── 红队技能包(仓库分类目录 → 统一入口)───────────────────────
+const REDTEAM_DIR = path.join(SKILLS_DIR, 'redteam-skill')
+const REDTEAM_STATE = path.join(SKILLS_DIR, '.purge-redteam.json')
+async function redteamFiles() {
+  const top = await core.hubJson(HUB.api + '/contents/resources/redteam-skill?ref=main')
+  const isSkill = i => i.type === 'file' && i.name.endsWith('.md') && !/^(README|INDEX|CONTRIBUTING)\.md$/i.test(i.name)
+  const out = top.filter(isSkill).map(f => ({ name: f.name, url: f.download_url || f.url }))
+  for (const d of top.filter(i => i.type === 'dir')) {
+    try {
+      const sub = await core.hubJson(HUB.api + '/contents/resources/redteam-skill/' + d.name + '?ref=main')
+      for (const f of (Array.isArray(sub) ? sub : []).filter(isSkill)) out.push({ name: f.name, url: f.download_url || f.url, category: d.name })
+    } catch {}
+  }
+  return out
+}
+function fm(md) {
+  const m = /^---\n([\s\S]*?)\n---/.exec(md)
+  const o = {}
+  if (m) for (const line of m[1].split('\n')) { const i = line.indexOf(':'); if (i > 0) o[line.slice(0, i).trim()] = line.slice(i + 1).trim() }
+  return o
+}
+export async function installRedteam({ version = 'repo' } = {}) {
+  let files = []
+  let src = 'repo'
+  try { files = await redteamFiles() } catch { files = [] }
+  const entries = []
+  for (const f of files) {
+    const r = await core.hubFetch(f.url)
+    if (!r.ok) continue
+    const md = await r.text()
+    entries.push({ name: fm(md).name || f.name.replace(/\.md$/, ''), md, meta: fm(md), category: f.category || '' })
+  }
+  if (!entries.length) {
+    // 回退:插件内 skills/redteam(平铺)
+    const srcDir = path.join(PLUGIN_DIR, 'skills', 'redteam')
+    src = 'plugin'
+    if (!existsSync(srcDir)) return { ok: false, error: '仓库与插件内均无红队技能' }
+    for (const n of readdirSync(srcDir)) {
+      if (!n.endsWith('.md') || n.startsWith('._') || n === 'README.md') continue
+      const md = readFileSync(path.join(srcDir, n), 'utf8')
+      entries.push({ name: fm(md).name || n.replace(/\.md$/, ''), md, meta: fm(md) })
+    }
+  }
+  const ver = await core.hubFileVersion('resources/redteam-skill')
+  rmSync(REDTEAM_DIR, { recursive: true, force: true })
+  mkdirSync(path.join(REDTEAM_DIR, 'SKILLS'), { recursive: true })
+  for (const e of entries) writeFileSync(path.join(REDTEAM_DIR, 'SKILLS', e.name + '.md'), e.md)
+  const idx = entries.map(e => '| ' + e.name + ' | ' + (e.meta.description || '').replace(/\|/g, '/').slice(0, 100) + ' |').join('\n')
+  writeFileSync(path.join(REDTEAM_DIR, 'SKILL.md'), [
+    '---', 'name: redteam-skill', 'description: 红队技能包统一入口(' + entries.length + ' 个子技能:侦察/漏洞/利用/内网/隧道/管理)', '---', '',
+    '# 红队技能包', '', '按需进入对应子技能(SKILLS/ 目录)。', '', '| 技能 | 说明 |', '| --- | --- |', idx, '',
+  ].join('\n'))
+  writeFileSync(REDTEAM_STATE, JSON.stringify({ version: ver, source: src, skills: entries.map(e => e.name), installedAt: Date.now() }, null, 2))
+  return { ok: true, count: entries.length, version: ver, source: src }
+}
+
+// ── 逆向技能包(仓库子目录 clone → 复制)────────────────────
+const REVERSE_DIR = path.join(SKILLS_DIR, 'reverse-skill')
+const REVERSE_STATE = path.join(SKILLS_DIR, '.reverse-skill.json')
+export async function installReverse() {
+  const tmp = path.join(os.tmpdir(), 'dshc-reverse-' + Date.now())
+  const repo = path.join(tmp, 'repo')
+  const tok = core.readToken()
+  const url = tok ? HUB.git.replace('https://hub.ifunx.com/', 'https://oauth2:' + tok + '@hub.ifunx.com/') : HUB.git
+  const r = await core.run('git', ['clone', '--depth', '1', url, repo], { cwd: tmp })
+  if (!r.ok) return { ok: false, error: 'clone 失败:' + (r.output || '').slice(-200) }
+  const src = path.join(repo, 'resources', 'reverse-skill')
+  if (!existsSync(path.join(src, 'RULES.md'))) return { ok: false, error: '仓库中无 resources/reverse-skill' }
+  rmSync(REVERSE_DIR, { recursive: true, force: true })
+  mkdirSync(REVERSE_DIR, { recursive: true })
+  execSync('cp -R "' + src + '/." "' + REVERSE_DIR + '/"')
+  rmSync(path.join(REVERSE_DIR, '.git'), { recursive: true, force: true })
+  const ver = (() => { try { return JSON.parse(readFileSync(path.join(REVERSE_DIR, 'package.json'), 'utf8')).version } catch { return null } })()
+  const skills = []
+  const sk = path.join(REVERSE_DIR, 'skill')
+  if (existsSync(sk)) for (const d of readdirSync(sk)) if (existsSync(path.join(sk, d, 'SKILL.md'))) skills.push(d)
+  writeFileSync(path.join(REVERSE_DIR, 'SKILL.md'), [
+    '---', 'name: reverse-skill', 'description: 逆向工程 / CTF / 安全研究路由包(' + skills.length + ' 个模块)', '---', '',
+    '# 逆向技能包', '', '模块:' + skills.join(', '), '',
+  ].join('\n'))
+  writeFileSync(REVERSE_STATE, JSON.stringify({ version: ver, modules: skills, installedAt: Date.now() }, null, 2))
+  rmSync(tmp, { recursive: true, force: true })
+  return { ok: true, version: ver, modules: skills.length }
+}
+
+// ── 插件商店 ─────────────────────────────────────────────
+export async function pluginsInstalled() {
+  const f = path.join(DSH_HOME, 'profiles', 'desktop', 'package.json')
+  try {
+    const pkg = JSON.parse(readFileSync(f, 'utf8'))
+    const deps = pkg.dependencies || {}
+    return Object.keys(deps).map(name => {
+      let version = '?'
+      try { version = JSON.parse(readFileSync(path.join(DSH_HOME, 'profiles', 'desktop', 'node_modules', name, 'package.json'), 'utf8')).version } catch {}
+      return { name, version, spec: deps[name] }
+    })
+  } catch { return [] }
+}
+export async function pluginsCatalog() {
+  try {
+    const r = await core.hubFetch('https://hub.ifunx.com/api/v1/repos/skyle1995/dsh-plugins/contents/packages')
+    const items = await r.json()
+    return (Array.isArray(items) ? items : []).map(i => i.name)
+  } catch { return [] }
+}
+export async function pluginInstall(spec) {
+  const dshCli = RES + '/runtime/cli/bin/dsh'
+  const r = await core.run(dshCli, ['plugin', '--profile', 'desktop', 'add', spec], { stream: true })
+  return { ok: r.ok, output: r.output }
+}
+export async function pluginRemove(name) {
+  const dshCli = RES + '/runtime/cli/bin/dsh'
+  const r = await core.run(dshCli, ['plugin', '--profile', 'desktop', 'remove', name], { stream: true })
+  return { ok: r.ok, output: r.output }
+}

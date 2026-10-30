@@ -1,7 +1,7 @@
 {
   "name": "dsh-controller",
   "version": "0.1.0",
-  "description": "DeepSeek Harness 桌面控制器:在桌面端管理 dsh 服务进程",
+  "description": "DSH Controller — DeepSeek Harness 管理(CLI 菜单 + 图形界面)",
   "main": "out/main/index.js",
   "type": "module",
   "scripts": {
@@ -9,7 +9,9 @@
     "build": "electron-vite build",
     "start": "electron-vite preview",
     "prepare:pack": "node scripts/prepare-pack.mjs",
-    "dist": "electron-vite build && electron-builder"
+    "dist": "electron-vite build && electron-builder",
+    "cli": "node cli/index.mjs",
+    "cli:status": "node cli/index.mjs status"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^5.2.0",
@@ -44,5 +46,8 @@
   },
   "dependencies": {
     "semver": "^7.8.5"
+  },
+  "bin": {
+    "dshc": "./cli/index.mjs"
   }
 }

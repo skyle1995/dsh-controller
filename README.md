@@ -47,6 +47,52 @@ npm run dist   # 按当前平台打包
 
 > 控制器安装包(DMG/EXE)为本地构建产物,不入库、不受私有化影响。
 
+## CLI(菜单式,推荐)
+
+无需图形界面,终端里完成全部管理(无 Electron/TCC 依赖):
+
+```bash
+node cli/index.mjs          # 进入菜单
+node cli/index.mjs status   # 概览
+# 或安装为本机命令:
+npm link && dshc            # 之后直接 dshc 进入菜单
+```
+
+菜单结构:
+
+```
+╭ DSH Controller CLI ╮
+  破甲插件 v1.1.19 · 宿主 app(已应用)
+  红队技能 38 个 · v1.7.0
+  逆向技能 12 模块 · v1.3.0
+  宿主版本 0.2.1-rc.3
+
+  1) 一键破甲    去隔离 → 解包 → 应用 → 换包改名 → 重启(全自动)
+  2) 红队技能    安装/更新/清单(分类子目录递归拉取)
+  3) 逆向技能    安装/更新/清单
+  4) 插件商店    已装列表 / 安装 / 卸载
+  5) 工具设置    密钥 / 连接测试 / 原始宿主快照 / 日志位置
+  q) 退出
+```
+
+非交互命令(可脚本化):
+
+```bash
+dshc status
+dshc purge oneclick            # 一键破甲
+dshc purge apply | revert | reseal | backup | prune | selfcheck
+dshc purge rollback <备份ID>
+dshc skills redteam | reverse  # 技能包安装/更新
+dshc plugins list | install <spec> | remove <name>
+dshc settings token [令牌] | test
+dshc originals list | create | restore <ID>
+```
+
+要点:
+- **换包改名**在普通权限被 macOS 拒绝(EPERM)时自动弹**管理员密码框**(osascript with administrator privileges),以 root 完成
+- 私有仓库访问:密钥存 `~/.dsh/dsh-controller/hub.json`(设置菜单可改),或自动复用本机 git 凭证
+- 图形界面(`npm run dev` / electron-builder)保留为可选入口
+
 ## 致谢与上游项目
 
 本项目站在以下上游项目之上,感谢原作者的付出(相关 LICENSE / NOTICE 已随包保留):
