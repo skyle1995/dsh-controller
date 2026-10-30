@@ -15,10 +15,23 @@ export const dim = (s) => c('gray', s)
 export const head = (s) => c('bold', s)
 
 let rl = null
-export function ask(q) {
+let stdinEnded = false
+export function stdinEndedQ() { return stdinEnded }
+export async function ask(q) {
   if (!rl) rl = readline.createInterface({ input: stdin, output: stdout })
-  return rl.question(q)
+  try { rl.resume() } catch {}
+  try { return await rl.question(q) }
+  catch (e) {
+    if (/closed|EOF/i.test(String(e?.code || '') + String(e?.message || ''))) {
+      stdinEnded = true
+      return ''
+    }
+    throw e
+  }
 }
+// 长操作期间暂停读取(不关闭,否则 readline 永久失效)
+export function pauseAsk() { try { rl?.pause() } catch {} }
+export function resumeAsk() { try { rl?.resume() } catch {} }
 export function closeAsk() { try { rl?.close() } catch {} ; rl = null }
 
 export function banner(title) {
