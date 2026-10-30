@@ -217,3 +217,73 @@ export async function pluginRemove(name) {
   const r = await core.run(dshCli, ['plugin', '--profile', 'desktop', 'remove', name], { stream: true })
   return { ok: r.ok, output: r.output }
 }
+
+// ── 插件安装(仓库 tarball → dsh plugin add)───────────────────
+export async function installLatest() {
+  const tmp = path.join(os.tmpdir(), 'dshc-purge-' + Date.now())
+  const repo = path.join(tmp, 'repo')
+  const tok = core.readToken()
+  const url = tok ? core.HUB.git.replace('https://hub.ifunx.com/', 'https://oauth2:' + tok + '@hub.ifunx.com/') : core.HUB.git
+  let r = await core.run('git', ['clone', '--depth', '1', url, repo], { cwd: tmp })
+  if (!r.ok) return { ok: false, error: 'clone 失败:' + (r.output || '').slice(-200) }
+  const src = path.join(repo, 'dsh-purge-self')
+  if (!existsSync(path.join(src, 'package.json'))) return { ok: false, error: '仓库缺少 dsh-purge-self/' }
+  mkdirSync(path.join(tmp, 'package'), { recursive: true })
+  execSync('cp -R "' + src + '/." "' + tmp + '/package/"')
+  rmSync(path.join(tmp, 'package', '.git'), { recursive: true, force: true })
+  const tgz = path.join(tmp, 'dsh-purge-self.tgz')
+  r = await core.run('tar', ['-czf', tgz, '-C', tmp, 'package'], { env: { COPYFILE_DISABLE: '1' } })
+  if (!r.ok) return { ok: false, error: 'tar 失败' }
+  const dshCli = core.RES + '/runtime/cli/bin/dsh'
+  r = await core.run(dshCli, ['plugin', '--profile', 'desktop', 'add', tgz], { stream: true })
+  rmSync(tmp, { recursive: true, force: true })
+  let ver = null
+  try { ver = JSON.parse(readFileSync(path.join(core.PLUGIN_DIR, 'package.json'), 'utf8')).version } catch {}
+  return { ok: r.ok, version: ver, output: r.output }
+}
+
+// ── 卸载(退出 dsh → CLI --uninstall;EPERM 回退管理员授权)────────
+export async function uninstallPurge() {
+  core.quitDsh()
+  await core.waitDshExit(15000)
+  const script = path.join(core.PLUGIN_DIR, 'bin', 'dsh-purge.js')
+  let r = await core.run(process.execPath, [script, '--uninstall'], { env: core.purgeEnv(), stream: true })
+  let via = 'user'
+  if (!r.ok) {
+    // 改名类操作被 App 管理拒绝 → 管理员授权重跑整条卸载
+    try {
+      const sh = path.join(os.tmpdir(), 'dshc-admin-uninstall.sh')
+      writeFileSync(sh, '#!/bin/sh\nexport DSH_SURFACE=desktop DSH_HOME="' + core.DSH_HOME + '" DSH_PROFILE=desktop\n'
+        + 'export PURGE_PROFILE_DIR="' + path.join(core.DSH_HOME, 'profiles', 'desktop') + '"\n'
+        + 'export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"\n'
+        + '"' + process.execPath + '" "' + script + '" --uninstall\n', 'utf8')
+      execSync('osascript -e ' + JSON.stringify('do shell script "/bin/sh ' + sh + '" with administrator privileges'), { stdio: 'ignore', timeout: 180000 })
+      r = { ok: true, output: '（管理员授权执行）' }
+      via = 'admin'
+    } catch (e) { return { ok: false, error: '卸载失败:' + (e.message || e) + '（可尝试 sudo 重跑）' } }
+  }
+  const dshCli = core.RES + '/runtime/cli/bin/dsh'
+  await core.run(dshCli, ['plugin', '--profile', 'desktop', 'remove', 'dsh-purge-self'])
+  return { ok: true, via, output: r.output }
+}
+
+// ── 运行开关(boost / retry / rewind / inject)─────────────────
+export function readTuning() {
+  try { return JSON.parse(readFileSync(path.join(core.DSH_HOME, 'dsh-purge', 'tuning.json'), 'utf8')) } catch { return {} }
+}
+export async function setTuning(key, value) {
+  const allowed = { boost: ['on', 'off'], retry: ['on', 'off'], rewind: ['on', 'off'], inject: ['head', 'tail', 'both'] }
+  if (!allowed[key]) return { ok: false, error: '未知开关 ' + key }
+  if (!allowed[key].includes(value)) return { ok: false, error: key + ' 只接受 ' + allowed[key].join('/') }
+  const r = await core.cliJson('community.js', [key, value])
+  return { ok: r.ok !== false, result: r, tuning: readTuning() }
+}
+
+// ── 授权管理(演练台 drill grant)────────────────────────────
+const DRILL_FILE = path.join(core.DSH_HOME, 'dsh-purge', 'drill-grant.json')
+export function drillState() { try { return JSON.parse(readFileSync(DRILL_FILE, 'utf8')) } catch { return null } }
+export function grantDrill(on) {
+  mkdirSync(path.dirname(DRILL_FILE), { recursive: true })
+  writeFileSync(DRILL_FILE, JSON.stringify({ granted: !!on, at: new Date().toISOString() }, null, 2) + '\n', 'utf8')
+  return { ok: true, granted: !!on }
+}

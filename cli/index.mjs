@@ -24,49 +24,52 @@ async function header() {
   kv('宿主版本', st.hostVersion || '?')
 }
 
-// ── 一键破甲 ─────────────────────────────────────────────
+// ── 一键破甲(二级菜单)───────────────────────────────────
 async function menuPurge() {
   while (true) {
     const st = await ops.purgeStatus()
+    const tun = ops.readTuning()
+    const drill = ops.drillState()
+    const snaps = ops.listHostOriginals()
     banner('一键破甲')
-    kv('插件', st.installed ? 'v' + st.version : '未安装')
+    kv('插件', st.installed ? 'v' + (st.version || '?') : c('yellow', '未安装'))
     kv('宿主布局', st.layout === 'app' ? c('green', 'app(已应用)') : c('yellow', 'asar(未应用)'))
-    kv('备份', (st.backups?.length || 0) + ' 个')
-    console.log('\n  1) ' + head('应用并重启') + dim('(去隔离 → 解包 → 应用 → 换包 → 重启,全自动)'))
-    console.log('  2) 仅应用补丁')
-    console.log('  3) 还原签名(修官方更新)')
-    console.log('  4) 回滚到备份')
-    console.log('  5) 立即备份 / 清理旧备份')
-    console.log('  6) 自检')
+    kv('运行开关', `boost ${tun.boost === false ? 'off' : 'on'} · retry ${tun.refusalRetry === false ? 'off' : 'on'} · rewind ${tun.rewind === false ? 'off' : 'on'} · inject ${tun.injectPosition || 'head'}`)
+    kv('演练授权', drill?.granted ? c('green', '已授权') : dim('未授权'))
+    kv('快照/备份', snaps.length + ' 快照 · ' + (st.backups?.length || 0) + ' 备份')
+
+    console.log('\n  1) ' + head('一键安装') + dim('  安装/更新插件 → 解包 → 应用 → 换包 → 重启'))
+    console.log('  2) ' + head('卸载安装') + dim('  退出 dsh,卸载插件与补丁(需管理员)'))
+    console.log('  3) ' + head('还原签名') + dim('  修官方更新失败(丢弃解包目录)'))
+    console.log('  4) ' + head('能力自检') + dim('  逐层证据 + 待确认标注'))
+    console.log('  5) ' + head('运行开关') + dim('  boost / retry / rewind / inject'))
+    console.log('  6) ' + head('授权管理') + dim('  演练台授权 / 撤销'))
+    console.log('  7) ' + head('快照管理') + dim('  原始宿主快照(升级保护)'))
+    console.log('  8) ' + head('备份管理') + dim('  插件备份:列/备份/回滚/清理'))
     console.log('  0) 返回')
     const a = (await ask(c('cyan', '\n选择> '))).trim()
     if (a === '0' || a === '') return
+
     if (a === '1') {
       ui.closeAsk()
-      console.log(dim('\n—— 一键破甲开始 ——'))
+      console.log(dim('\n—— 一键安装开始 ——'))
+      const ins = await ops.installLatest()
+      step('安装/更新插件', ins.ok ? { ok: true, note: 'v' + (ins.version || '?') } : { ok: false, reason: ins.error })
+      if (!ins.ok) { await ask(dim('回车继续')); continue }
       const r = await ops.oneClickPurge({ restart: true })
-      console.log('')
       for (const s of r.steps) step(s.name, s)
-      console.log(r.ok ? '\n' + ok('完成。dsh 已重启,补丁应已生效。') : '\n' + bad('未全部成功,见上。'))
+      console.log(r.ok ? '\n' + ok('完成。dsh 已重启,补丁已生效。') : '\n' + bad('未全部成功,见上。'))
       await ask(dim('回车继续'))
     } else if (a === '2') {
-      ui.closeAsk(); const r = await ops.purgeApply(); console.log(r.ok ? ok('已应用') : bad('失败:' + r.error)); await ask(dim('回车继续'))
+      const yes = (await ask(warn('确认卸载?将退出 dsh 并移除插件/补丁(y/N)> '))).trim()
+      if (yes.toLowerCase() !== 'y') continue
+      ui.closeAsk()
+      const r = await ops.uninstallPurge()
+      console.log(r.ok ? ok('已卸载(' + (r.via === 'admin' ? '管理员授权' : '普通权限') + ')') : bad(r.error || '失败'))
+      await ask(dim('回车继续'))
     } else if (a === '3') {
       ui.closeAsk(); const r = await ops.purgeReseal(); console.log(r.ok ? ok('已还原签名') : bad('失败')); await ask(dim('回车继续'))
     } else if (a === '4') {
-      const st2 = await ops.purgeStatus()
-      if (!st2.backups?.length) { console.log(warn('没有备份')); await ask(dim('回车继续')); continue }
-      st2.backups.slice(0, 10).forEach((b, i) => console.log('  ' + (i + 1) + ') ' + b.id + dim(' · ' + b.created_at + ' · ' + (b.reason || ''))))
-      const n = parseInt((await ask('选择备份编号> ')).trim(), 10)
-      const b = st2.backups[n - 1]
-      if (!b) continue
-      ui.closeAsk(); const r = await ops.purgeRollback(b.id); console.log(r.ok ? ok('已回滚') : bad('失败:' + (r.error || ''))); await ask(dim('回车继续'))
-    } else if (a === '5') {
-      console.log('  1) 立即备份    2) 清理旧备份')
-      const b2 = (await ask('选择> ')).trim()
-      if (b2 === '1') { ui.closeAsk(); const r = await ops.purgeBackup(); console.log(r.ok ? ok('备份 ' + (r.id || '')) : bad('失败')); await ask(dim('回车继续')) }
-      if (b2 === '2') { ui.closeAsk(); const r = await ops.purgePrune(); console.log(r.ok ? ok('已清理') : bad('失败')); await ask(dim('回车继续')) }
-    } else if (a === '6') {
       ui.closeAsk()
       const r = await ops.purgeSelfcheck()
       if (r.error) { console.log(bad(r.error)); await ask(dim('回车继续')); continue }
@@ -77,6 +80,47 @@ async function menuPurge() {
         console.log('   ' + icon + ' ' + l.title + dim(' ' + (l.applicable === false ? '不适用' : (l.state === 'unknown' ? '待确认' : (l.applied ?? '?') + '/' + (l.total ?? '?')))))
       }
       await ask(dim('回车继续'))
+    } else if (a === '5') {
+      while (true) {
+        const t = ops.readTuning()
+        console.log('\n  ' + head('运行开关') + dim('(下一轮对话生效)'))
+        console.log('  1) boost 强化尾段      ' + (t.boost === false ? c('yellow', 'off') : c('green', 'on')))
+        console.log('  2) retry 拒绝重试      ' + (t.refusalRetry === false ? c('yellow', 'off') : c('green', 'on')))
+        console.log('  3) rewind 回退按钮     ' + (t.rewind === false ? c('yellow', 'off') : c('green', 'on')))
+        console.log('  4) inject 注入位置     ' + (t.injectPosition || 'head'))
+        console.log('  0) 返回')
+        const b = (await ask(c('cyan', '\n开关> '))).trim()
+        if (b === '0' || b === '') break
+        if (b === '1') { ui.closeAsk(); const r = await ops.setTuning('boost', t.boost === false ? 'on' : 'off'); console.log(r.ok ? ok('已切换') : bad(r.error)) }
+        else if (b === '2') { ui.closeAsk(); const r = await ops.setTuning('retry', t.refusalRetry === false ? 'on' : 'off'); console.log(r.ok ? ok('已切换') : bad(r.error)) }
+        else if (b === '3') { ui.closeAsk(); const r = await ops.setTuning('rewind', t.rewind === false ? 'on' : 'off'); console.log(r.ok ? ok('已切换') : bad(r.error)) }
+        else if (b === '4') { const v = (await ask('head/tail/both> ')).trim(); ui.closeAsk(); const r = await ops.setTuning('inject', v); console.log(r.ok ? ok('已设置 ' + v) : bad(r.error)) }
+      }
+    } else if (a === '6') {
+      const d = ops.drillState()
+      console.log('\n  当前:' + (d?.granted ? c('green', '已授权') : dim('未授权')) + dim(' ' + (d?.at || '')))
+      console.log('  1) 授权   2) 撤销   0) 返回')
+      const b = (await ask(c('cyan', '\n选择> '))).trim()
+      if (b === '1') { ops.grantDrill(true); console.log(ok('已授权演练台')) }
+      if (b === '2') { ops.grantDrill(false); console.log(ok('已撤销')) }
+    } else if (a === '7') {
+      const list = ops.listHostOriginals()
+      console.log('\n  快照 ' + (list.length ? list.length + ' 个' : dim('无')))
+      list.slice(0, 8).forEach((s, i) => console.log('  ' + (i + 1) + ') ' + s.id + dim(' · ' + (s.count || 0) + ' 文件 · ' + (s.reason || ''))))
+      console.log('  c) 创建快照   r) 恢复   d) 删除   0) 返回')
+      const b = (await ask(c('cyan', '\n选择> '))).trim()
+      if (b === 'c') { ui.closeAsk(); const r = await ops.createHostOriginals('manual'); console.log(r.ok ? ok('已创建 ' + r.count + ' 文件') : warn(r.note || r.error || '失败')); await ask(dim('回车继续')) }
+      else if (b === 'r') { const n = parseInt((await ask('编号> ')), 10); if (list[n - 1]) { ui.closeAsk(); const r = await ops.restoreHostOriginals(list[n - 1].id); console.log(r.ok ? ok('已恢复 ' + r.restored + ' 文件,请重启 dsh') : bad(r.error)); await ask(dim('回车继续')) } }
+      else if (b === 'd') { const n = parseInt((await ask('编号> ')), 10); if (list[n - 1]) { ops.deleteHostOriginals(list[n - 1].id); console.log(ok('已删除')) } }
+    } else if (a === '8') {
+      const st2 = await ops.purgeStatus()
+      console.log('\n  备份 ' + (st2.backups?.length || 0) + ' 个')
+      ;(st2.backups || []).slice(0, 10).forEach((b, i) => console.log('  ' + (i + 1) + ') ' + b.id + dim(' · ' + b.created_at + ' · ' + (b.reason || ''))))
+      console.log('  b) 立即备份   r) 回滚到备份   p) 清理旧备份   0) 返回')
+      const b = (await ask(c('cyan', '\n选择> '))).trim()
+      if (b === 'b') { ui.closeAsk(); const r = await ops.purgeBackup(); console.log(r.ok ? ok('备份 ' + (r.id || '')) : bad('失败')); await ask(dim('回车继续')) }
+      else if (b === 'r') { const n = parseInt((await ask('编号> ')), 10); const bk = (st2.backups || [])[n - 1]; if (bk) { ui.closeAsk(); const r = await ops.purgeRollback(bk.id); console.log(r.ok ? ok('已回滚') : bad('失败')); await ask(dim('回车继续')) } }
+      else if (b === 'p') { ui.closeAsk(); const r = await ops.purgePrune(); console.log(r.ok ? ok('已清理') : bad('失败')); await ask(dim('回车继续')) }
     }
   }
 }
