@@ -1,5 +1,5 @@
 // 功能操作:破甲 / 技能包 / 插件 / 设置
-import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync, readdirSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync, readdirSync, statSync } from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
 import { execSync, spawn } from 'node:child_process'
@@ -298,3 +298,38 @@ export async function pluginsCatalog() {
     return out
   } catch { return [] }
 }
+
+// ── 备份详情 / 删除 / 占用 ────────────────────────────────
+export function backupsDir() { return path.join(core.DSH_HOME, 'dsh-purge-community', 'backups') }
+function treeSize(dir) {
+  let total = 0
+  try {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, e.name)
+      if (e.isDirectory()) total += treeSize(p)
+      else { try { total += statSync(p).size } catch {} }
+    }
+  } catch {}
+  return total
+}
+export function backupDetail(id) {
+  const dir = path.join(backupsDir(), String(id))
+  if (!existsSync(dir)) return { ok: false, error: '备份不存在' }
+  let m = {}
+  try { m = JSON.parse(readFileSync(path.join(dir, 'manifest.json'), 'utf8')) } catch {}
+  return { ok: true, id, dir, bytes: treeSize(dir), manifest: m }
+}
+export function deleteBackup(id) {
+  if (!/^[\w.\-:]+$/.test(String(id))) return { ok: false, error: '非法备份 ID' }
+  const dir = path.join(backupsDir(), String(id))
+  if (!existsSync(dir)) return { ok: false, error: '备份不存在' }
+  try { rmSync(dir, { recursive: true, force: true }); return { ok: true } } catch (e) { return { ok: false, error: e.message } }
+}
+export function backupUsage() {
+  const dir = backupsDir()
+  if (!existsSync(dir)) return { ok: true, count: 0, bytes: 0 }
+  let count = 0, bytes = 0
+  for (const e of readdirSync(dir, { withFileTypes: true })) { if (e.isDirectory()) { count++; bytes += treeSize(path.join(dir, e.name)) } }
+  return { ok: true, count, bytes }
+}
+export function fmtSize(n) { return n > 1024 * 1024 ? (n / 1024 / 1024).toFixed(1) + ' MB' : n > 1024 ? (n / 1024).toFixed(0) + ' KB' : n + ' B' }
