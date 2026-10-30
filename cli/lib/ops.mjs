@@ -340,3 +340,30 @@ export function backupUsage() {
   return { ok: true, count, bytes }
 }
 export function fmtSize(n) { return n > 1024 * 1024 ? (n / 1024 / 1024).toFixed(1) + ' MB' : n > 1024 ? (n / 1024).toFixed(0) + ' KB' : n + ' B' }
+
+// ── 插件:更新全部 / 版本豁免 / 重启 ───────────────────────
+export async function pluginsUpdateAll() {
+  const inst = await pluginsInstalled()
+  let cat = []
+  try { cat = await pluginsCatalog() } catch {}
+  const byName = new Map(cat.map(p => [p.name, p]))
+  const results = []
+  for (const p of inst) {
+    const spec = byName.get(p.name)?.spec || p.spec
+    if (!spec) { results.push({ name: p.name, ok: false, error: '无安装来源' }); continue }
+    const r = await pluginInstall(spec)
+    results.push({ name: p.name, ok: r.ok, hint: r.hint || '' })
+  }
+  return { ok: results.every(x => x.ok), results }
+}
+export function pluginExemptions() {
+  try { return JSON.parse(readFileSync(path.join(core.DSH_HOME, 'profiles', 'desktop', 'compatibility.json'), 'utf8')) } catch { return {} }
+}
+export async function setPluginExemption(nameWithVersion, dshVersion, enable) {
+  const dshCli = core.RES + '/runtime/cli/bin/dsh'
+  const args = ['plugin', '--profile', 'desktop', enable ? 'allow-version' : 'revoke-version', nameWithVersion, '--dsh-version', dshVersion]
+  if (enable) args.push('--accept-risk')
+  const r = await core.run(dshCli, args, { stream: true })
+  return { ok: r.ok, output: r.output, exemptions: pluginExemptions() }
+}
+export function restartDsh() { return core.restartDsh() }

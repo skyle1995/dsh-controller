@@ -233,6 +233,8 @@ async function menuSkill(kind) {
 async function menuPlugins() {
   while (true) {
     const inst = await ops.pluginsInstalled()
+    const ex = ops.pluginExemptions()
+    const exCount = Object.keys(ex || {}).length
     ui.clear()
     const items = [
       { type: 'group', label: '目录' },
@@ -241,10 +243,15 @@ async function menuPlugins() {
       { type: 'group', label: '操作' },
       { label: '安装插件', hint: '输入包名 / 路径 / tarball' },
       { label: '卸载插件' },
+      { label: '更新全部插件', hint: '按在线目录最新版本重装' },
+      { type: 'group', label: '兼容性' },
+      { label: '版本豁免', hint: exCount ? exCount + ' 条规则' : '无' },
+      { type: 'group', label: '维护' },
+      { label: '重启 dsh' },
       { type: 'group', label: '返回' },
       { label: '返回主菜单' },
     ]
-    const sel = await menuSelect({ title: '插件商店', subtitle: inst.length + ' 个已安装', items })
+    const sel = await menuSelect({ title: '插件商店', subtitle: inst.length + ' 个已安装' + (exCount ? ' · ' + exCount + ' 条豁免' : ''), items })
     if (sel < 0 || sel === items.length - 1) return
     const chosen = items[sel]
     if (chosen.label === '在线插件目录') {
@@ -259,27 +266,76 @@ async function menuPlugins() {
       if (s0 < 0 || s0 === cat.length) continue
       const target = cat[s0]
       const r = await ops.pluginInstall(target.spec)
-      console.log('  ' + (r.ok ? ok('已安装 ' + target.name) : bad('失败' + (r.hint ? ' — ' + r.hint : ''))))
+      console.log('  ' + (r.ok ? ok('已安装 ' + target.name + dim(' (重启 dsh 生效)')) : bad('失败' + (r.hint ? ' — ' + r.hint : ''))))
       await waitKey()
     } else if (chosen.label === '已安装插件') {
-      inst.forEach(p => console.log('  · ' + p.name + dim(' v' + p.version)))
+      for (const p of inst) {
+        const spec = String(p.spec || '')
+        const short = spec.replace(/^https?:\/\/[^/]+\//, '').slice(0, 52)
+        console.log('  · ' + padName(p.name) + dim(' v' + p.version) + (short ? dim('  ← ' + short) : ''))
+      }
       await waitKey()
     } else if (chosen.label === '安装插件') {
       const spec = await promptText('包名 / 本地路径 / tarball')
       if (!spec) continue
       const r = await ops.pluginInstall(spec)
-      console.log('  ' + (r.ok ? ok('已安装') : bad('失败' + (r.hint ? ' — ' + r.hint : ''))))
+      console.log('  ' + (r.ok ? ok('已安装' + dim(' (重启 dsh 生效)')) : bad('失败' + (r.hint ? ' — ' + r.hint : ''))))
       await waitKey()
     } else if (chosen.label === '卸载插件') {
       if (!inst.length) { console.log('  ' + warn('没有已安装插件')); await waitKey(); continue }
       const s2 = await menuSelect({ title: '卸载插件', items: [...inst.map(p => ({ label: p.name, hint: 'v' + p.version })), { label: '返回' }] })
       if (s2 < 0 || s2 === inst.length) continue
       const r = await ops.pluginRemove(inst[s2].name)
-      console.log('  ' + (r.ok ? ok('已卸载') : bad('失败')))
+      console.log('  ' + (r.ok ? ok('已卸载' + dim(' (重启 dsh 生效)')) : bad('失败')))
+      await waitKey()
+    } else if (chosen.label === '更新全部插件') {
+      console.log(dim('\n  逐个重装(按在线目录最新版本)…'))
+      const r = await ops.pluginsUpdateAll()
+      for (const x of r.results) console.log('  ' + (x.ok ? c('green', '✓') : c('red', '✗')) + ' ' + x.name + (x.hint ? dim(' — ' + x.hint) : ''))
+      console.log('\n  ' + (r.ok ? ok('全部更新完成' + dim(' (重启 dsh 生效)')) : warn('部分失败,见上')))
+      await waitKey()
+    } else if (chosen.label === '版本豁免') {
+      const cur = ops.pluginExemptions()
+      const rows = Object.entries(cur || {})
+      const items2 = [
+        { type: 'group', label: '现有豁免' },
+        ...(rows.length ? rows.map(([k, v]) => ({ label: k, hint: Array.isArray(v) ? v.join(', ') : String(v) })) : [{ label: '（无豁免规则）' }]),
+        { type: 'group', label: '操作' },
+        { label: '授权豁免', hint: '插件@版本 兼容当前 dsh' },
+        { label: '撤销豁免' },
+        { type: 'group', label: '返回' },
+        { label: '返回' },
+      ]
+      const s3 = await menuSelect({ title: '版本豁免', subtitle: rows.length + ' 条', items: items2 })
+      if (s3 < 0) continue
+      const ch = items2[s3]
+      if (ch.label === '授权豁免') {
+        const pkg = await promptText('插件@版本(如 dsh-plugin-mcp@0.7.2)')
+        if (!pkg) continue
+        const dv = await promptText('目标 dsh 版本(如 0.2.1-rc.5)')
+        if (!dv) continue
+        const r = await ops.setPluginExemption(pkg, dv, true)
+        console.log('  ' + (r.ok ? ok('已授权 ' + pkg + ' 兼容 dsh ' + dv + dim(' (重启 dsh 生效)')) : bad('失败')))
+        await waitKey()
+      } else if (ch.label === '撤销豁免') {
+        if (!rows.length) { console.log('  ' + warn('没有豁免规则')); await waitKey(); continue }
+        const s4 = await menuSelect({ title: '撤销哪条豁免', items: [...rows.map(([k]) => ({ label: k })), { label: '返回' }] })
+        if (s4 < 0 || s4 === rows.length) continue
+        const key = rows[s4][0]
+        const [pkg, ver] = key.split('@')
+        const dv = String((cur[key] || [])[0] || '')
+        const r = await ops.setPluginExemption(pkg + '@' + ver, dv, false)
+        console.log('  ' + (r.ok ? ok('已撤销 ' + key) : bad('失败')))
+        await waitKey()
+      }
+    } else if (chosen.label === '重启 dsh') {
+      const r = ops.restartDsh()
+      console.log('  ' + (r.ok ? ok('已拉起 dsh') : bad('失败:' + (r.error || ''))))
       await waitKey()
     }
   }
 }
+const padName = (s) => s + ' '.repeat(Math.max(0, 24 - s.length))
 
 // ═══ 设置 ═══════════════════════════════════════════════
 async function menuSettings() {
