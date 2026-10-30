@@ -38,7 +38,8 @@ async function menuPurge() {
     ]
     const sel = await menuSelect({ title: '一键破甲', subtitle: '安装 · 卸载 · 还原', items })
     if (sel < 0 || sel === items.length - 1) return
-    if (sel === 1) {
+    const chosen = items[sel]
+    if (chosen.label === '一键安装') {
       console.log(dim('\n  —— 一键安装 ——'))
       const ins = await ops.installLatest()
       console.log('  ' + (ins.ok ? ok('插件 v' + (ins.version || '?')) : bad(ins.error || '安装失败')))
@@ -48,14 +49,14 @@ async function menuPurge() {
         console.log(r.ok ? '\n  ' + ok('完成。dsh 已重启,补丁已生效。') : '\n  ' + bad('未全部成功,见上。'))
       }
       await waitKey()
-    } else if (sel === 2) {
+    } else if (chosen.label === '卸载安装') {
       const yes = await menuSelect({ title: '卸载安装', items: [{ label: '确认卸载', hint: '退出 dsh 并移除插件/补丁(不可撤销)' }, { label: '取消' }] })
       if (yes !== 0) continue
       console.log(dim('\n  —— 卸载中 ——'))
       const r = await ops.uninstallPurge()
       console.log('  ' + (r.ok ? ok('已卸载(' + (r.via === 'admin' ? '管理员授权' : '普通权限') + ')') : bad(r.error || '失败')))
       await waitKey()
-    } else if (sel === 3) {
+    } else if (chosen.label === '还原签名') {
       const r = await ops.purgeReseal()
       console.log('\n  ' + (r.ok ? ok('已还原签名') : bad('失败')))
       await waitKey()
@@ -90,7 +91,8 @@ async function menuRuntime() {
     ]
     const sel = await menuSelect({ title: '运行配置', subtitle: '安全 · 诊断 · 权限', items })
     if (sel < 0 || sel === items.length - 1) return
-    if (sel === 1) {
+    const chosen = items[sel]
+    if (chosen.label === '域名拦截') {
       const g = ops.regionGateState()
       const cur = g.disabled ? '已解除' : (g.available ? '已启用' : '不可用')
       const items2 = g.disabled
@@ -102,7 +104,7 @@ async function menuRuntime() {
         console.log('  ' + (r.ok ? ok(g.disabled ? '已恢复拦截' : '已解除拦截(重启 dsh 生效)') : bad(r.error || '失败')))
         await waitKey()
       }
-    } else if (sel === 3) {
+    } else if (chosen.label === '能力自检') {
       const r = await ops.purgeSelfcheck()
       if (r.error) console.log('\n  ' + bad(r.error))
       else {
@@ -114,7 +116,7 @@ async function menuRuntime() {
         }
       }
       await waitKey()
-    } else if (sel === 4) {
+    } else if (chosen.label === '运行开关') {
       const t = ops.readTuning()
       const st2 = { boost: t.boost !== false, retry: t.refusalRetry !== false, rewind: t.rewind !== false, inject: t.injectPosition || 'head' }
       const items3 = [
@@ -134,7 +136,7 @@ async function menuRuntime() {
       if (st2.inject !== (t.injectPosition || 'head')) { await ops.setTuning('inject', st2.inject); changed++ }
       console.log('\n  ' + (changed ? ok('已保存 ' + changed + ' 项(下一轮对话生效)') : dim('未改动')))
       await waitKey()
-    } else if (sel === 6) {
+    } else if (chosen.label === '授权管理') {
       const d = ops.drillState()
       const items4 = d?.granted
         ? [{ label: '撤销演练台授权' }, { label: '返回' }]
@@ -165,16 +167,17 @@ async function menuBackup() {
     ]
     const sel = await menuSelect({ title: '备份与恢复', subtitle: bks.length + ' 个 · ' + ops.fmtSize(usage.bytes || 0), items })
     if (sel < 0 || sel === items.length - 1) return
-    if (sel === 1) {
+    const chosen = items[sel]
+    if (chosen.label === '立即备份') {
       const reason = await promptText('备份原因(回车=cli)')
       const r = await ops.purgeBackup()
       console.log('  ' + (r.ok ? ok('备份 ' + (r.id || '') + (reason ? dim(' · ' + reason) : '')) : bad('失败')))
       await waitKey()
-    } else if (sel === 2) continue
-    else if (sel === 3 || sel === 4) {
+    } else if (chosen.label === '刷新列表') continue
+    else if (chosen.label === '回滚到备份' || chosen.label === '删除备份') {
       if (!bks.length) { console.log('  ' + warn('没有备份')); await waitKey(); continue }
       const s5 = await menuSelect({
-        title: sel === 3 ? '回滚:选择备份' : '删除:选择备份',
+        title: chosen.label === '回滚到备份' ? '回滚:选择备份' : '删除:选择备份',
         items: [...bks.map(b => ({
           label: b.id,
           hint: (b.created_at || '').slice(0, 19).replace('T', ' ') + ' · ' + (b.reason || '') + ' · dsh ' + (b.host_version || '?') + ' · ' + ops.fmtSize(ops.backupDetail(b.id).bytes || 0),
@@ -182,14 +185,14 @@ async function menuBackup() {
       })
       if (s5 < 0 || s5 === bks.length) continue
       const bk = bks[s5]
-      if (sel === 3) { const r = await ops.purgeRollback(bk.id); console.log('  ' + (r.ok ? ok('已回滚到 ' + bk.id) : bad('失败'))) }
+      if (chosen.label === '回滚到备份') { const r = await ops.purgeRollback(bk.id); console.log('  ' + (r.ok ? ok('已回滚到 ' + bk.id) : bad('失败'))) }
       else {
         const chk = await menuSelect({ title: '确认删除', subtitle: bk.id, items: [{ label: '确认删除(不可恢复)' }, { label: '取消' }] })
         if (chk === 0) { const r = ops.deleteBackup(bk.id); console.log('  ' + (r.ok ? ok('已删除 ' + bk.id) : bad(r.error || '失败'))) }
         else console.log('  ' + dim('已取消'))
       }
       await waitKey()
-    } else if (sel === 5) {
+    } else if (chosen.label === '清理旧备份') {
       const r = await ops.purgePrune()
       console.log('  ' + (r.ok ? ok('已清理旧备份') : bad('失败')))
       await waitKey()
@@ -212,11 +215,12 @@ async function menuSkill(kind) {
     ]
     const sel = await menuSelect({ title: isRed ? '红队技能包' : '逆向技能包', subtitle: st ? '已安装 v' + (st.version || '?') : '未安装', items })
     if (sel < 0 || sel === items.length - 1) return
-    if (sel === 1) {
+    const chosen = items[sel]
+    if (chosen.label === '更新' || chosen.label === '安装') {
       const r = isRed ? await ops.installRedteam() : await ops.installReverse()
       console.log(r?.ok ? '  ' + ok((isRed ? r.count + ' 个技能' : r.modules + ' 个模块') + ' · v' + (r.version || '?')) : '  ' + bad(r?.error || '失败'))
       await waitKey()
-    } else if (sel === 2) {
+    } else if (chosen.label === '查看清单') {
       if (!st) { console.log('  ' + warn('未安装')); await waitKey(); continue }
       const list = isRed ? (st.skills || []) : (st.modules || [])
       console.log('\n  ' + list.join('\n  '))
@@ -242,7 +246,8 @@ async function menuPlugins() {
     ]
     const sel = await menuSelect({ title: '插件商店', subtitle: inst.length + ' 个已安装', items })
     if (sel < 0 || sel === items.length - 1) return
-    if (sel === 1) {
+    const chosen = items[sel]
+    if (chosen.label === '在线插件目录') {
       console.log(dim('\n  正在拉取在线目录…'))
       const cat = await ops.pluginsCatalog()
       if (!cat.length) { console.log('  ' + warn('目录为空或自建源不可达(检查密钥)')); await waitKey(); continue }
@@ -256,16 +261,16 @@ async function menuPlugins() {
       const r = await ops.pluginInstall(target.spec)
       console.log('  ' + (r.ok ? ok('已安装 ' + target.name) : bad('失败' + (r.hint ? ' — ' + r.hint : ''))))
       await waitKey()
-    } else if (sel === 2) {
+    } else if (chosen.label === '已安装插件') {
       inst.forEach(p => console.log('  · ' + p.name + dim(' v' + p.version)))
       await waitKey()
-    } else if (sel === 3) {
+    } else if (chosen.label === '安装插件') {
       const spec = await promptText('包名 / 本地路径 / tarball')
       if (!spec) continue
       const r = await ops.pluginInstall(spec)
       console.log('  ' + (r.ok ? ok('已安装') : bad('失败' + (r.hint ? ' — ' + r.hint : ''))))
       await waitKey()
-    } else if (sel === 4) {
+    } else if (chosen.label === '卸载插件') {
       if (!inst.length) { console.log('  ' + warn('没有已安装插件')); await waitKey(); continue }
       const s2 = await menuSelect({ title: '卸载插件', items: [...inst.map(p => ({ label: p.name, hint: 'v' + p.version })), { label: '返回' }] })
       if (s2 < 0 || s2 === inst.length) continue
@@ -293,20 +298,21 @@ async function menuSettings() {
     ]
     const sel = await menuSelect({ title: '设置', subtitle: '自建源 · 日志', items })
     if (sel < 0 || sel === items.length - 1) return
-    if (sel === 1) {
+    const chosen = items[sel]
+    if (chosen.label === '设置访问密钥') {
       const t = await promptText('Gitea 令牌(输入 - 清除,回车取消)')
       if (t === '-') { core.saveToken(''); console.log('  ' + ok('已清除')) }
       else if (t) { core.saveToken(t); console.log('  ' + ok('已保存')) }
       await waitKey()
-    } else if (sel === 2) {
+    } else if (chosen.label === '测试连接') {
       const v = await core.hubFileVersion('resources/redteam-skill')
       console.log('  ' + (v ? ok('连接正常 · 红队包 v' + v) : bad('连接失败(检查密钥/网络)')))
       await waitKey()
-    } else if (sel === 3) {
+    } else if (chosen.label === '查看日志路径') {
       console.log(dim('  控制器:/tmp/dsh-controller-handoff.log'))
       console.log(dim('  插件审计:') + path.join(core.DSH_HOME, 'dsh-purge-community', 'audit.jsonl'))
       await waitKey()
-    } else if (sel === 4) {
+    } else if (chosen.label === '清理日志') {
       const logs = [path.join(core.DSH_HOME, 'dsh-purge-community', 'audit.jsonl'), '/tmp/dsh-controller-handoff.log']
       let n = 0
       for (const f of logs) { try { if (existsSync(f)) { execSync('rm -f "' + f + '"'); n++ } } catch {} }

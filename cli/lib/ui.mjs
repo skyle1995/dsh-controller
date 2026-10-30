@@ -155,6 +155,9 @@ export function menuSelect({ title, subtitle = '', items, multi = false, checked
       else if (name === 'c' && key?.ctrl) { finish(null); process.exit(0) }
       render()
     }
+    const onEnd = () => finish(multi ? null : -1)
+    stdin.once('end', onEnd)
+    stdin.once('close', onEnd)
     try { stdin.setRawMode(true) } catch {}
     process.stdout.write('\x1b[?25l')
     stdin.resume()
@@ -172,6 +175,8 @@ export function waitKey(msg = '回车继续') {
     const wasRaw = !!stdin.isRaw
     const done = () => { stdin.removeListener('keypress', onKey); try { stdin.setRawMode(wasRaw) } catch {}; try { stdin.pause() } catch {}; resolve() }
     function onKey() { done() }
+    stdin.once('end', done)
+    stdin.once('close', done)
     try { stdin.setRawMode(true) } catch {}
     stdin.resume()
     stdin.on('keypress', onKey)
