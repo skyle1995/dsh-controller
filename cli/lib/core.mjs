@@ -60,7 +60,7 @@ export function run(cmd, args, opts = {}) {
   return new Promise((resolve) => {
     const child = spawn(cmd, args, { env: spawnEnv(opts.env), stdio: ['ignore', 'pipe', 'pipe'], cwd: opts.cwd })
     let out = ''
-    child.stdout.on('data', d => { out += d; if (opts.stream) process.stdout.write(c('gray' , '') + String(d)) })
+    child.stdout.on('data', d => { out += d; if (opts.stream) process.stdout.write(String(d)) })
     child.stderr.on('data', d => { out += d; if (opts.stream) process.stderr.write(String(d)) })
     child.on('error', e => resolve({ ok: false, code: -1, output: out + '\n' + e.message }))
     child.on('close', code => resolve({ ok: code === 0, code, output: out }))
