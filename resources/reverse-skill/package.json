@@ -1,5 +1,5 @@
 {
   "name": "reverse-skill",
-  "version": "1.2.0",
-  "description": "逆向 / CTF / 安全研究技能路由包(自建源,统一入口)"
+  "version": "1.3.0",
+  "description": "逆向 / CTF / 安全研究路由包（14 模块：Android/iOS/JS/原生/协议/模拟执行/脱壳/加密还原/IDA-Ghidra）"
 }

@@ -320,3 +320,6 @@ Web Pentest + BurpSuite MCP Path:
 - [ ] 我是否在路由成功后读取了目标 skill 的 SKILL.md？
 - [ ] 路由未命中时，我是否提议了新增 skill 而非强行匹配？
 - [ ] 我是否基于 `tool-index` 使用了真实工具路径？
+| JS 逆向 / webpack 解包 / JSVMP | `../skill/js-reverse/SKILL.md` — hook 定位 / AST 反混淆 / VM 还原 | webcrack、babel |
+| 模拟执行 Android so / 跨架构 | `../skill/emulation-unidbg/SKILL.md` — unidbg jni / qemu-user / unicorn | frida RPC |
+| IDA/Ghidra 脚本化与批量分析 | `../skill/ida-ghidra-practice/SKILL.md` — IDAPython / FLIRT / Ghidra headless | BinDiff/Diaphora |
