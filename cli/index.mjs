@@ -244,6 +244,17 @@ async function menuSkill(kind) {
   while (true) {
     const st = readState(isRed ? REDTEAM_STATE : REVERSE_STATE)
     ui.clear()
+    const cnt = st ? (isRed ? (st.skills?.length || 0) : (st.modules?.length || 0)) : 0
+    if (st) {
+      console.log('  ' + [
+        c('green', 'v' + (st.version || '?')),
+        cnt + (isRed ? ' 个技能' : ' 个模块'),
+        st.source === 'repo' ? 'git 安装' : (st.source === 'local' ? '本地安装' : '?'),
+        st.installedAt ? new Date(st.installedAt).toLocaleString() : '',
+      ].filter(Boolean).join(c('gray', '  ·  ')))
+    } else {
+      console.log('  ' + warn('未安装'))
+    }
     const items = [
       { type: 'group', label: '安装' },
       { label: st ? '更新' : '安装', hint: isRed ? '仓库分类技能 → 统一入口' : '仓库子目录 → 统一入口' },
