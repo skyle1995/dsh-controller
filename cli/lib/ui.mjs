@@ -79,36 +79,55 @@ export async function pick(question, choices, def) {
   return def || choices[0]
 }
 
-// ── 交互式选择菜单(方向键移动 / 空格勾选 / 回车确认)────────────
+// ── 交互式选择菜单(方向键 / 空格 / 回车)——局部重绘,不闪屏 ──────
 export function menuSelect({ title, items, multi = false, checked: initial = [], footerTip = '' }) {
   return new Promise((resolve) => {
-    closeAsk() // 释放普通 readline,独占 stdin
+    closeAsk()
     const stdin = process.stdin
     const wasRaw = !!stdin.isRaw
     rlCore.emitKeypressEvents(stdin)
     let idx = 0
     const sel = new Set(initial)
     const n = items.length
-    const draw = () => {
-      clear()
-      banner(title)
+
+    const lines = () => {
+      const out = []
+      const line = '─'.repeat(Math.max(10, title.length + 2))
+      out.push(c('cyan', '╭' + line + '╮'))
+      out.push(c('cyan', '│ ') + head(title) + c('cyan', ' │'))
+      out.push(c('cyan', '╰' + line + '╯'))
       items.forEach((it, i) => {
         const cursor = i === idx ? c('cyan', '❯') : ' '
         const label = typeof (it.label) === 'function' ? it.label() : (it.label || String(it))
         const hint = it.hint ? dim('  ' + it.hint) : ''
         if (multi) {
           const box = sel.has(i) ? c('green', '[x]') : '[ ]'
-          console.log('  ' + cursor + ' ' + box + ' ' + (i === idx ? head(label) : label) + hint)
+          out.push('  ' + cursor + ' ' + box + ' ' + (i === idx ? head(label) : label) + hint)
         } else {
-          console.log('  ' + cursor + ' ' + (i === idx ? head(label) : label) + hint)
+          out.push('  ' + cursor + ' ' + (i === idx ? head(label) : label) + hint)
         }
       })
-      console.log('\n  ' + dim('↑↓ 移动' + (multi ? ' · 空格 勾选/取消' : '') + ' · 回车 确认 · q 返回') + (footerTip ? dim(' · ' + footerTip) : ''))
+      out.push('')
+      out.push('  ' + dim('↑↓ 移动' + (multi ? ' · 空格 勾选/取消' : ' · 空格 切换') + ' · 回车 确认 · q 返回') + (footerTip ? dim(' · ' + footerTip) : ''))
+      return out
     }
+
+    let printed = 0
+    const render = (first = false) => {
+      const L = lines()
+      if (!first && printed > 0) {        // 光标回到块首,逐行覆盖(清行码 2K,不整屏 clear)
+        process.stdout.write('\x1b[' + printed + 'A')
+      }
+      for (let i = 0; i < L.length; i++) process.stdout.write('\r\x1b[2K' + L[i] + '\n')
+      for (let i = L.length; i < printed; i++) process.stdout.write('\r\x1b[2K\n')
+      printed = L.length
+    }
+
     const finish = (v) => {
       stdin.removeListener('keypress', onKey)
       try { stdin.setRawMode(wasRaw) } catch {}
       try { stdin.pause() } catch {}
+      process.stdout.write('\x1b[?25h') // 恢复光标
       resolve(v)
     }
     function onKey(str, key) {
@@ -123,14 +142,16 @@ export function menuSelect({ title, items, multi = false, checked: initial = [],
       else if (name === 'return' || name === 'enter') return finish(multi ? [...sel].sort((a, b) => a - b) : idx)
       else if (name === 'q' || name === 'escape') return finish(multi ? null : -1)
       else if (name === 'c' && key?.ctrl) { finish(null); process.exit(0) }
-      draw()
+      render()
     }
     try { stdin.setRawMode(true) } catch {}
+    process.stdout.write('\x1b[?25l') // 隐藏光标,避免跳动
     stdin.resume()
     stdin.on('keypress', onKey)
-    draw()
+    render(true)
   })
 }
+
 // 等待任意按键(操作完成后的"回车继续")
 export function waitKey(msg = '回车继续') {
   return new Promise((resolve) => {
