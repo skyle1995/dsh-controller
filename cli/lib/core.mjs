@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url'
 // 核心:环境探测 / 执行 / 自建源认证 / 宿主解包 / 换包改名
 import { spawn, execFileSync, execSync } from 'node:child_process'
 import { existsSync, readFileSync, writeFileSync, mkdirSync, renameSync } from 'node:fs'
@@ -5,6 +6,8 @@ import path from 'node:path'
 import os from 'node:os'
 
 export const HOME = os.homedir()
+// CLI 所在仓库根(全局符号链接安装时也能定位)
+export const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 export const DSH_HOME = path.join(HOME, '.dsh')
 export const APP_NAME = 'DeepSeek Harness'
 export const APP = '/Applications/' + APP_NAME + '.app'

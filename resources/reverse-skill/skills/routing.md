@@ -323,3 +323,10 @@ Web Pentest + BurpSuite MCP Path:
 | JS 逆向 / webpack 解包 / JSVMP | `../skill/js-reverse/SKILL.md` — hook 定位 / AST 反混淆 / VM 还原 | webcrack、babel |
 | 模拟执行 Android so / 跨架构 | `../skill/emulation-unidbg/SKILL.md` — unidbg jni / qemu-user / unicorn | frida RPC |
 | IDA/Ghidra 脚本化与批量分析 | `../skill/ida-ghidra-practice/SKILL.md` — IDAPython / FLIRT / Ghidra headless | BinDiff/Diaphora |
+| Electron 应用逆向 / asar 解包 / IPC 审计 | `../skill/electron-app-reverse/SKILL.md` — asar / contextBridge / fuses | webpack-bundle-analyzer |
+| WebAssembly 逆向 / 算法还原 / 补丁重打包 | `../skill/wasm-reverse/SKILL.md` — wabt / wasm-decompile | crypto-recovery |
+| .NET 与 Unity 逆向 / IL2CPP / 反作弊 | `../skill/dotnet-unity-reverse/SKILL.md` — dnSpy / Il2CppDumper / AssetStudio | windows-unpacking |
+| 固件与 IoT / binwalk / 模拟 / UART | `../skill/firmware-iot-reverse/SKILL.md` — binwalk / FirmAE / qemu | ida-ghidra-practice |
+| LLM 应用安全 / Prompt 注入 / 工具越权 | `../skill/llm-app-security/SKILL.md` — 探针集 / 评测 harness | web-exploit-deep |
+| Android 加固脱壳 / 360·爱加密·梆梆 / VMP | `../skill/android-hardening-unpack/SKILL.md` — FART / Youpk / frida-dexdump | frida-hook-mastery |
+| 恶意样本分析 / YARA / 沙箱 / IOC | `../skill/malware-analysis/SKILL.md` — CAPE / Procmon / oletools | windows-unpacking |

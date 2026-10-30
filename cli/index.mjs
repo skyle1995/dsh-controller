@@ -247,6 +247,8 @@ async function menuSkill(kind) {
     const items = [
       { type: 'group', label: '安装' },
       { label: st ? '更新' : '安装', hint: isRed ? '仓库分类技能 → 统一入口' : '仓库子目录 → 统一入口' },
+      { label: '重装', hint: '清空后重新安装(本地源优先)' },
+      { label: '卸载', hint: '删除技能包与独立注册' },
       { label: '查看清单', hint: st ? (isRed ? (st.skills?.length || 0) + ' 个技能' : (st.modules?.length || 0) + ' 个模块') : '未安装' },
       { type: 'group', label: '返回' },
       { label: '返回主菜单' },
@@ -257,6 +259,17 @@ async function menuSkill(kind) {
     if (chosen.label === '更新' || chosen.label === '安装') {
       const r = isRed ? await ops.installRedteam() : await ops.installReverse()
       console.log(r?.ok ? '  ' + ok((isRed ? r.count + ' 个技能' : r.modules + ' 个模块') + ' · v' + (r.version || '?')) : '  ' + bad(r?.error || '失败'))
+      await waitKey()
+    } else if (chosen.label === '重装') {
+      if (st) ops.uninstallPack(isRed ? 'red' : 'reverse')
+      const r = isRed ? await ops.installRedteam() : await ops.installReverse()
+      console.log(r?.ok ? '  ' + ok('重装完成:' + (isRed ? r.count + ' 个技能' : r.modules + ' 个模块') + ' · v' + (r.version || '?') + (r.source ? ' (' + r.source + ')' : '')) : '  ' + bad(r?.error || '失败'))
+      await waitKey()
+    } else if (chosen.label === '卸载') {
+      const chk2 = await menuSelect({ title: '确认卸载' + (isRed ? '红队' : '逆向') + '技能包', subtitle: '将删除已安装技能与独立注册', items: [{ label: '确认卸载' }, { label: '取消' }] })
+      if (chk2 !== 0) continue
+      const r2 = ops.uninstallPack(isRed ? 'red' : 'reverse')
+      console.log('  ' + ok('已卸载,移除 ' + r2.removed + ' 个独立技能目录'))
       await waitKey()
     } else if (chosen.label === '查看清单') {
       if (!st) { console.log('  ' + warn('未安装')); await waitKey(); continue }

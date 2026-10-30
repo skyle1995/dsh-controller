@@ -98,10 +98,12 @@ export function menuSelect({ title, subtitle = '', items, multi = false, checked
 
     const lines = () => {
       const out = []
-      const bar = '─'.repeat(Math.max(8, subtitle.length + 2))
-      if (subtitle) out.push(c('cyan', '  ' + bar))
-      out.push('  ' + c('cyan', '│ ') + ' ' + head(title) + (subtitle ? c('cyan', ' │') : ''))
-      if (subtitle) out.push('  ' + c('cyan', '  ' + bar))
+      const two = subtitle ? title + ' · ' + subtitle : title
+      const w = [...two].reduce((n, ch) => n + (/[\u4e00-\u9fff\uff00-\uffef]/.test(ch) ? 2 : 1), 0)
+      const bar = '─'.repeat(Math.max(10, w + 2))
+      if (subtitle) out.push('  ' + c('cyan', '╭' + bar + '╮'))
+      out.push('  ' + c('cyan', '│ ') + head(title) + (subtitle ? c('gray', ' · ' + subtitle) : '') + c('cyan', ' │'))
+      if (subtitle) out.push('  ' + c('cyan', '╰' + bar + '╯'))
       out.push('')
       items.forEach((it, i) => {
         if (it && it.type === 'group') {

@@ -83,7 +83,43 @@ function fm(md) {
   if (m) for (const line of m[1].split('\n')) { const i = line.indexOf(':'); if (i > 0) o[line.slice(0, i).trim()] = line.slice(i + 1).trim() }
   return o
 }
-export async function installRedteam({ version = 'repo' } = {}) {
+export async function installRedteam({ version = 'local-first' } = {}) {
+  // 本地源优先:仓库工作区里有 resources/redteam-skill 时用它(避免未推送的改动
+  // 被 git 上的旧版本覆盖——点"更新"时最容易被踩到)。
+  const localDir = path.join(core.REPO_ROOT, 'resources', 'redteam-skill')
+  if (existsSync(path.join(localDir, 'package.json'))) {
+    const entriesLocal = []
+    for (const d of readdirSync(localDir, { withFileTypes: true })) {
+      if (!d.isDirectory()) continue
+      const sub = path.join(localDir, d.name)
+      for (const f of readdirSync(sub)) {
+        if (!f.endsWith('.md') || f.startsWith('._')) continue
+        const md = readFileSync(path.join(sub, f), 'utf8')
+        const fm = /^---\n([\s\S]*?)\n---/.exec(md)?.[1] || ''
+        const name = /^name:\s*(\S+)/m.exec(fm)?.[1] || f.replace(/\.md$/, '')
+        const desc = /^description:\s*(.+)$/m.exec(fm)?.[1] || ''
+        entriesLocal.push({ name, desc, md, category: d.name })
+      }
+    }
+    if (entriesLocal.length) {
+      let ver = null
+      try { ver = JSON.parse(readFileSync(path.join(localDir, 'package.json'), 'utf8')).version } catch {}
+      rmSync(REDTEAM_DIR, { recursive: true, force: true })
+      mkdirSync(path.join(REDTEAM_DIR, 'SKILLS'), { recursive: true })
+      for (const e of entriesLocal) writeFileSync(path.join(REDTEAM_DIR, 'SKILLS', e.name + '.md'), e.md)
+      const idx = entriesLocal.map(e => '| ' + e.name + ' | ' + e.category + ' | ' + e.desc.replace(/\|/g, '/').slice(0, 90) + ' |').join('\n')
+      writeFileSync(path.join(REDTEAM_DIR, 'SKILL.md'), [
+        '---', 'name: redteam-skill',
+        `description: 红队技能包统一入口(${entriesLocal.length} 个子技能:侦察/漏洞/利用/内网/隧道/管理)`,
+        'whenToUse: 处理渗透测试、内网横向、隧道搭建、漏洞扫描、WebShell 管理等任务时使用',
+        '---', '', '# 红队技能包', '', `共 ${entriesLocal.length} 个子技能,已注册为独立技能。`, '',
+        '| 技能 | 分类 | 说明 |', '| --- | --- | --- |', idx, '',
+      ].join('\n'))
+      const reg = registerSubSkills('red')
+      writeFileSync(REDTEAM_STATE, JSON.stringify({ version: ver, source: 'local', skills: entriesLocal.map(e => e.name), installedAt: Date.now(), registered: reg.count }, null, 2))
+      return { ok: true, count: entriesLocal.length, version: ver, source: 'local', registered: reg.count }
+    }
+  }
   let files = []
   let src = 'repo'
   try { files = await redteamFiles() } catch { files = [] }
@@ -114,8 +150,11 @@ export async function installRedteam({ version = 'repo' } = {}) {
     '---', 'name: redteam-skill', 'description: 红队技能包统一入口(' + entries.length + ' 个子技能:侦察/漏洞/利用/内网/隧道/管理)', '---', '',
     '# 红队技能包', '', '按需进入对应子技能(SKILLS/ 目录)。', '', '| 技能 | 说明 |', '| --- | --- |', idx, '',
   ].join('\n'))
-  writeFileSync(REDTEAM_STATE, JSON.stringify({ version: ver, source: src, skills: entries.map(e => e.name), installedAt: Date.now() }, null, 2))
-  return { ok: true, count: entries.length, version: ver, source: src }
+  const reg = registerSubSkills('red')
+  let cur = {}
+  try { cur = JSON.parse(readFileSync(REDTEAM_STATE, 'utf8')) } catch {}
+  writeFileSync(REDTEAM_STATE, JSON.stringify({ ...cur, version: ver, source: src, skills: entries.map(e => e.name), installedAt: Date.now() }, null, 2))
+  return { ok: true, count: entries.length, version: ver, source: src, registered: reg.count }
 }
 
 // ── 逆向技能包(仓库子目录 clone → 复制)────────────────────
@@ -143,6 +182,7 @@ export async function installReverse() {
     '---', 'name: reverse-skill', 'description: 逆向工程 / CTF / 安全研究路由包(' + skills.length + ' 个模块)', '---', '',
     '# 逆向技能包', '', '模块:' + skills.join(', '), '',
   ].join('\n'))
+  registerSubSkills('reverse')
   writeFileSync(REVERSE_STATE, JSON.stringify({ version: ver, modules: skills, installedAt: Date.now() }, null, 2))
   rmSync(tmp, { recursive: true, force: true })
   return { ok: true, version: ver, modules: skills.length }
@@ -432,4 +472,93 @@ export function permissionPresetState() {
     const t = readFileSync(file, 'utf8')
     return { configured: t.includes('dsh-permission-presets') && t.includes('danger-full-access') }
   } catch { return { configured: false } }
+}
+
+// ── 子技能注册:把包内子技能登记为独立 dsh 技能 ──────────────
+// dsh 只把 ~/.dsh/skills/<name>/SKILL.md 当技能,包内 SKILLS/ 子技能不单列。
+// 这里把每个子技能复制为独立技能目录,列表里就能逐个看到/命中。
+function clearRegistered(prev) {
+  for (const name of prev || []) {
+    try { rmSync(path.join(core.SKILLS_DIR, name), { recursive: true, force: true }) } catch {}
+  }
+}
+function registerOne(src, name) {
+  const dir = path.join(core.SKILLS_DIR, name)
+  try {
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(path.join(dir, 'SKILL.md'), readFileSync(src))
+    return true
+  } catch { return false }
+}
+export function registerSubSkills(kind) {
+  const statePath = path.join(core.SKILLS_DIR, kind === 'red' ? '.purge-redteam.json' : '.reverse-skill.json')
+  let st = {}
+  try { st = JSON.parse(readFileSync(statePath, 'utf8')) } catch {}
+  clearRegistered(st.registered)
+  const registered = []
+  let failed = 0
+  if (kind === 'red') {
+    const dir = path.join(core.SKILLS_DIR, 'redteam-skill', 'SKILLS')
+    if (existsSync(dir)) {
+      for (const f of readdirSync(dir)) {
+        if (!f.endsWith('.md') || f.startsWith('._')) continue
+        const name = f.replace(/\.md$/, '')
+        if (registerOne(path.join(dir, f), name)) registered.push(name); else failed++
+      }
+    }
+  } else {
+    const dir = path.join(core.SKILLS_DIR, 'reverse-skill', 'skill')
+    if (existsSync(dir)) {
+      for (const d of readdirSync(dir)) {
+        const src = path.join(dir, d, 'SKILL.md')
+        if (!existsSync(src)) continue
+        if (registerOne(src, d)) registered.push(d); else failed++
+      }
+    }
+  }
+  st.registered = registered
+  st.registeredAt = Date.now()
+  try { writeFileSync(statePath, JSON.stringify(st, null, 2)) } catch {}
+  return { ok: true, count: registered.length, failed }
+}
+export function unregisterSubSkills(kind) {
+  const statePath = path.join(core.SKILLS_DIR, kind === 'red' ? '.purge-redteam.json' : '.reverse-skill.json')
+  let st = {}
+  try { st = JSON.parse(readFileSync(statePath, 'utf8')) } catch {}
+  const n = (st.registered || []).length
+  clearRegistered(st.registered)
+  st.registered = []
+  try { writeFileSync(statePath, JSON.stringify(st, null, 2)) } catch {}
+  return { ok: true, removed: n }
+}
+export function skillsInventory() {
+  const out = []
+  for (const e of readdirSync(core.SKILLS_DIR, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+    if (!e.isDirectory()) continue
+    const f = path.join(core.SKILLS_DIR, e.name, 'SKILL.md')
+    let desc = ''
+    try {
+      const md = readFileSync(f, 'utf8')
+      const m = /^---\n([\s\S]*?)\n---/.exec(md)
+      if (m) { const d = /^description:\s*(.+)$/m.exec(m[1]); if (d) desc = d[1].slice(0, 60) }
+    } catch {}
+    out.push({ name: e.name, hasSkill: existsSync(f), desc })
+  }
+  return out
+}
+
+// ── 卸载技能包(含独立注册目录)──────────────────────────────
+export function uninstallPack(kind) {
+  const isRed = kind === 'red'
+  const dir = path.join(core.SKILLS_DIR, isRed ? 'redteam-skill' : 'reverse-skill')
+  const statePath = path.join(core.SKILLS_DIR, isRed ? '.purge-redteam.json' : '.reverse-skill.json')
+  let st = {}
+  try { st = JSON.parse(readFileSync(statePath, 'utf8')) } catch {}
+  let removed = 0
+  for (const n of st.registered || []) {
+    try { rmSync(path.join(core.SKILLS_DIR, n), { recursive: true, force: true }); removed++ } catch {}
+  }
+  try { rmSync(dir, { recursive: true, force: true }) } catch {}
+  try { rmSync(statePath, { force: true }) } catch {}
+  return { ok: true, removed, dir }
 }
