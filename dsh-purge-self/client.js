@@ -11625,29 +11625,7 @@ function PurgifySection({ page = "status", onStatus } = {}) {
         ),
         noticeNode(notice)
       ),
-      h(
-        "div",
-        { className: "dshpp-rel" },
-        h(
-          "div",
-          { className: "dshpp-now" },
-          h("span", { className: "dshpp-now-label" }, t("channel.local")),
-          h(
-            "b",
-            { className: "dshpp-now-ver" },
-            localVer ? "v" + localVer : "\u2014"
-          ),
-          h("em", { className: "dshpp-now-mark" }, t("update.current"))
-        ),
-        h(
-          "details",
-          { className: "dshpp-editions" },
-          h("summary", null, "\u7248\u672C\u7BA1\u7406"),
-          renderEdition("stable"),
-          renderEdition("beta")
-        ),
-        noticeNode(updateNotice)
-      ),
+      null /* [dsh-controller] 版本管理/在线更新 区块已移除(内置控制台无需更新) */,
       h(
         "details",
         { className: "dshpp-fold" },
