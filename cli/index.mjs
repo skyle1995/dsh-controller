@@ -433,13 +433,14 @@ async function mainMenu() {
     ]
     const sel = await menuSelect({ title: 'DSH Controller', subtitle: 'DeepSeek Harness 管理', items, footerTip: 'v0.1.0' })
     if (sel < 0 || sel === items.length - 1) { ui.closeAsk(); console.log(dim('\n  再见\n')); process.exit(0) }
-    if (sel === 1) await menuPurge()
-    else if (sel === 2) await menuRuntime()
-    else if (sel === 3) await menuBackup()
-    else if (sel === 5) await menuSkill('red')
-    else if (sel === 6) await menuSkill('reverse')
-    else if (sel === 8) await menuPlugins()
-    else if (sel === 9) await menuSettings()
+    const chosen = items[sel]
+    if (chosen.label === '一键破甲') await menuPurge()
+    else if (chosen.label === '运行配置') await menuRuntime()
+    else if (chosen.label === '备份与恢复') await menuBackup()
+    else if (chosen.label === '红队技能') await menuSkill('red')
+    else if (chosen.label === '逆向技能') await menuSkill('reverse')
+    else if (chosen.label === '插件商店') await menuPlugins()
+    else if (chosen.label === '设置') await menuSettings()
   }
 }
 
