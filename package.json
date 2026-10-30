@@ -3,14 +3,31 @@
   "version": "0.2.0",
   "description": "DSH Controller CLI —— DeepSeek Harness 管理(一键破甲 / 技能包 / 插件 / 设置)",
   "type": "module",
-  "bin": { "dshc": "./cli/index.mjs" },
+  "bin": {
+    "dshc": "./cli/index.mjs"
+  },
   "scripts": {
     "start": "node cli/index.mjs",
     "cli": "node cli/index.mjs",
     "status": "node cli/index.mjs status",
     "link": "npm link"
   },
-  "files": ["cli", "dsh-purge-self", "resources", "README.md"],
-  "engines": { "node": ">=18" },
-  "license": "MIT"
+  "files": [
+    "cli",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT",
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "cli",
+    "manager"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://hub.ifunx.com/skyle1995/dsh-controller.git"
+  }
 }

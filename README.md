@@ -30,13 +30,37 @@ node cli/index.mjs          # 交互界面
 node cli/index.mjs status   # 单条命令
 ```
 
-### 方式 C:全局安装(从本地目录)
+### 方式 C:安装到 Node.js 全局(推荐日常使用)
+
+装进 Node 全局目录(`npm prefix -g`),是复制而非软链,可脱离仓库独立运行:
 
 ```bash
+# 1) 从本地目录安装
 cd dsh-controller
-npm install -g .            # 或 npm i -g $(pwd)
-dshc
+npm install -g .
+
+# 2) 直接从私有 Git 安装(需先配好 git 凭证)
+npm install -g git+https://hub.ifunx.com/skyle1995/dsh-controller.git
+
+# 3) 从 tarball 安装(离线/分发)
+cd dsh-controller && npm pack          # 产出 dsh-controller-0.2.0.tgz
+npm install -g ./dsh-controller-0.2.0.tgz
 ```
+
+验证:
+
+```bash
+which dshc        # /opt/homebrew/bin/dshc(或 /usr/local/bin/dshc)
+dshc status       # 应输出插件/技能版本
+```
+
+升级(覆盖安装):
+
+```bash
+cd dsh-controller && git pull && npm install -g .
+```
+
+安装内容只有 `cli/` 与 README(约 80KB);技能包与插件在运行时从仓库拉取,不占全局包体积。
 
 ### 卸载
 
