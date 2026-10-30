@@ -276,12 +276,12 @@ async function menuPlugins() {
     ui.clear()
     const items = [
       { type: 'group', label: '目录' },
-      { label: '在线插件目录', hint: '从自建源拉取可装插件' },
+      { label: '在线插件目录', hint: '从自建源拉取 · 多选安装' },
       { label: '已安装插件', hint: inst.length + ' 个' },
       { type: 'group', label: '操作' },
       { label: '安装插件', hint: '输入包名 / 路径 / tarball' },
-      { label: '卸载插件' },
-      { label: '更新全部插件', hint: '按在线目录最新版本重装' },
+      { label: '卸载插件', hint: '多选' },
+      { label: '更新全部插件', hint: '默认全选 · 空格取消' },
       { type: 'group', label: '兼容性' },
       { label: '版本豁免', hint: exCount ? exCount + ' 条规则' : '无' },
       { type: 'group', label: '维护' },
@@ -297,14 +297,21 @@ async function menuPlugins() {
       const cat = await ops.pluginsCatalog()
       if (!cat.length) { console.log('  ' + warn('目录为空或自建源不可达(检查密钥)')); await waitKey(); continue }
       const names = new Set(inst.map(p => p.name))
-      const s0 = await menuSelect({
-        title: '在线插件目录', subtitle: cat.length + ' 个可用',
-        items: [...cat.map(p => ({ label: p.name + ' v' + p.version, hint: (names.has(p.name) ? c('green', '已装 · ') : '') + (p.description || '').slice(0, 46) })), { label: '返回' }],
+      const picks = await menuSelect({
+        title: '在线插件目录', subtitle: cat.length + ' 个可用 · 空格多选安装',
+        multi: true,
+        items: cat.map(p => ({ label: p.name + ' v' + p.version, hint: (names.has(p.name) ? c('green', '已装 · ') : '') + (p.description || '').slice(0, 44) })),
       })
-      if (s0 < 0 || s0 === cat.length) continue
-      const target = cat[s0]
-      const r = await ops.pluginInstall(target.spec)
-      console.log('  ' + (r.ok ? ok('已安装 ' + target.name + dim(' (重启 dsh 生效)')) : bad('失败' + (r.hint ? ' — ' + r.hint : ''))))
+      if (picks === null || picks.length === 0) continue
+      let okN = 0, failN = 0
+      for (const i of picks) {
+        const target = cat[i]
+        console.log(dim('  → 安装 ' + target.name + ' v' + target.version))
+        const r = await ops.pluginInstall(target.spec)
+        if (r.ok) { okN++; console.log('    ' + ok(target.name)) }
+        else { failN++; console.log('    ' + bad(target.name + ' — 失败' + (r.hint ? ' ' + r.hint : ''))) }
+      }
+      console.log('\n  ' + (failN ? warn('安装完成:成功 ' + okN + ' · 失败 ' + failN) : ok('已安装 ' + okN + ' 个插件(重启 dsh 生效)')))
       await waitKey()
     } else if (chosen.label === '已安装插件') {
       for (const p of inst) {
@@ -321,16 +328,44 @@ async function menuPlugins() {
       await waitKey()
     } else if (chosen.label === '卸载插件') {
       if (!inst.length) { console.log('  ' + warn('没有已安装插件')); await waitKey(); continue }
-      const s2 = await menuSelect({ title: '卸载插件', items: [...inst.map(p => ({ label: p.name, hint: 'v' + p.version })), { label: '返回' }] })
-      if (s2 < 0 || s2 === inst.length) continue
-      const r = await ops.pluginRemove(inst[s2].name)
-      console.log('  ' + (r.ok ? ok('已卸载' + dim(' (重启 dsh 生效)')) : bad('失败')))
+      const picks = await menuSelect({
+        title: '卸载插件', subtitle: '空格多选卸载 · 回车确认',
+        multi: true,
+        items: inst.map(p => ({ label: p.name, hint: 'v' + p.version })),
+      })
+      if (picks === null || picks.length === 0) continue
+      const chk = await menuSelect({ title: '确认卸载 ' + picks.length + ' 个插件?', items: [{ label: '确认卸载(' + picks.length + ' 个)' }, { label: '取消' }] })
+      if (chk !== 0) continue
+      let okN = 0, failN = 0
+      for (const i of picks) {
+        const r = await ops.pluginRemove(inst[i].name)
+        if (r.ok) { okN++; console.log('    ' + ok('已卸载 ' + inst[i].name)) }
+        else { failN++; console.log('    ' + bad(inst[i].name + ' — 失败')) }
+      }
+      console.log('\n  ' + (failN ? warn('成功 ' + okN + ' · 失败 ' + failN) : ok('已卸载 ' + okN + ' 个(重启 dsh 生效)')))
       await waitKey()
     } else if (chosen.label === '更新全部插件') {
-      console.log(dim('\n  逐个重装(按在线目录最新版本)…'))
-      const r = await ops.pluginsUpdateAll()
-      for (const x of r.results) console.log('  ' + (x.ok ? c('green', '✓') : c('red', '✗')) + ' ' + x.name + (x.hint ? dim(' — ' + x.hint) : ''))
-      console.log('\n  ' + (r.ok ? ok('全部更新完成' + dim(' (重启 dsh 生效)')) : warn('部分失败,见上')))
+      if (!inst.length) { console.log('  ' + warn('没有已安装插件')); await waitKey(); continue }
+      const picks = await menuSelect({
+        title: '更新插件', subtitle: '默认全选 · 空格取消不需要的',
+        multi: true, checked: inst.map((_, i) => i),
+        items: inst.map(p => ({ label: p.name, hint: 'v' + p.version })),
+      })
+      if (picks === null || picks.length === 0) continue
+      let cat2 = []
+      try { cat2 = await ops.pluginsCatalog() } catch {}
+      const byName = new Map(cat2.map(p => [p.name, p]))
+      let okN = 0, failN = 0
+      for (const i of picks) {
+        const p = inst[i]
+        const spec = byName.get(p.name)?.spec || p.spec
+        if (!spec) { failN++; console.log('    ' + bad(p.name + ' — 无安装来源')); continue }
+        console.log(dim('  → 更新 ' + p.name))
+        const r = await ops.pluginInstall(spec)
+        if (r.ok) { okN++; console.log('    ' + ok(p.name)) }
+        else { failN++; console.log('    ' + bad(p.name + ' — 失败' + (r.hint ? ' ' + r.hint : ''))) }
+      }
+      console.log('\n  ' + (failN ? warn('成功 ' + okN + ' · 失败 ' + failN) : ok('已更新 ' + okN + ' 个(重启 dsh 生效)')))
       await waitKey()
     } else if (chosen.label === '版本豁免') {
       const cur = ops.pluginExemptions()
@@ -340,7 +375,7 @@ async function menuPlugins() {
         ...(rows.length ? rows.map(([k, v]) => ({ label: k, hint: Array.isArray(v) ? v.join(', ') : String(v) })) : [{ label: '（无豁免规则）' }]),
         { type: 'group', label: '操作' },
         { label: '授权豁免', hint: '插件@版本 兼容当前 dsh' },
-        { label: '撤销豁免' },
+        { label: '撤销豁免', hint: '多选' },
         { type: 'group', label: '返回' },
         { label: '返回' },
       ]
@@ -357,13 +392,21 @@ async function menuPlugins() {
         await waitKey()
       } else if (ch.label === '撤销豁免') {
         if (!rows.length) { console.log('  ' + warn('没有豁免规则')); await waitKey(); continue }
-        const s4 = await menuSelect({ title: '撤销哪条豁免', items: [...rows.map(([k]) => ({ label: k })), { label: '返回' }] })
-        if (s4 < 0 || s4 === rows.length) continue
-        const key = rows[s4][0]
-        const [pkg, ver] = key.split('@')
-        const dv = String((cur[key] || [])[0] || '')
-        const r = await ops.setPluginExemption(pkg + '@' + ver, dv, false)
-        console.log('  ' + (r.ok ? ok('已撤销 ' + key) : bad('失败')))
+        const picks = await menuSelect({
+          title: '撤销豁免', subtitle: '空格多选 · 回车撤销',
+          multi: true,
+          items: rows.map(([k, v]) => ({ label: k, hint: Array.isArray(v) ? v.join(', ') : String(v) })),
+        })
+        if (picks === null || picks.length === 0) continue
+        let okN = 0, failN = 0
+        for (const i of picks) {
+          const key = rows[i][0]
+          const [pkg, ver] = key.split('@')
+          const dv = String((cur[key] || [])[0] || '')
+          const r = await ops.setPluginExemption(pkg + '@' + ver, dv, false)
+          if (r.ok) { okN++; console.log('    ' + ok('已撤销 ' + key)) } else { failN++; console.log('    ' + bad(key + ' — 失败')) }
+        }
+        console.log('\n  ' + (failN ? warn('成功 ' + okN + ' · 失败 ' + failN) : ok('已撤销 ' + okN + ' 条豁免')))
         await waitKey()
       }
     } else if (chosen.label === '重启 dsh') {
