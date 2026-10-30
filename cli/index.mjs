@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // DSH Controller CLI —— 菜单式管理(一键破甲 / 红队技能 / 逆向技能 / 插件商店 / 工具设置)
 import { existsSync, readFileSync } from 'node:fs'
+import { execSync } from 'node:child_process'
 import path from 'node:path'
 import * as ui from './lib/ui.mjs'
 import * as core from './lib/core.mjs'
@@ -81,21 +82,38 @@ async function menuPurge() {
       }
       await ask(dim('回车继续'))
     } else if (a === '5') {
-      while (true) {
-        const t = ops.readTuning()
-        console.log('\n  ' + head('运行开关') + dim('(下一轮对话生效)'))
-        console.log('  1) boost 强化尾段      ' + (t.boost === false ? c('yellow', 'off') : c('green', 'on')))
-        console.log('  2) retry 拒绝重试      ' + (t.refusalRetry === false ? c('yellow', 'off') : c('green', 'on')))
-        console.log('  3) rewind 回退按钮     ' + (t.rewind === false ? c('yellow', 'off') : c('green', 'on')))
-        console.log('  4) inject 注入位置     ' + (t.injectPosition || 'head'))
-        console.log('  0) 返回')
-        const b = (await ask(c('cyan', '\n开关> '))).trim()
-        if (b === '0' || b === '') break
-        if (b === '1') { ui.pauseAsk(); const r = await ops.setTuning('boost', t.boost === false ? 'on' : 'off'); console.log(r.ok ? ok('已切换') : bad(r.error)) }
-        else if (b === '2') { ui.pauseAsk(); const r = await ops.setTuning('retry', t.refusalRetry === false ? 'on' : 'off'); console.log(r.ok ? ok('已切换') : bad(r.error)) }
-        else if (b === '3') { ui.pauseAsk(); const r = await ops.setTuning('rewind', t.rewind === false ? 'on' : 'off'); console.log(r.ok ? ok('已切换') : bad(r.error)) }
-        else if (b === '4') { const v = (await ask('head/tail/both> ')).trim(); ui.pauseAsk(); const r = await ops.setTuning('inject', v); console.log(r.ok ? ok('已设置 ' + v) : bad(r.error)) }
+      ui.pauseAsk()
+      const t = ops.readTuning()
+      const cur = {
+        boost: t.boost === false ? 'off' : 'on',
+        retry: t.refusalRetry === false ? 'off' : 'on',
+        rewind: t.rewind === false ? 'off' : 'on',
+        inject: t.injectPosition || 'head',
       }
+      console.log('\n  ' + head('运行开关') + dim('(回车=保持当前,下一轮对话生效)'))
+      const toggles = [
+        ['boost', '强化尾段 boost', '系统提示词尾部加固段'],
+        ['retry', '拒绝自动重试 retry', '模型推脱时自动加固重试'],
+        ['rewind', '回退按钮 rewind', '输入框旁的回退一次'],
+      ]
+      let changed = 0
+      for (const [key, label, desc] of toggles) {
+        const want = await ui.cq(label + ' [' + cur[key] + '] ' + dim(desc) + ' — 切换?', 'N')
+        if (want) {
+          const next = cur[key] === 'on' ? 'off' : 'on'
+          const r = await ops.setTuning(key, next)
+          console.log('    ' + (r.ok ? ok(key + ' → ' + next) : bad(r.error || '失败')))
+          if (r.ok) changed++
+        }
+      }
+      const inj = await ui.pick('注入位置 inject [' + cur.inject + ']', ['head', 'tail', 'both'], cur.inject)
+      if (inj !== cur.inject) {
+        const r = await ops.setTuning('inject', inj)
+        console.log('    ' + (r.ok ? ok('inject → ' + inj) : bad(r.error || '失败')))
+        if (r.ok) changed++
+      }
+      console.log(changed ? '\n  ' + ok('已修改 ' + changed + ' 项') : '\n  ' + dim('未改动'))
+      await ask(dim('\n回车继续'))
     } else if (a === '6') {
       const d = ops.drillState()
       console.log('\n  当前:' + (d?.granted ? c('green', '已授权') : dim('未授权')) + dim(' ' + (d?.at || '')))
@@ -182,38 +200,45 @@ async function menuPlugins() {
   }
 }
 
-// ── 工具设置 ─────────────────────────────────────────────
+// ── 工具设置(对话式)────────────────────────────────────
 async function menuSettings() {
   while (true) {
-    if (ui.stdinEndedQ && ui.stdinEndedQ()) return
-    const tok = core.readToken()
     ui.clear()
+    const tok = core.readToken()
     banner('工具设置')
     kv('自建源密钥', tok ? c('green', '已配置') : c('yellow', '未配置'))
-    console.log('\n  1) 设置/清除密钥')
-    console.log('  2) 测试连接')
-    console.log('  3) 操作日志位置')
-    console.log('  0) 返回')
-    const a = (await ask(c('cyan', '\n选择> '))).trim()
-    if (a === '0' || a === '') return
-    if (a === '1') {
-      const t = (await ask('Gitea 令牌(留空=清除)> ')).trim()
-      core.saveToken(t)
-      console.log(ok(t ? '已保存' : '已清除'))
-    } else if (a === '2') {
-      ui.pauseAsk()
-      try {
-        const v = await core.hubFileVersion('resources/redteam-skill')
-        console.log(v ? ok('连接正常 · 红队包 v' + v) : bad('无法读取(检查密钥)'))
-      } catch (e) { console.log(bad(e.message)) }
-      await ask(dim('回车继续'))
-    } else if (a === '4') {
-      console.log(dim('  控制器日志:/tmp/dsh-controller-handoff.log'))
-      console.log(dim('  插件审计:') + path.join(core.DSH_HOME, 'dsh-purge-community', 'audit.jsonl'))
-      await ask(dim('回车继续'))
+    kv('连接', dim('未测试'))
+    console.log('\n  ' + dim('直接回答下面的问题,回车跳过;q 返回'))
+    ui.pauseAsk()
+
+    const t = await ui.input('自建源密钥(Gitea 令牌:输入新值 / 输入 - 清除 / 回车保持)', '')
+    if (t === '-') { core.saveToken(''); console.log('    ' + ok('已清除')) }
+    else if (t) { core.saveToken(t); console.log('    ' + ok('已保存')) }
+
+    if (await ui.cq('立即测试连接?', 'Y')) {
+      const v = await core.hubFileVersion('resources/redteam-skill')
+      console.log('    ' + (v ? ok('连接正常 · 红队包 v' + v) : bad('连接失败(检查密钥或网络)')))
     }
+
+    if (await ui.cq('查看操作日志路径?', 'N')) {
+      console.log(dim('      控制器:/tmp/dsh-controller-handoff.log'))
+      console.log(dim('      插件审计:') + path.join(core.DSH_HOME, 'dsh-purge-community', 'audit.jsonl'))
+    }
+
+    if (await ui.cq('清理日志文件?', 'N')) {
+      const logs = [path.join(core.DSH_HOME, 'dsh-purge-community', 'audit.jsonl'), '/tmp/dsh-controller-handoff.log']
+      let n = 0
+      for (const f of logs) { try { if (existsSync(f)) { require0(f); n++ } } catch {} }
+      console.log('    ' + ok('已清理 ' + n + ' 个日志'))
+    }
+
+    console.log('\n  ' + dim('回车返回 / 继续修改其他项'))
+    const again = (await ask(dim('继续?' + ' (y/N) > '))).trim().toLowerCase()
+    if (again !== 'y') return
   }
 }
+
+function require0(f) { try { execSync('rm -f "' + f + '"') } catch {} }
 
 // ── 主菜单 ───────────────────────────────────────────────
 async function mainMenu() {

@@ -51,3 +51,29 @@ export function step(name, result) {
 }
 export function logLine(s) { process.stdout.write(c('gray', s) + '\n') }
 export function out(s) { console.log(s) }
+
+// ── 对话式交互 ─────────────────────────────────────────────
+// 是/否,回车取默认
+export async function cq(question, def = 'N') {
+  const hint = def === 'Y' ? '(Y/n)' : '(y/N)'
+  const a = (await ask('  ' + c('cyan', '?') + ' ' + question + ' ' + dim(hint) + ' > ')).trim().toLowerCase()
+  if (!a) return def === 'Y'
+  return a === 'y' || a === 'yes' || a === '是' || a === '1'
+}
+// 文本输入,回车取默认
+export async function input(question, def = '') {
+  const hint = def ? dim('[' + def + ']') : ''
+  const a = (await ask('  ' + c('cyan', '?') + ' ' + question + ' ' + hint + ' > ')).trim()
+  return a || def
+}
+// 选项选择(输入编号或值关键字,回车取默认)
+export async function pick(question, choices, def) {
+  console.log('  ' + c('cyan', '?') + ' ' + question)
+  choices.forEach((ch, i) => console.log('      ' + (i + 1) + ') ' + ch))
+  const a = (await ask('  ' + dim('编号(回车=' + (def || choices[0]) + ')') + ' > ')).trim()
+  if (!a) return def || choices[0]
+  const n = parseInt(a, 10)
+  if (!Number.isNaN(n) && choices[n - 1]) return choices[n - 1]
+  if (choices.includes(a)) return a
+  return def || choices[0]
+}
