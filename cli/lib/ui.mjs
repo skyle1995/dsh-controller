@@ -94,7 +94,7 @@ export function menuSelect({ title, items, multi = false, checked: initial = [],
       banner(title)
       items.forEach((it, i) => {
         const cursor = i === idx ? c('cyan', '❯') : ' '
-        const label = it.label || it
+        const label = typeof (it.label) === 'function' ? it.label() : (it.label || String(it))
         const hint = it.hint ? dim('  ' + it.hint) : ''
         if (multi) {
           const box = sel.has(i) ? c('green', '[x]') : '[ ]'
@@ -115,7 +115,11 @@ export function menuSelect({ title, items, multi = false, checked: initial = [],
       const name = key?.name
       if (name === 'up') idx = (idx - 1 + n) % n
       else if (name === 'down') idx = (idx + 1) % n
-      else if (name === 'space') { if (multi) { sel.has(idx) ? sel.delete(idx) : sel.add(idx) } }
+      else if (name === 'space') {
+        const it = items[idx]
+        if (it && typeof it === 'object' && typeof it.onSpace === 'function') it.onSpace()
+        else if (multi) { sel.has(idx) ? sel.delete(idx) : sel.add(idx) }
+      }
       else if (name === 'return' || name === 'enter') return finish(multi ? [...sel].sort((a, b) => a - b) : idx)
       else if (name === 'q' || name === 'escape') return finish(multi ? null : -1)
       else if (name === 'c' && key?.ctrl) { finish(null); process.exit(0) }

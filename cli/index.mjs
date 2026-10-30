@@ -77,31 +77,29 @@ async function menuPurge() {
       }
       await waitKey()
     } else if (sel === 4) {
-      // 运行开关:勾选=开启
+      // 运行开关:一屏 4 项(空格切换/循环),回车保存
       const t = ops.readTuning()
-      const cur = { boost: t.boost !== false, retry: t.refusalRetry !== false, rewind: t.rewind !== false }
-      const on  = [0, 1, 2].filter(i => [cur.boost, cur.retry, cur.rewind][i])
+      const st2 = {
+        boost: t.boost !== false,
+        retry: t.refusalRetry !== false,
+        rewind: t.rewind !== false,
+        inject: t.injectPosition || 'head',
+      }
       const items = [
-        { label: '强化尾段 boost', hint: '系统提示词尾部加固段' },
-        { label: '拒绝自动重试 retry', hint: '模型推脱时自动加固重试' },
-        { label: '回退按钮 rewind', hint: '输入框旁的回退一次' },
+        { label: () => (st2.boost ? c('green', '[on ]') : c('yellow', '[off]')) + ' 强化尾段 boost', hint: '系统提示词尾部加固段', onSpace: () => { st2.boost = !st2.boost } },
+        { label: () => (st2.retry ? c('green', '[on ]') : c('yellow', '[off]')) + ' 拒绝自动重试 retry', hint: '模型推脱时自动加固重试', onSpace: () => { st2.retry = !st2.retry } },
+        { label: () => (st2.rewind ? c('green', '[on ]') : c('yellow', '[off]')) + ' 回退按钮 rewind', hint: '输入框旁的回退一次', onSpace: () => { st2.rewind = !st2.rewind } },
+        { label: () => c('cyan', '[ ' + st2.inject.padEnd(3) + ' ]') + ' 注入位置 inject', hint: 'head → tail → both 循环', onSpace: () => { st2.inject = st2.inject === 'head' ? 'tail' : st2.inject === 'tail' ? 'both' : 'head' } },
+        { label: '保存并返回', hint: '回车写入 tuning.json' },
       ]
-      const picked = await menuSelect({ title: '运行开关(勾选=开启,回车保存)', items, multi: true, checked: on })
-      if (picked === null) continue
-      const want = { boost: picked.includes(0), retry: picked.includes(1), rewind: picked.includes(2) }
+      const save = await menuSelect({ title: '运行开关(空格切换 · 回车保存)', items })
+      if (save < 0) continue
       let changed = 0
-      for (const [k, v] of Object.entries(want)) {
-        if (v === cur[k]) continue
-        const r = await ops.setTuning(k, v ? 'on' : 'off')
-        console.log('  ' + (r.ok ? ok(k + ' → ' + (v ? 'on' : 'off')) : bad(r.error || '失败')))
-        changed++
-      }
-      const injSel = await menuSelect({ title: '注入位置 inject(当前 ' + (t.injectPosition || 'head') + ')', items: [{ label: 'head' }, { label: 'tail' }, { label: 'both' }, { label: '保持当前' }] })
-      if (injSel >= 0 && injSel < 3) {
-        const v = ['head', 'tail', 'both'][injSel]
-        if (v !== (t.injectPosition || 'head')) { const r = await ops.setTuning('inject', v); console.log('  ' + (r.ok ? ok('inject → ' + v) : bad(r.error || '失败'))); changed++ }
-      }
-      console.log(changed ? '\n  ' + ok('已修改 ' + changed + ' 项') : '\n  ' + dim('未改动'))
+      if (st2.boost !== (t.boost !== false)) { await ops.setTuning('boost', st2.boost ? 'on' : 'off'); changed++ }
+      if (st2.retry !== (t.refusalRetry !== false)) { await ops.setTuning('retry', st2.retry ? 'on' : 'off'); changed++ }
+      if (st2.rewind !== (t.rewind !== false)) { await ops.setTuning('rewind', st2.rewind ? 'on' : 'off'); changed++ }
+      if (st2.inject !== (t.injectPosition || 'head')) { await ops.setTuning('inject', st2.inject); changed++ }
+      console.log('\n  ' + (changed ? ok('已保存 ' + changed + ' 项(下一轮对话生效)') : dim('未改动')))
       await waitKey()
     } else if (sel === 5) {
       const d = ops.drillState()
