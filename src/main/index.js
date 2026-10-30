@@ -640,6 +640,15 @@ async function deleteHostOriginals(id) {
   return { ok: true, id: snap }
 }
 
+// 执行命令并取 stdout(失败返回空串,用于 npm root -g 等探测)
+function execText(cmd, timeout = 8000) {
+  return new Promise((resolve) => {
+    exec(cmd, { env: spawnEnv(), timeout, maxBuffer: 4 * 1024 * 1024 }, (err, stdout) => {
+      resolve(err ? '' : String(stdout || ''))
+    })
+  })
+}
+
 // CLI 版宿主定位:桌面版优先(app/ 解包目录、app.asar),退回 npm 全局(扁平/嵌套)
 function validDshBase(dir) {
   return !!(dir && existsSync(path.join(dir, 'dsh-agent-instructions', 'lib')))
