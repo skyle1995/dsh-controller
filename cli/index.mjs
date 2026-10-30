@@ -193,10 +193,10 @@ async function menuBackup() {
       console.log('  ' + (r.ok ? ok('备份 ' + (r.id || '') + (reason ? dim(' · ' + reason) : '')) : bad('失败')))
       await waitKey()
     } else if (chosen.label === '刷新列表') continue
-    else if (chosen.label === '回滚到备份' || chosen.label === '删除备份') {
+    else if (chosen.label === '回滚到备份') {
       if (!bks.length) { console.log('  ' + warn('没有备份')); await waitKey(); continue }
       const s5 = await menuSelect({
-        title: chosen.label === '回滚到备份' ? '回滚:选择备份' : '删除:选择备份',
+        title: '回滚:选择备份',
         items: [...bks.map(b => ({
           label: b.id,
           hint: (b.created_at || '').slice(0, 19).replace('T', ' ') + ' · ' + (b.reason || '') + ' · dsh ' + (b.host_version || '?') + ' · ' + ops.fmtSize(ops.backupDetail(b.id).bytes || 0),
@@ -204,13 +204,32 @@ async function menuBackup() {
       })
       if (s5 < 0 || s5 === bks.length) continue
       const bk = bks[s5]
-      if (chosen.label === '回滚到备份') { const r = await ops.purgeRollback(bk.id); console.log('  ' + (r.ok ? ok('已回滚到 ' + bk.id) : bad('失败'))) }
-      else {
-        const chk = await menuSelect({ title: '确认删除', subtitle: bk.id, items: [{ label: '确认删除(不可恢复)' }, { label: '取消' }] })
-        if (chk === 0) { const r = ops.deleteBackup(bk.id); console.log('  ' + (r.ok ? ok('已删除 ' + bk.id) : bad(r.error || '失败'))) }
-        else console.log('  ' + dim('已取消'))
-      }
+      const r = await ops.purgeRollback(bk.id)
+      console.log('  ' + (r.ok ? ok('已回滚到 ' + bk.id) : bad('失败')))
       await waitKey()
+    } else if (chosen.label === '删除备份') {
+      // 多选批量删除:空格勾选,回车删除选中;删完留在列表可继续
+      while (true) {
+        const list = (await ops.purgeStatus()).backups || []
+        if (!list.length) { console.log('  ' + warn('没有备份')); await waitKey(); break }
+        const picks = await menuSelect({
+          title: '删除备份', subtitle: '空格多选 · 回车删除选中 · q 返回',
+          multi: true,
+          items: list.map(b => ({
+            label: b.id,
+            hint: (b.created_at || '').slice(0, 19).replace('T', ' ') + ' · ' + (b.reason || '') + ' · ' + ops.fmtSize(ops.backupDetail(b.id).bytes || 0),
+          })),
+        })
+        if (picks === null || picks.length === 0) break
+        const chk = await menuSelect({ title: '确认删除 ' + picks.length + ' 个备份?', subtitle: '不可恢复', items: [{ label: '确认删除(' + picks.length + ' 个)' }, { label: '取消' }] })
+        if (chk !== 0) continue
+        let okN = 0, failN = 0
+        for (const i of picks) {
+          const r = ops.deleteBackup(list[i].id)
+          if (r.ok) okN++; else { failN++; console.log('  ' + bad(list[i].id + ' — ' + (r.error || '失败'))) }
+        }
+        console.log('  ' + (failN ? warn('已删除 ' + okN + ' 个,失败 ' + failN + ' 个') : ok('已删除 ' + okN + ' 个')))
+      }
     } else if (chosen.label === '清理旧备份') {
       const r = await ops.purgePrune()
       console.log('  ' + (r.ok ? ok('已清理旧备份') : bad('失败')))
