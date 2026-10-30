@@ -164,7 +164,14 @@ export async function pluginsInstalled() {
 export async function pluginInstall(spec) {
   const dshCli = RES + '/runtime/cli/bin/dsh'
   const r = await core.run(dshCli, ['plugin', '--profile', 'desktop', 'add', spec], { stream: true })
-  return { ok: r.ok, output: r.output }
+  let hint = ''
+  const out = String(r.output || '')
+  if (!r.ok) {
+    if (out.includes('allowBuilds')) hint = '需在 ' + path.join(core.DSH_HOME, 'profiles', 'desktop', 'pnpm-workspace.yaml') + ' 的 allowBuilds 中加入 pnpm 提示的键后重试'
+    else if (out.includes('Repository not found') || out.includes('未找到')) hint = '仓库不可达:确认自建源密钥已配置(设置 → 测试连接)且仓库名正确'
+    else if (out.includes('ERR_PNPM_GIT_RESOLVE_FAILED')) hint = 'git 依赖解析失败:检查 spec 与网络/密钥'
+  }
+  return { ok: r.ok, output: r.output, hint }
 }
 export async function pluginRemove(name) {
   const dshCli = RES + '/runtime/cli/bin/dsh'
@@ -292,7 +299,7 @@ export async function pluginsCatalog() {
       try {
         const meta = await core.hubJson(core.HUB.api.replace('dsh-controller', 'dsh-plugins') + '/contents/' + d.path + '/package.json?ref=main')
         const pkg = JSON.parse(Buffer.from(meta.content, 'base64').toString())
-        out.push({ name: pkg.name, version: pkg.version || '', description: pkg.description || '', spec: core.HUB.git.replace('dsh-controller', 'dsh-plugins') + '.git#main&path:' + d.path })
+        out.push({ name: pkg.name, version: pkg.version || '', description: pkg.description || '', spec: core.HUB.git.replace('dsh-controller', 'dsh-plugins') + '#main&path:' + d.path })
       } catch {}
     }
     return out

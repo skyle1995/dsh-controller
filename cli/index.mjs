@@ -37,7 +37,7 @@ async function menuPurge() {
       { label: '返回主菜单' },
     ]
     const sel = await menuSelect({ title: '一键破甲', subtitle: '安装 · 卸载 · 还原', items })
-    if (sel < 0 || sel === 4) return
+    if (sel < 0 || sel === items.length - 1) return
     if (sel === 1) {
       console.log(dim('\n  —— 一键安装 ——'))
       const ins = await ops.installLatest()
@@ -89,7 +89,7 @@ async function menuRuntime() {
       { label: '返回主菜单' },
     ]
     const sel = await menuSelect({ title: '运行配置', subtitle: '安全 · 诊断 · 权限', items })
-    if (sel < 0 || sel === 7) return
+    if (sel < 0 || sel === items.length - 1) return
     if (sel === 1) {
       const g = ops.regionGateState()
       const cur = g.disabled ? '已解除' : (g.available ? '已启用' : '不可用')
@@ -164,7 +164,7 @@ async function menuBackup() {
       { label: '返回主菜单' },
     ]
     const sel = await menuSelect({ title: '备份与恢复', subtitle: bks.length + ' 个 · ' + ops.fmtSize(usage.bytes || 0), items })
-    if (sel < 0 || sel === 6) return
+    if (sel < 0 || sel === items.length - 1) return
     if (sel === 1) {
       const reason = await promptText('备份原因(回车=cli)')
       const r = await ops.purgeBackup()
@@ -211,7 +211,7 @@ async function menuSkill(kind) {
       { label: '返回主菜单' },
     ]
     const sel = await menuSelect({ title: isRed ? '红队技能包' : '逆向技能包', subtitle: st ? '已安装 v' + (st.version || '?') : '未安装', items })
-    if (sel < 0 || sel === 3) return
+    if (sel < 0 || sel === items.length - 1) return
     if (sel === 1) {
       const r = isRed ? await ops.installRedteam() : await ops.installReverse()
       console.log(r?.ok ? '  ' + ok((isRed ? r.count + ' 个技能' : r.modules + ' 个模块') + ' · v' + (r.version || '?')) : '  ' + bad(r?.error || '失败'))
@@ -241,7 +241,7 @@ async function menuPlugins() {
       { label: '返回主菜单' },
     ]
     const sel = await menuSelect({ title: '插件商店', subtitle: inst.length + ' 个已安装', items })
-    if (sel < 0 || sel === 7) return
+    if (sel < 0 || sel === items.length - 1) return
     if (sel === 1) {
       console.log(dim('\n  正在拉取在线目录…'))
       const cat = await ops.pluginsCatalog()
@@ -254,7 +254,7 @@ async function menuPlugins() {
       if (s0 < 0 || s0 === cat.length) continue
       const target = cat[s0]
       const r = await ops.pluginInstall(target.spec)
-      console.log('  ' + (r.ok ? ok('已安装 ' + target.name) : bad('失败')))
+      console.log('  ' + (r.ok ? ok('已安装 ' + target.name) : bad('失败' + (r.hint ? ' — ' + r.hint : ''))))
       await waitKey()
     } else if (sel === 2) {
       inst.forEach(p => console.log('  · ' + p.name + dim(' v' + p.version)))
@@ -263,7 +263,7 @@ async function menuPlugins() {
       const spec = await promptText('包名 / 本地路径 / tarball')
       if (!spec) continue
       const r = await ops.pluginInstall(spec)
-      console.log('  ' + (r.ok ? ok('已安装') : bad('失败')))
+      console.log('  ' + (r.ok ? ok('已安装') : bad('失败' + (r.hint ? ' — ' + r.hint : ''))))
       await waitKey()
     } else if (sel === 4) {
       if (!inst.length) { console.log('  ' + warn('没有已安装插件')); await waitKey(); continue }
@@ -292,7 +292,7 @@ async function menuSettings() {
       { label: '返回主菜单' },
     ]
     const sel = await menuSelect({ title: '设置', subtitle: '自建源 · 日志', items })
-    if (sel < 0 || sel === 7) return
+    if (sel < 0 || sel === items.length - 1) return
     if (sel === 1) {
       const t = await promptText('Gitea 令牌(输入 - 清除,回车取消)')
       if (t === '-') { core.saveToken(''); console.log('  ' + ok('已清除')) }
@@ -336,7 +336,7 @@ async function mainMenu() {
       { label: '退出' },
     ]
     const sel = await menuSelect({ title: 'DSH Controller', subtitle: 'DeepSeek Harness 管理', items, footerTip: 'v0.1.0' })
-    if (sel < 0 || sel === 10) { ui.closeAsk(); console.log(dim('\n  再见\n')); process.exit(0) }
+    if (sel < 0 || sel === items.length - 1) { ui.closeAsk(); console.log(dim('\n  再见\n')); process.exit(0) }
     if (sel === 1) await menuPurge()
     else if (sel === 2) await menuRuntime()
     else if (sel === 3) await menuBackup()
