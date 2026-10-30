@@ -1,6 +1,5 @@
 import { injectionPolicy, excludedPresetIds, withoutPurgeInjection, rememberPromptRewrite, requestInjectionContext } from "./preset-injection.js";
 import { registerCommand } from "./command-registration.js";
-import { createUpdateController, preferences, savePreferences } from "./update-policy.js";
 import { scheduleDesktopHandoff } from "./desktop-handoff.js";
 import { currentHost, diagnosticHost, hostSurface } from "./instance.js";
 import { Maintenance, compatibility, QUALIFIED_HOST_VERSIONS, REPOSITORY } from "./community.js";
@@ -1540,20 +1539,7 @@ export function apply(ctx, config) {
     return streamWithRefusalRetry((opts) => next(opts), options);
   });
   const updateHome = core.findDshHome();
-  const updates = createUpdateController({
-    home: updateHome, legacy: cfg, runningVersion: updater.runningVersion(),
-    readInstalledVersion: () => updater.installedVersion(updateHome),
-    check: () => updater.checkUpdate(),
-    install: (result) => {
-      const lane = updater.channelPublic();
-      if (lane.pin || lane.channel !== "stable") return { ok: true, applied: false, skipped: "pinned-or-upstream" };
-      return updater.applyUpdate(undefined, {
-        ref: result.lanes?.stable?.latestRef || result.remoteVersion,
-        source: "fork", channel: "stable", pin: false, reason: "auto",
-      });
-    },
-    onResult: (result) => log(cfg, "update status:", JSON.stringify(result)),
-  });
+  /* [dsh-controller] 在线更新控制器已移除(私有部署) */
   // 维护对象必须懒构造：profile 目录、DSH_HOME 在任何一步不可用时，
   // 也只能让维护接口报错，不能让整个插件在 activate 阶段挂掉。
   const maintenance = () => new Maintenance({ home: core.findDshHome(), aiBase: currentHost() });
@@ -1565,16 +1551,11 @@ export function apply(ctx, config) {
         let result;
         if(request.method==="GET") {
           const manager=maintenance();
-          result={ok:true,name:"Purge Self",version:updater.runningVersion(),repository:REPOSITORY,compatibility:compatibility(manager.aiBase),profile:manager.profile,backups:manager.list(),backup_usage:manager.usage(),update_preferences:preferences(updateHome,cfg),update_status:updates.status()};
+          result={ok:true,name:"Purge Self",version:updater.runningVersion(),repository:REPOSITORY,compatibility:compatibility(manager.aiBase),profile:manager.profile,backups:manager.list(),backup_usage:manager.usage()};
         }
         else if(request.method==="POST") {
           const body=await readJsonBody(request);
-          if(body.op==="preferences") {
-            const value=savePreferences(updateHome,body.value,cfg);
-            updates.refresh();
-            result={ok:true,update_preferences:value};
-          }
-          else if(body.op==="backup")result={ok:true,...await maintenance().backup("manual")};
+          if(body.op==="backup")result={ok:true,...await maintenance().backup("manual")};
           else if(body.op==="rollback")result=await maintenance().rollback(body.id);
           else if(body.op==="prune")result=maintenance().prune({keepLast:body.keepLast,keepDays:body.keepDays,maxTotalBytes:body.maxTotalBytes});
           else if(body.op==="deleteBackup") {
@@ -1671,10 +1652,6 @@ export function apply(ctx, config) {
   const diagnostics = { commands: [] };
   installWebServer(ctx, cfg, diagnostics);
   log(cfg, "plugin enabled");
-  ctx.effect(() => {
-    updates.start();
-    return () => updates.stop();
-  });
   core.applyRuntimeEnv();
   try {
     const home = core.pinDshHome() || core.findDshHome();
