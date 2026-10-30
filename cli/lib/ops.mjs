@@ -7,6 +7,13 @@ import * as core from './core.mjs'
 
 const { PLUGIN_DIR, DSH_HOME, SKILLS_DIR, HUB, RES } = core
 
+// community.js 返回规范化:无 ok 字段但有实际结果视为成功
+function jnorm(r) {
+  if (!r) return { ok: false, error: '无输出' }
+  if (r.ok === false || r.error) return { ok: false, error: r.error || '命令失败' }
+  return { ok: true, ...r }
+}
+
 // ── 破甲状态 ─────────────────────────────────────────────
 export async function purgeStatus() {
   const out = { installed: existsSync(path.join(PLUGIN_DIR, 'package.json')), version: null, cli: existsSync(path.join(PLUGIN_DIR, 'bin', 'community.js')), layout: null, backups: [], apply: null }
@@ -44,9 +51,9 @@ export async function purgeApply() {
 }
 export async function purgeRevert() { const r = await core.cliText('dsh-purge.js', ['--revert'], { stream: true }); return { ok: r.ok, output: r.output } }
 export async function purgeReseal() { const r = await core.cliText('dsh-purge.js', ['--reseal'], { stream: true }); return { ok: r.ok, output: r.output } }
-export async function purgeBackup() { return core.cliJson('community.js', ['backup']) }
-export async function purgeRollback(id) { return core.cliJson('community.js', ['rollback', String(id)]) }
-export async function purgePrune() { return core.cliJson('community.js', ['prune']) }
+export async function purgeBackup() { return jnorm(await core.cliJson('community.js', ['backup'])) }
+export async function purgeRollback(id) { return jnorm(await core.cliJson('community.js', ['rollback', String(id)])) }
+export async function purgePrune() { return jnorm(await core.cliJson('community.js', ['prune'])) }
 export async function purgeSelfcheck() {
   const r = await core.run(process.execPath, [path.join(PLUGIN_DIR, 'bin', 'community.js'), 'selfcheck', '--json'], { env: core.purgeEnv() })
   const s = r.output, a = s.indexOf('{'), b = s.lastIndexOf('}')
