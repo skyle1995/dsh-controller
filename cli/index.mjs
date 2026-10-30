@@ -30,11 +30,11 @@ async function menuPurge() {
     console.log('  ' + await statusLine())
     const items = [
       { type: 'group', label: '安装与维护' },
-      { icon: '⚡', label: '一键安装', hint: '安装/更新插件 → 解包 → 应用 → 换包 → 重启' },
-      { icon: '⏏', label: '卸载安装', hint: '退出 dsh,卸载插件与补丁(需管理员)' },
-      { icon: '✍', label: '还原签名', hint: '修官方更新失败(丢弃解包目录)' },
+      { label: '一键安装', hint: '安装/更新插件 → 解包 → 应用 → 换包 → 重启' },
+      { label: '卸载安装', hint: '退出 dsh,卸载插件与补丁(需管理员)' },
+      { label: '还原签名', hint: '修官方更新失败(丢弃解包目录)' },
       { type: 'group', label: '返回' },
-      { icon: '↩', label: '返回主菜单' },
+      { label: '返回主菜单' },
     ]
     const sel = await menuSelect({ title: '一键破甲', subtitle: '安装 · 卸载 · 还原', items })
     if (sel < 0 || sel === 4) return
@@ -49,7 +49,7 @@ async function menuPurge() {
       }
       await waitKey()
     } else if (sel === 2) {
-      const yes = await menuSelect({ title: '卸载安装', items: [{ icon: '⚠', label: '确认卸载', hint: '退出 dsh 并移除插件/补丁(不可撤销)' }, { icon: '↩', label: '取消' }] })
+      const yes = await menuSelect({ title: '卸载安装', items: [{ label: '确认卸载', hint: '退出 dsh 并移除插件/补丁(不可撤销)' }, { label: '取消' }] })
       if (yes !== 0) continue
       console.log(dim('\n  —— 卸载中 ——'))
       const r = await ops.uninstallPurge()
@@ -79,14 +79,14 @@ async function menuRuntime() {
     ].join(c('gray', '  ·  ')))
     const items = [
       { type: 'group', label: '安全' },
-      { icon: '🛡', label: '域名拦截', hint: gate.disabled ? '公网/银行域名拦截已解除' : '拦截已启用' },
+      { label: '域名拦截', hint: gate.disabled ? '公网/银行域名拦截已解除' : '拦截已启用' },
       { type: 'group', label: '诊断' },
-      { icon: '🧪', label: '能力自检', hint: '逐层证据 + 待确认标注' },
-      { icon: '🎛', label: '运行开关', hint: 'boost / retry / rewind / inject' },
+      { label: '能力自检', hint: '逐层证据 + 待确认标注' },
+      { label: '运行开关', hint: 'boost / retry / rewind / inject' },
       { type: 'group', label: '权限' },
-      { icon: '🔑', label: '授权管理', hint: '演练台授权 / 撤销' },
+      { label: '授权管理', hint: '演练台授权 / 撤销' },
       { type: 'group', label: '返回' },
-      { icon: '↩', label: '返回主菜单' },
+      { label: '返回主菜单' },
     ]
     const sel = await menuSelect({ title: '运行配置', subtitle: '安全 · 诊断 · 权限', items })
     if (sel < 0 || sel === 7) return
@@ -94,8 +94,8 @@ async function menuRuntime() {
       const g = ops.regionGateState()
       const cur = g.disabled ? '已解除' : (g.available ? '已启用' : '不可用')
       const items2 = g.disabled
-        ? [{ icon: '🛡', label: '恢复拦截', hint: g.sourceLevel ? '插件源码级已禁用,CLI 无法恢复' : '重新启用公网/银行域名拦截' }, { icon: '↩', label: '返回' }]
-        : [{ icon: '🔓', label: '解除拦截', hint: '给 net-scope.js 打补丁(重启 dsh 生效)' }, { icon: '↩', label: '返回' }]
+        ? [{ label: '恢复拦截', hint: g.sourceLevel ? '插件源码级已禁用,CLI 无法恢复' : '重新启用公网/银行域名拦截' }, { label: '返回' }]
+        : [{ label: '解除拦截', hint: '给 net-scope.js 打补丁(重启 dsh 生效)' }, { label: '返回' }]
       const s2 = await menuSelect({ title: '域名拦截', subtitle: '当前 ' + cur, items: items2 })
       if (s2 === 0) {
         const r = ops.setRegionGate(!g.disabled)
@@ -123,7 +123,7 @@ async function menuRuntime() {
         { label: () => (st2.rewind ? c('green', '◼') : c('gray', '◻')) + ' 回退按钮 rewind', hint: '输入框旁的回退一次', onSpace: () => { st2.rewind = !st2.rewind } },
         { label: () => c('cyan', '[' + st2.inject.padEnd(4) + ']') + ' 注入位置 inject', hint: 'head → tail → both', onSpace: () => { st2.inject = st2.inject === 'head' ? 'tail' : st2.inject === 'tail' ? 'both' : 'head' } },
         { type: 'group', label: '保存' },
-        { icon: '✔', label: '保存并返回' },
+        { label: '保存并返回' },
       ]
       const save = await menuSelect({ title: '运行开关', subtitle: '空格切换 · 回车保存', items: items3 })
       if (save < 0) continue
@@ -137,8 +137,8 @@ async function menuRuntime() {
     } else if (sel === 6) {
       const d = ops.drillState()
       const items4 = d?.granted
-        ? [{ icon: '🚫', label: '撤销演练台授权' }, { icon: '↩', label: '返回' }]
-        : [{ icon: '✅', label: '授权演练台' }, { icon: '↩', label: '返回' }]
+        ? [{ label: '撤销演练台授权' }, { label: '返回' }]
+        : [{ label: '授权演练台' }, { label: '返回' }]
       const s4 = await menuSelect({ title: '授权管理', subtitle: '当前 ' + (d?.granted ? '已授权' : '未授权'), items: items4 })
       if (s4 === 0) { ops.grantDrill(!d?.granted); console.log('  ' + ok(d?.granted ? '已撤销' : '已授权')); await waitKey() }
     }
@@ -155,13 +155,13 @@ async function menuBackup() {
     console.log('  ' + [bks.length + ' 个备份', '占用 ' + ops.fmtSize(usage.bytes || 0)].join(c('gray', '  ·  ')))
     const items = [
       { type: 'group', label: '操作' },
-      { icon: '➕', label: '立即备份', hint: '可输入原因' },
-      { icon: '🔄', label: '刷新列表' },
-      { icon: '⏪', label: '回滚到备份', hint: bks.length ? '从列表选择' : '无备份' },
-      { icon: '🗑', label: '删除备份', hint: bks.length ? '从列表选择(不可恢复)' : '无备份' },
-      { icon: '🧹', label: '清理旧备份', hint: '保留最近若干份' },
+      { label: '立即备份', hint: '可输入原因' },
+      { label: '刷新列表' },
+      { label: '回滚到备份', hint: bks.length ? '从列表选择' : '无备份' },
+      { label: '删除备份', hint: bks.length ? '从列表选择(不可恢复)' : '无备份' },
+      { label: '清理旧备份', hint: '保留最近若干份' },
       { type: 'group', label: '返回' },
-      { icon: '↩', label: '返回主菜单' },
+      { label: '返回主菜单' },
     ]
     const sel = await menuSelect({ title: '备份与恢复', subtitle: bks.length + ' 个 · ' + ops.fmtSize(usage.bytes || 0), items })
     if (sel < 0 || sel === 6) return
@@ -178,13 +178,13 @@ async function menuBackup() {
         items: [...bks.map(b => ({
           label: b.id,
           hint: (b.created_at || '').slice(0, 19).replace('T', ' ') + ' · ' + (b.reason || '') + ' · dsh ' + (b.host_version || '?') + ' · ' + ops.fmtSize(ops.backupDetail(b.id).bytes || 0),
-        })), { icon: '↩', label: '返回' }],
+        })), { label: '返回' }],
       })
       if (s5 < 0 || s5 === bks.length) continue
       const bk = bks[s5]
       if (sel === 3) { const r = await ops.purgeRollback(bk.id); console.log('  ' + (r.ok ? ok('已回滚到 ' + bk.id) : bad('失败'))) }
       else {
-        const chk = await menuSelect({ title: '确认删除', subtitle: bk.id, items: [{ icon: '⚠', label: '确认删除(不可恢复)' }, { icon: '↩', label: '取消' }] })
+        const chk = await menuSelect({ title: '确认删除', subtitle: bk.id, items: [{ label: '确认删除(不可恢复)' }, { label: '取消' }] })
         if (chk === 0) { const r = ops.deleteBackup(bk.id); console.log('  ' + (r.ok ? ok('已删除 ' + bk.id) : bad(r.error || '失败'))) }
         else console.log('  ' + dim('已取消'))
       }
@@ -205,10 +205,10 @@ async function menuSkill(kind) {
     ui.clear()
     const items = [
       { type: 'group', label: '安装' },
-      { icon: '⬇', label: st ? '更新' : '安装', hint: isRed ? '仓库分类技能 → 统一入口' : '仓库子目录 → 统一入口' },
-      { icon: '📋', label: '查看清单', hint: st ? (isRed ? (st.skills?.length || 0) + ' 个技能' : (st.modules?.length || 0) + ' 个模块') : '未安装' },
+      { label: st ? '更新' : '安装', hint: isRed ? '仓库分类技能 → 统一入口' : '仓库子目录 → 统一入口' },
+      { label: '查看清单', hint: st ? (isRed ? (st.skills?.length || 0) + ' 个技能' : (st.modules?.length || 0) + ' 个模块') : '未安装' },
       { type: 'group', label: '返回' },
-      { icon: '↩', label: '返回主菜单' },
+      { label: '返回主菜单' },
     ]
     const sel = await menuSelect({ title: isRed ? '红队技能包' : '逆向技能包', subtitle: st ? '已安装 v' + (st.version || '?') : '未安装', items })
     if (sel < 0 || sel === 3) return
@@ -232,13 +232,13 @@ async function menuPlugins() {
     ui.clear()
     const items = [
       { type: 'group', label: '目录' },
-      { icon: '🌐', label: '在线插件目录', hint: '从自建源拉取可装插件' },
-      { icon: '📦', label: '已安装插件', hint: inst.length + ' 个' },
+      { label: '在线插件目录', hint: '从自建源拉取可装插件' },
+      { label: '已安装插件', hint: inst.length + ' 个' },
       { type: 'group', label: '操作' },
-      { icon: '➕', label: '安装插件', hint: '输入包名 / 路径 / tarball' },
-      { icon: '➖', label: '卸载插件' },
+      { label: '安装插件', hint: '输入包名 / 路径 / tarball' },
+      { label: '卸载插件' },
       { type: 'group', label: '返回' },
-      { icon: '↩', label: '返回主菜单' },
+      { label: '返回主菜单' },
     ]
     const sel = await menuSelect({ title: '插件商店', subtitle: inst.length + ' 个已安装', items })
     if (sel < 0 || sel === 7) return
@@ -249,7 +249,7 @@ async function menuPlugins() {
       const names = new Set(inst.map(p => p.name))
       const s0 = await menuSelect({
         title: '在线插件目录', subtitle: cat.length + ' 个可用',
-        items: [...cat.map(p => ({ label: p.name + ' v' + p.version, hint: (names.has(p.name) ? c('green', '已装 · ') : '') + (p.description || '').slice(0, 46) })), { icon: '↩', label: '返回' }],
+        items: [...cat.map(p => ({ label: p.name + ' v' + p.version, hint: (names.has(p.name) ? c('green', '已装 · ') : '') + (p.description || '').slice(0, 46) })), { label: '返回' }],
       })
       if (s0 < 0 || s0 === cat.length) continue
       const target = cat[s0]
@@ -267,7 +267,7 @@ async function menuPlugins() {
       await waitKey()
     } else if (sel === 4) {
       if (!inst.length) { console.log('  ' + warn('没有已安装插件')); await waitKey(); continue }
-      const s2 = await menuSelect({ title: '卸载插件', items: [...inst.map(p => ({ label: p.name, hint: 'v' + p.version })), { icon: '↩', label: '返回' }] })
+      const s2 = await menuSelect({ title: '卸载插件', items: [...inst.map(p => ({ label: p.name, hint: 'v' + p.version })), { label: '返回' }] })
       if (s2 < 0 || s2 === inst.length) continue
       const r = await ops.pluginRemove(inst[s2].name)
       console.log('  ' + (r.ok ? ok('已卸载') : bad('失败')))
@@ -283,13 +283,13 @@ async function menuSettings() {
     ui.clear()
     const items = [
       { type: 'group', label: '自建源' },
-      { icon: '🔑', label: '设置访问密钥', hint: tok ? '已配置' : '未配置' },
-      { icon: '🔌', label: '测试连接' },
+      { label: '设置访问密钥', hint: tok ? '已配置' : '未配置' },
+      { label: '测试连接' },
       { type: 'group', label: '日志' },
-      { icon: '📄', label: '查看日志路径' },
-      { icon: '🧹', label: '清理日志' },
+      { label: '查看日志路径' },
+      { label: '清理日志' },
       { type: 'group', label: '返回' },
-      { icon: '↩', label: '返回主菜单' },
+      { label: '返回主菜单' },
     ]
     const sel = await menuSelect({ title: '设置', subtitle: '自建源 · 日志', items })
     if (sel < 0 || sel === 7) return
@@ -324,17 +324,16 @@ async function mainMenu() {
     const rt = readState(REDTEAM_STATE), rv = readState(REVERSE_STATE)
     const items = [
       { type: 'group', label: '破甲' },
-      { icon: '⚡', label: '一键破甲', hint: '安装 / 卸载 / 还原签名' },
-      { icon: '🎛', label: '运行配置', hint: '域名拦截 / 自检 / 开关 / 授权' },
-      { icon: '💾', label: '备份与恢复', hint: '备份 / 回滚 / 删除' },
+      { label: '一键破甲', hint: '安装 / 卸载 / 还原签名' },
+      { label: '运行配置', hint: '域名拦截 / 自检 / 开关 / 授权' },
+      { label: '备份与恢复', hint: '备份 / 回滚 / 删除' },
       { type: 'group', label: '扩展' },
-      { icon: '🎯', label: '红队技能', hint: rt ? (rt.skills?.length || 0) + ' 个 · v' + (rt.version || '?') : '未安装' },
-      { icon: '🔍', label: '逆向技能', hint: rv ? (rv.modules?.length || 0) + ' 模块 · v' + (rv.version || '?') : '未安装' },
+      { label: '红队技能', hint: rt ? (rt.skills?.length || 0) + ' 个 · v' + (rt.version || '?') : '未安装' },
+      { label: '逆向技能', hint: rv ? (rv.modules?.length || 0) + ' 模块 · v' + (rv.version || '?') : '未安装' },
       { type: 'group', label: '管理' },
-      { icon: '🧩', label: '插件商店', hint: '在线目录 / 安装 / 卸载' },
-      { icon: '⚙', label: '设置', hint: '密钥 / 连接 / 日志' },
-      { type: 'group', label: '' },
-      { icon: '⏻', label: '退出' },
+      { label: '插件商店', hint: '在线目录 / 安装 / 卸载' },
+      { label: '设置', hint: '密钥 / 连接 / 日志' },
+      { label: '退出' },
     ]
     const sel = await menuSelect({ title: 'DSH Controller', subtitle: 'DeepSeek Harness 管理', items, footerTip: 'v0.1.0' })
     if (sel < 0 || sel === 10) { ui.closeAsk(); console.log(dim('\n  再见\n')); process.exit(0) }

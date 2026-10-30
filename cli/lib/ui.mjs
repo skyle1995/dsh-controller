@@ -105,8 +105,7 @@ export function menuSelect({ title, subtitle = '', items, multi = false, checked
       out.push('')
       items.forEach((it, i) => {
         if (it && it.type === 'group') {
-          out.push('  ' + c('gray', '  ' + it.label))
-          out.push('')
+          out.push('  ' + c('gray', '  -- ' + it.label + ' ' + '-'.repeat(Math.max(2, 20 - String(it.label).length * 2))))
           return
         }
         const isCur = selectable[cursor] === i
@@ -115,7 +114,7 @@ export function menuSelect({ title, subtitle = '', items, multi = false, checked
         const label = typeof (it.label) === 'function' ? it.label() : String(it.label)
         const hint = it.hint ? dim(it.hint) : ''
         if (multi) {
-          const box = sel.has(i) ? c('green', '◼') : c('gray', '◻')
+          const box = sel.has(i) ? c('green', '[x]') : c('gray', '[ ]')
           out.push('  ' + mark + ' ' + box + ' ' + icon + (isCur ? head(padEnd(label, LABEL_W)) : padEnd(label, LABEL_W)) + hint)
         } else {
           out.push('  ' + mark + ' ' + icon + (isCur ? head(padEnd(label, LABEL_W)) : padEnd(label, LABEL_W)) + hint)
