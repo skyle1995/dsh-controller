@@ -79,73 +79,85 @@ export async function pick(question, choices, def) {
   return def || choices[0]
 }
 
-// ── 交互式选择菜单(方向键 / 空格 / 回车)——局部重绘,不闪屏 ──────
-export function menuSelect({ title, items, multi = false, checked: initial = [], footerTip = '' }) {
+// ── 交互式选择菜单(方向键 / 空格 / 回车)——分组 + 图标 + 局部重绘 ──
+const LABEL_W = 24
+const padEnd = (s, w) => {
+  const width = [...String(s)].reduce((n, ch) => n + (/[\u4e00-\u9fff\uff00-\uffef]/.test(ch) ? 2 : 1), 0)
+  return String(s) + ' '.repeat(Math.max(0, w - width))
+}
+export function menuSelect({ title, subtitle = '', items, multi = false, checked: initial = [], footerTip = '' }) {
   return new Promise((resolve) => {
     closeAsk()
     const stdin = process.stdin
     const wasRaw = !!stdin.isRaw
     rlCore.emitKeypressEvents(stdin)
-    let idx = 0
+    const selectable = items.map((it, i) => (it && it.type === 'group' ? -1 : i)).filter(i => i >= 0)
+    let cursor = 0 // 在 selectable 中的位置
     const sel = new Set(initial)
-    const n = items.length
+    const n = selectable.length
 
     const lines = () => {
       const out = []
-      const line = '─'.repeat(Math.max(10, title.length + 2))
-      out.push(c('cyan', '╭' + line + '╮'))
-      out.push(c('cyan', '│ ') + head(title) + c('cyan', ' │'))
-      out.push(c('cyan', '╰' + line + '╯'))
+      const bar = '─'.repeat(Math.max(8, subtitle.length + 2))
+      if (subtitle) out.push(c('cyan', '  ' + bar))
+      out.push('  ' + c('cyan', '│ ') + ' ' + head(title) + (subtitle ? c('cyan', ' │') : ''))
+      if (subtitle) out.push('  ' + c('cyan', '  ' + bar))
+      out.push('')
       items.forEach((it, i) => {
-        const cursor = i === idx ? c('cyan', '❯') : ' '
-        const label = typeof (it.label) === 'function' ? it.label() : (it.label || String(it))
-        const hint = it.hint ? dim('  ' + it.hint) : ''
+        if (it && it.type === 'group') {
+          out.push('  ' + c('gray', '  ' + it.label))
+          out.push('')
+          return
+        }
+        const isCur = selectable[cursor] === i
+        const mark = isCur ? c('cyan', '❯') : ' '
+        const icon = it.icon ? it.icon + ' ' : ''
+        const label = typeof (it.label) === 'function' ? it.label() : String(it.label)
+        const hint = it.hint ? dim(it.hint) : ''
         if (multi) {
-          const box = sel.has(i) ? c('green', '[x]') : '[ ]'
-          out.push('  ' + cursor + ' ' + box + ' ' + (i === idx ? head(label) : label) + hint)
+          const box = sel.has(i) ? c('green', '◼') : c('gray', '◻')
+          out.push('  ' + mark + ' ' + box + ' ' + icon + (isCur ? head(padEnd(label, LABEL_W)) : padEnd(label, LABEL_W)) + hint)
         } else {
-          out.push('  ' + cursor + ' ' + (i === idx ? head(label) : label) + hint)
+          out.push('  ' + mark + ' ' + icon + (isCur ? head(padEnd(label, LABEL_W)) : padEnd(label, LABEL_W)) + hint)
         }
       })
       out.push('')
-      out.push('  ' + dim('↑↓ 移动' + (multi ? ' · 空格 勾选/取消' : ' · 空格 切换') + ' · 回车 确认 · q 返回') + (footerTip ? dim(' · ' + footerTip) : ''))
+      out.push('  ' + dim('↑↓ 移动' + (multi ? ' · 空格 勾选' : '') + ' · 回车 确认 · q 返回' + (footerTip ? ' · ' + footerTip : '')))
       return out
     }
 
     let printed = 0
     const render = (first = false) => {
       const L = lines()
-      if (!first && printed > 0) {        // 光标回到块首,逐行覆盖(清行码 2K,不整屏 clear)
-        process.stdout.write('\x1b[' + printed + 'A')
-      }
+      if (!first && printed > 0) process.stdout.write('\x1b[' + printed + 'A')
       for (let i = 0; i < L.length; i++) process.stdout.write('\r\x1b[2K' + L[i] + '\n')
       for (let i = L.length; i < printed; i++) process.stdout.write('\r\x1b[2K\n')
       printed = L.length
     }
-
     const finish = (v) => {
       stdin.removeListener('keypress', onKey)
       try { stdin.setRawMode(wasRaw) } catch {}
       try { stdin.pause() } catch {}
-      process.stdout.write('\x1b[?25h') // 恢复光标
+      process.stdout.write('\x1b[?25h')
       resolve(v)
     }
     function onKey(str, key) {
       const name = key?.name
-      if (name === 'up') idx = (idx - 1 + n) % n
-      else if (name === 'down') idx = (idx + 1) % n
+      if (name === 'up') cursor = (cursor - 1 + n) % n
+      else if (name === 'down') cursor = (cursor + 1) % n
       else if (name === 'space') {
-        const it = items[idx]
+        const i = selectable[cursor]
+        const it = items[i]
         if (it && typeof it === 'object' && typeof it.onSpace === 'function') it.onSpace()
-        else if (multi) { sel.has(idx) ? sel.delete(idx) : sel.add(idx) }
+        else if (multi) { sel.has(i) ? sel.delete(i) : sel.add(i) }
       }
-      else if (name === 'return' || name === 'enter') return finish(multi ? [...sel].sort((a, b) => a - b) : idx)
+      else if (name === 'return' || name === 'enter') return finish(multi ? [...sel].sort((a, b) => a - b) : selectable[cursor])
       else if (name === 'q' || name === 'escape') return finish(multi ? null : -1)
       else if (name === 'c' && key?.ctrl) { finish(null); process.exit(0) }
       render()
     }
     try { stdin.setRawMode(true) } catch {}
-    process.stdout.write('\x1b[?25l') // 隐藏光标,避免跳动
+    process.stdout.write('\x1b[?25l')
     stdin.resume()
     stdin.on('keypress', onKey)
     render(true)
