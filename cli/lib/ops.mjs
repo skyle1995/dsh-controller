@@ -182,8 +182,12 @@ export async function pluginRemove(name) {
 
 // ── 插件安装(仓库 tarball → dsh plugin add)───────────────────
 export async function installLatest() {
+  // 注意:安装 spec 必须是**持久路径**。用 /tmp 打包后删除会让 profile 的 package.json
+  // 留下 file:/var/folders/… 的死链,之后任何插件安装/更新都会因解析该依赖失败。
+  const pkgDir = path.join(core.DSH_HOME, 'dsh-controller', 'pkgs')
+  mkdirSync(pkgDir, { recursive: true })
   const tmp = path.join(os.tmpdir(), 'dshc-purge-' + Date.now())
-  mkdirSync(tmp, { recursive: true })   // spawn 的 cwd 必须已存在,否则 ENOENT
+  mkdirSync(tmp, { recursive: true })
   const repo = path.join(tmp, 'repo')
   const tok = core.readToken()
   const url = tok ? core.HUB.git.replace('https://hub.ifunx.com/', 'https://oauth2:' + tok + '@hub.ifunx.com/') : core.HUB.git
@@ -191,18 +195,25 @@ export async function installLatest() {
   if (!r.ok) return { ok: false, error: 'clone 失败:' + (r.output || '').slice(-200) }
   const src = path.join(repo, 'dsh-purge-self')
   if (!existsSync(path.join(src, 'package.json'))) return { ok: false, error: '仓库缺少 dsh-purge-self/' }
+  let ver = null
+  try { ver = JSON.parse(readFileSync(path.join(src, 'package.json'), 'utf8')).version } catch {}
   mkdirSync(path.join(tmp, 'package'), { recursive: true })
   execSync('cp -R "' + src + '/." "' + tmp + '/package/"')
   rmSync(path.join(tmp, 'package', '.git'), { recursive: true, force: true })
-  const tgz = path.join(tmp, 'dsh-purge-self.tgz')
+  const tgz = path.join(pkgDir, 'dsh-purge-self-' + (ver || 'latest') + '.tgz')
   r = await core.run('tar', ['-czf', tgz, '-C', tmp, 'package'], { env: { COPYFILE_DISABLE: '1' } })
+  rmSync(tmp, { recursive: true, force: true })
   if (!r.ok) return { ok: false, error: 'tar 失败' }
+  // 只保留最近 3 个 tarball,避免无限增长
+  try {
+    const old = readdirSync(pkgDir).filter(f => /^dsh-purge-self-.*\.tgz$/.test(f)).sort()
+    while (old.length > 3) { rmSync(path.join(pkgDir, old.shift()), { force: true }) }
+  } catch {}
   const dshCli = core.RES + '/runtime/cli/bin/dsh'
   r = await core.run(dshCli, ['plugin', '--profile', 'desktop', 'add', tgz], { stream: true })
-  rmSync(tmp, { recursive: true, force: true })
-  let ver = null
-  try { ver = JSON.parse(readFileSync(path.join(core.PLUGIN_DIR, 'package.json'), 'utf8')).version } catch {}
-  return { ok: r.ok, version: ver, output: r.output }
+  let installed = null
+  try { installed = JSON.parse(readFileSync(path.join(core.PLUGIN_DIR, 'package.json'), 'utf8')).version } catch {}
+  return { ok: r.ok, version: installed || ver, tarball: tgz, output: r.output }
 }
 
 // ── 卸载(退出 dsh → CLI --uninstall;EPERM 回退管理员授权)────────
