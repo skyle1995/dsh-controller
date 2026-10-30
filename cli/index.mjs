@@ -15,7 +15,7 @@ const REVERSE_STATE = path.join(core.SKILLS_DIR, '.reverse-skill.json')
 async function header() {
   const st = await ops.purgeStatus()
   const rt = readState(REDTEAM_STATE), rv = readState(REVERSE_STATE)
-  console.clear?.()
+  ui.clear()
   banner('DSH Controller CLI')
   const layout = st.layout === 'app' ? c('green', 'app(已应用)') : st.layout === 'asar' ? c('yellow', 'asar(未应用)') : c('red', '未知')
   kv('破甲插件', st.installed ? 'v' + (st.version || '?') + ' · 宿主 ' + layout : c('yellow', '未安装'))
@@ -32,6 +32,7 @@ async function menuPurge() {
     const tun = ops.readTuning()
     const drill = ops.drillState()
     const snaps = ops.listHostOriginals()
+    ui.clear()
     banner('一键破甲')
     kv('插件', st.installed ? 'v' + (st.version || '?') : c('yellow', '未安装'))
     kv('宿主布局', st.layout === 'app' ? c('green', 'app(已应用)') : c('yellow', 'asar(未应用)'))
@@ -132,6 +133,11 @@ async function menuSkill(kind) {
   while (true) {
     if (ui.stdinEndedQ && ui.stdinEndedQ()) return
     const st = readState(isRed ? REDTEAM_STATE : REVERSE_STATE)
+    ui.clear()
+    ui.clear()
+    ui.clear()
+    ui.clear()
+    ui.clear()
     banner(isRed ? '红队技能包' : '逆向技能包')
     kv('状态', st ? c('green', '已安装') : c('yellow', '未安装'))
     if (st) {
@@ -164,6 +170,7 @@ async function menuPlugins() {
   while (true) {
     if (ui.stdinEndedQ && ui.stdinEndedQ()) return
     const inst = await ops.pluginsInstalled()
+    ui.clear()
     banner('插件商店')
     kv('已安装', String(inst.length))
     console.log('\n  1) 列出已安装')
@@ -191,6 +198,7 @@ async function menuSettings() {
   while (true) {
     if (ui.stdinEndedQ && ui.stdinEndedQ()) return
     const tok = core.readToken()
+    ui.clear()
     banner('工具设置')
     kv('自建源密钥', tok ? c('green', '已配置') : c('yellow', '未配置'))
     console.log('\n  1) 设置/清除密钥')

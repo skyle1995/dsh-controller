@@ -34,6 +34,8 @@ export function pauseAsk() { try { rl?.pause() } catch {} }
 export function resumeAsk() { try { rl?.resume() } catch {} }
 export function closeAsk() { try { rl?.close() } catch {} ; rl = null }
 
+export function clear() { try { process.stdout.write('\x1b[2J\x1b[3J\x1b[H') } catch {} }
+
 export function banner(title) {
   const line = '─'.repeat(Math.max(10, title.length + 2))
   console.log('\n' + c('cyan', '╭' + line + '╮'))

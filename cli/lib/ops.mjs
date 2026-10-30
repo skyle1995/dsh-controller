@@ -170,6 +170,7 @@ const REVERSE_DIR = path.join(SKILLS_DIR, 'reverse-skill')
 const REVERSE_STATE = path.join(SKILLS_DIR, '.reverse-skill.json')
 export async function installReverse() {
   const tmp = path.join(os.tmpdir(), 'dshc-reverse-' + Date.now())
+  mkdirSync(tmp, { recursive: true })
   const repo = path.join(tmp, 'repo')
   const tok = core.readToken()
   const url = tok ? HUB.git.replace('https://hub.ifunx.com/', 'https://oauth2:' + tok + '@hub.ifunx.com/') : HUB.git
@@ -228,6 +229,7 @@ export async function pluginRemove(name) {
 // ── 插件安装(仓库 tarball → dsh plugin add)───────────────────
 export async function installLatest() {
   const tmp = path.join(os.tmpdir(), 'dshc-purge-' + Date.now())
+  mkdirSync(tmp, { recursive: true })   // spawn 的 cwd 必须已存在,否则 ENOENT
   const repo = path.join(tmp, 'repo')
   const tok = core.readToken()
   const url = tok ? core.HUB.git.replace('https://hub.ifunx.com/', 'https://oauth2:' + tok + '@hub.ifunx.com/') : core.HUB.git
