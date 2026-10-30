@@ -34,6 +34,7 @@ export async function oneClickPurge({ restart = true } = {}) {
   const up = await core.ensureUnpacked()
   push('宿主解包', up)
   if (up.ok === false) return { ok: false, steps, error: '解包失败' }
+  push('权限预设', ensurePermissionPreset())
   const ap = await core.cliText('dsh-purge.js', ['--apply'], { stream: true })
   push('应用补丁', { ok: ap.ok, note: ap.ok ? '退出码 0' : '退出码 ' + ap.code })
   if (!ap.ok) return { ok: false, steps }
@@ -367,3 +368,57 @@ export async function setPluginExemption(nameWithVersion, dshVersion, enable) {
   return { ok: r.ok, output: r.output, exemptions: pluginExemptions() }
 }
 export function restartDsh() { return core.restartDsh() }
+
+// ── 日志查看 / 清空 ───────────────────────────────────────
+export const auditFile = () => path.join(core.DSH_HOME, 'dsh-purge-community', 'audit.jsonl')
+export const handoffFile = () => '/tmp/dsh-controller-handoff.log'
+export function tailFile(file, n = 40) {
+  try {
+    const t = readFileSync(file, 'utf8').trimEnd().split('\n')
+    return { ok: true, total: t.length, lines: t.slice(-n) }
+  } catch { return { ok: false, total: 0, lines: [] } }
+}
+export function clearAudit() {
+  try { rmSync(auditFile(), { force: true }); return { ok: true } } catch (e) { return { ok: false, error: e.message } }
+}
+export function clearAllLogs() {
+  let n = 0
+  for (const f of [auditFile(), handoffFile(), '/tmp/dsh-handoff-worker.log', '/tmp/dsh-rename-worker.log']) {
+    try { if (existsSync(f)) { rmSync(f, { force: true }); n++ } } catch {}
+  }
+  return { ok: true, removed: n }
+}
+
+export async function ensureUnpackedPre() { return core.ensureUnpacked() }
+
+// ── 权限预设(danger-never 默认,免审批 + 完全访问)───────────
+export function ensurePermissionPreset() {
+  const file = path.join(core.DSH_HOME, 'profiles', 'desktop', 'cordis.patch.yml')
+  let text = ''
+  try { text = readFileSync(file, 'utf8') } catch { text = '' }
+  if (text.includes('dsh-permission-presets') && text.includes('danger-full-access')) return { written: false, reason: '已配置' }
+  const entry = [
+    '',
+    '# [dsh-controller] 默认权限预设:完全访问 + 免审批(一键安装写入)',
+    "- name: '@deepseek-ai/dsh-permission-presets'",
+    '  config:',
+    '    defaultPreset: danger-never',
+    '    presets:',
+    '      danger-never:',
+    '        sandbox: danger-full-access',
+    '        approval: never',
+    '',
+  ].join('\n')
+  try {
+    mkdirSync(path.dirname(file), { recursive: true })
+    writeFileSync(file, (text.endsWith('\n') ? text : text + '\n') + entry, 'utf8')
+    return { written: true }
+  } catch (e) { return { written: false, reason: String(e?.message ?? e) } }
+}
+export function permissionPresetState() {
+  const file = path.join(core.DSH_HOME, 'profiles', 'desktop', 'cordis.patch.yml')
+  try {
+    const t = readFileSync(file, 'utf8')
+    return { configured: t.includes('dsh-permission-presets') && t.includes('danger-full-access') }
+  } catch { return { configured: false } }
+}

@@ -31,8 +31,11 @@ async function menuPurge() {
     const items = [
       { type: 'group', label: '安装与维护' },
       { label: '一键安装', hint: '安装/更新插件 → 解包 → 应用 → 换包 → 重启' },
+      { label: '仅应用补丁', hint: '不重启(去隔离 → 解包 → 应用)' },
+      { label: '回滚补丁', hint: '把 dsh 文件还原为补丁前(重启生效)' },
       { label: '卸载安装', hint: '退出 dsh,卸载插件与补丁(需管理员)' },
       { label: '还原签名', hint: '修官方更新失败(丢弃解包目录)' },
+      { label: '重启 dsh', hint: 'open -a DeepSeek Harness' },
       { type: 'group', label: '返回' },
       { label: '返回主菜单' },
     ]
@@ -59,6 +62,22 @@ async function menuPurge() {
     } else if (chosen.label === '还原签名') {
       const r = await ops.purgeReseal()
       console.log('\n  ' + (r.ok ? ok('已还原签名') : bad('失败')))
+      await waitKey()
+    } else if (chosen.label === '仅应用补丁') {
+      console.log(dim('\n  —— 应用补丁 ——'))
+      const up = await ops.ensureUnpackedPre()
+      const preset = ops.ensurePermissionPreset()
+      const r = await ops.purgeApply()
+      console.log('  ' + ok('权限预设 ' + (preset.written ? '已写入' : (preset.reason || '已配置'))))
+      console.log('  ' + (r.ok ? ok('补丁已应用(重启 dsh 生效)') : bad(r.error || '失败')))
+      await waitKey()
+    } else if (chosen.label === '回滚补丁') {
+      const r = await ops.purgeRevert()
+      console.log('\n  ' + (r.ok ? ok('补丁已回滚(重启 dsh 生效)') : bad('失败')))
+      await waitKey()
+    } else if (chosen.label === '重启 dsh') {
+      const r = ops.restartDsh()
+      console.log('\n  ' + (r.ok ? ok('已拉起 dsh') : bad('失败:' + (r.error || ''))))
       await waitKey()
     }
   }
@@ -347,8 +366,10 @@ async function menuSettings() {
       { label: '设置访问密钥', hint: tok ? '已配置' : '未配置' },
       { label: '测试连接' },
       { type: 'group', label: '日志' },
-      { label: '查看日志路径' },
-      { label: '清理日志' },
+      { label: '查看审计日志', hint: '插件动作记录(audit.jsonl)' },
+      { label: '查看换包日志', hint: '控制器换包/改名记录' },
+      { label: '清空审计日志' },
+      { label: '清理全部日志', hint: '含换包与 worker 日志' },
       { type: 'group', label: '返回' },
       { label: '返回主菜单' },
     ]
@@ -364,15 +385,28 @@ async function menuSettings() {
       const v = await core.hubFileVersion('resources/redteam-skill')
       console.log('  ' + (v ? ok('连接正常 · 红队包 v' + v) : bad('连接失败(检查密钥/网络)')))
       await waitKey()
-    } else if (chosen.label === '查看日志路径') {
-      console.log(dim('  控制器:/tmp/dsh-controller-handoff.log'))
-      console.log(dim('  插件审计:') + path.join(core.DSH_HOME, 'dsh-purge-community', 'audit.jsonl'))
+    } else if (chosen.label === '查看审计日志' || chosen.label === '查看换包日志') {
+      const isAudit = chosen.label === '查看审计日志'
+      const file = isAudit ? ops.auditFile() : ops.handoffFile()
+      const r = ops.tailFile(file, 30)
+      if (!r.ok) { console.log('  ' + warn('日志不存在:' + file)); await waitKey(); continue }
+      console.log('\n  ' + head(file) + dim('  共 ' + r.total + ' 行,显示最近 ' + r.lines.length + ' 行'))
+      console.log(c('gray', '  ' + '-'.repeat(60)))
+      for (const line of r.lines) {
+        let out = line
+        if (isAudit) { try { const j = JSON.parse(line); out = [j.at || j.time || '', j.action || j.op || '', j.reason || j.detail || ''].filter(Boolean).join(' · ') || line } catch {} }
+        console.log('  ' + String(out).slice(0, 160))
+      }
+      console.log(c('gray', '  ' + '-'.repeat(60)))
+      const more = await menuSelect({ title: '日志操作', items: [{ label: '返回' }, { label: '清空该日志' }] })
+      if (more === 1) { const c2 = isAudit ? ops.clearAudit() : (() => { try { execSync('rm -f "' + file + '"'); return { ok: true } } catch (e) { return { ok: false, error: e.message } } })(); console.log('  ' + (c2.ok ? ok('已清空') : bad(c2.error))) ; await waitKey() }
+    } else if (chosen.label === '清空审计日志') {
+      const r = ops.clearAudit()
+      console.log('  ' + (r.ok ? ok('已清空审计日志') : bad(r.error || '失败')))
       await waitKey()
-    } else if (chosen.label === '清理日志') {
-      const logs = [path.join(core.DSH_HOME, 'dsh-purge-community', 'audit.jsonl'), '/tmp/dsh-controller-handoff.log']
-      let n = 0
-      for (const f of logs) { try { if (existsSync(f)) { execSync('rm -f "' + f + '"'); n++ } } catch {} }
-      console.log('  ' + ok('已清理 ' + n + ' 个日志'))
+    } else if (chosen.label === '清理全部日志') {
+      const r = ops.clearAllLogs()
+      console.log('  ' + ok('已清理 ' + r.removed + ' 个日志文件'))
       await waitKey()
     }
   }
