@@ -61,54 +61,6 @@ export async function purgeSelfcheck() {
   return { ok: false, error: s.slice(-300) }
 }
 
-// ── 原始宿主快照(升级保护)──────────────────────────────────
-const ORIG_DIR = path.join(DSH_HOME, 'dsh-controller', 'host-originals')
-export function listHostOriginals() {
-  try {
-    return readdirSync(ORIG_DIR).sort().reverse().map(id => {
-      try { const m = JSON.parse(readFileSync(path.join(ORIG_DIR, id, 'manifest.json'), 'utf8')); return { id, ...m } } catch { return { id } }
-    }).filter(Boolean)
-  } catch { return [] }
-}
-export async function createHostOriginals(reason = 'manual') {
-  const base = core.detectBase()
-  if (!base) return { ok: false, error: '未定位宿主(先应用补丁)' }
-  const baks = []
-  const walk = (d) => { for (const e of readdirSync(d, { withFileTypes: true })) { if (e.name.startsWith('._')) continue; const p = path.join(d, e.name); if (e.isDirectory()) walk(p); else if (e.name.endsWith('.dshpurge.bak')) baks.push(p) } }
-  walk(base)
-  if (!baks.length) return { ok: false, skipped: true, note: '宿主当前无 .bak(未打补丁),无需归档' }
-  const stamp = new Date().toISOString().replace(/[:.]/g, '-')
-  const dir = path.join(ORIG_DIR, stamp)
-  mkdirSync(path.join(dir, 'files'), { recursive: true })
-  const files = []
-  for (const bak of baks) {
-    const rel = path.relative(base, bak).replace(/\.dshpurge\.bak$/, '')
-    const target = path.join(dir, 'files', rel)
-    mkdirSync(path.dirname(target), { recursive: true })
-    writeFileSync(target, readFileSync(bak))
-    files.push({ rel, size: readFileSync(bak).length })
-  }
-  writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify({ id: stamp, base, createdAt: Date.now(), reason, count: files.length, files }, null, 2))
-  return { ok: true, id: stamp, count: files.length }
-}
-export function restoreHostOriginals(id) {
-  const base = core.detectBase()
-  if (!base) return { ok: false, error: '未定位宿主' }
-  const dir = path.join(ORIG_DIR, String(id))
-  const m = JSON.parse(readFileSync(path.join(dir, 'manifest.json'), 'utf8'))
-  let n = 0
-  for (const f of m.files || []) {
-    const target = path.resolve(path.join(base, f.rel))
-    if (!target.startsWith(path.resolve(base) + path.sep)) return { ok: false, error: '条目越界:' + f.rel }
-    const src = path.join(dir, 'files', f.rel)
-    if (!existsSync(src)) continue
-    mkdirSync(path.dirname(target), { recursive: true })
-    writeFileSync(target, readFileSync(src)); n++
-  }
-  return { ok: true, restored: n }
-}
-export function deleteHostOriginals(id) { rmSync(path.join(ORIG_DIR, String(id)), { recursive: true, force: true }); return { ok: true } }
-
 // ── 红队技能包(仓库分类目录 → 统一入口)───────────────────────
 const REDTEAM_DIR = path.join(SKILLS_DIR, 'redteam-skill')
 const REDTEAM_STATE = path.join(SKILLS_DIR, '.purge-redteam.json')

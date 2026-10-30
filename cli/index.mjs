@@ -31,14 +31,13 @@ async function menuPurge() {
     const st = await ops.purgeStatus()
     const tun = ops.readTuning()
     const drill = ops.drillState()
-    const snaps = ops.listHostOriginals()
     ui.clear()
     banner('一键破甲')
     kv('插件', st.installed ? 'v' + (st.version || '?') : c('yellow', '未安装'))
     kv('宿主布局', st.layout === 'app' ? c('green', 'app(已应用)') : c('yellow', 'asar(未应用)'))
     kv('运行开关', `boost ${tun.boost === false ? 'off' : 'on'} · retry ${tun.refusalRetry === false ? 'off' : 'on'} · rewind ${tun.rewind === false ? 'off' : 'on'} · inject ${tun.injectPosition || 'head'}`)
     kv('演练授权', drill?.granted ? c('green', '已授权') : dim('未授权'))
-    kv('快照/备份', snaps.length + ' 快照 · ' + (st.backups?.length || 0) + ' 备份')
+    kv('备份', (st.backups?.length || 0) + ' 个')
 
     console.log('\n  1) ' + head('一键安装') + dim('  安装/更新插件 → 解包 → 应用 → 换包 → 重启'))
     console.log('  2) ' + head('卸载安装') + dim('  退出 dsh,卸载插件与补丁(需管理员)'))
@@ -46,8 +45,7 @@ async function menuPurge() {
     console.log('  4) ' + head('能力自检') + dim('  逐层证据 + 待确认标注'))
     console.log('  5) ' + head('运行开关') + dim('  boost / retry / rewind / inject'))
     console.log('  6) ' + head('授权管理') + dim('  演练台授权 / 撤销'))
-    console.log('  7) ' + head('快照管理') + dim('  原始宿主快照(升级保护)'))
-    console.log('  8) ' + head('备份管理') + dim('  插件备份:列/备份/回滚/清理'))
+    console.log('  7) ' + head('备份管理') + dim('  插件备份:列/备份/回滚/清理'))
     console.log('  0) 返回')
     const a = (await ask(c('cyan', '\n选择> '))).trim()
     if (a === '0' || a === '') return
@@ -106,15 +104,6 @@ async function menuPurge() {
       if (b === '1') { ops.grantDrill(true); console.log(ok('已授权演练台')) }
       if (b === '2') { ops.grantDrill(false); console.log(ok('已撤销')) }
     } else if (a === '7') {
-      const list = ops.listHostOriginals()
-      console.log('\n  快照 ' + (list.length ? list.length + ' 个' : dim('无')))
-      list.slice(0, 8).forEach((s, i) => console.log('  ' + (i + 1) + ') ' + s.id + dim(' · ' + (s.count || 0) + ' 文件 · ' + (s.reason || ''))))
-      console.log('  c) 创建快照   r) 恢复   d) 删除   0) 返回')
-      const b = (await ask(c('cyan', '\n选择> '))).trim()
-      if (b === 'c') { ui.pauseAsk(); const r = await ops.createHostOriginals('manual'); console.log(r.ok ? ok('已创建 ' + r.count + ' 文件') : warn(r.note || r.error || '失败')); await ask(dim('回车继续')) }
-      else if (b === 'r') { const n = parseInt((await ask('编号> ')), 10); if (list[n - 1]) { ui.pauseAsk(); const r = await ops.restoreHostOriginals(list[n - 1].id); console.log(r.ok ? ok('已恢复 ' + r.restored + ' 文件,请重启 dsh') : bad(r.error)); await ask(dim('回车继续')) } }
-      else if (b === 'd') { const n = parseInt((await ask('编号> ')), 10); if (list[n - 1]) { ops.deleteHostOriginals(list[n - 1].id); console.log(ok('已删除')) } }
-    } else if (a === '8') {
       const st2 = await ops.purgeStatus()
       console.log('\n  备份 ' + (st2.backups?.length || 0) + ' 个')
       ;(st2.backups || []).slice(0, 10).forEach((b, i) => console.log('  ' + (i + 1) + ') ' + b.id + dim(' · ' + b.created_at + ' · ' + (b.reason || ''))))
@@ -203,8 +192,7 @@ async function menuSettings() {
     kv('自建源密钥', tok ? c('green', '已配置') : c('yellow', '未配置'))
     console.log('\n  1) 设置/清除密钥')
     console.log('  2) 测试连接')
-    console.log('  3) 原始宿主快照(升级保护)')
-    console.log('  4) 操作日志位置')
+    console.log('  3) 操作日志位置')
     console.log('  0) 返回')
     const a = (await ask(c('cyan', '\n选择> '))).trim()
     if (a === '0' || a === '') return
@@ -219,15 +207,6 @@ async function menuSettings() {
         console.log(v ? ok('连接正常 · 红队包 v' + v) : bad('无法读取(检查密钥)'))
       } catch (e) { console.log(bad(e.message)) }
       await ask(dim('回车继续'))
-    } else if (a === '3') {
-      const list = ops.listHostOriginals()
-      console.log('\n  快照 ' + (list.length ? list.length + ' 个' : '无'))
-      list.slice(0, 8).forEach((s, i) => console.log('  ' + (i + 1) + ') ' + s.id + dim(' · ' + (s.count || 0) + ' 文件 · ' + (s.reason || ''))))
-      console.log('  c) 创建快照   r) 恢复   d) 删除   0) 返回')
-      const b = (await ask('选择> ')).trim()
-      if (b === 'c') { ui.pauseAsk(); const r = await ops.createHostOriginals('manual'); console.log(r.ok ? ok('已创建 ' + r.count + ' 文件') : warn(r.note || r.error || '失败')); await ask(dim('回车继续')) }
-      else if (b === 'r') { const n = parseInt((await ask('编号> ')), 10); if (list[n - 1]) { ui.pauseAsk(); const r = await ops.restoreHostOriginals(list[n - 1].id); console.log(r.ok ? ok('已恢复 ' + r.restored + ' 文件,请重启 dsh') : bad(r.error)); await ask(dim('回车继续')) } }
-      else if (b === 'd') { const n = parseInt((await ask('编号> ')), 10); if (list[n - 1]) { ops.deleteHostOriginals(list[n - 1].id); console.log(ok('已删除')) } }
     } else if (a === '4') {
       console.log(dim('  控制器日志:/tmp/dsh-controller-handoff.log'))
       console.log(dim('  插件审计:') + path.join(core.DSH_HOME, 'dsh-purge-community', 'audit.jsonl'))
