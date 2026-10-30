@@ -76,7 +76,7 @@ async function menuPurge() {
       console.log('\n  ' + (r.ok ? ok('补丁已回滚(重启 dsh 生效)') : bad('失败')))
       await waitKey()
     } else if (chosen.label === '重启 dsh') {
-      const r = ops.restartDsh()
+      const r = await ops.restartDsh()
       console.log('\n  ' + (r.ok ? ok('已拉起 dsh') : bad('失败:' + (r.error || ''))))
       await waitKey()
     }
@@ -348,7 +348,7 @@ async function menuPlugins() {
         await waitKey()
       }
     } else if (chosen.label === '重启 dsh') {
-      const r = ops.restartDsh()
+      const r = await ops.restartDsh()
       console.log('  ' + (r.ok ? ok('已拉起 dsh') : bad('失败:' + (r.error || ''))))
       await waitKey()
     }

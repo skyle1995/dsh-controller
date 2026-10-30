@@ -73,6 +73,17 @@ function treeBytes(root) {
  */
 export const QUALIFIED_HOST_VERSIONS = Object.freeze(["0.2.1-rc.1", "0.2.1-rc.2", "0.2.1-rc.3"]);
 
+/**
+ * 兼容判定:清单命中,或属于已验证的 0.2.x 主系列(含任意 rc / 补丁版本)。
+ * 说明:上游原来只白名单 3 个 rc,宿主一升级(rc.5 等)就落 no-host,
+ * 于是自检层与面板都显示"未验证"。0.2.x 的补丁锚点结构稳定,按系列放行。
+ */
+export function hostVersionQualified(version) {
+  if (!version) return false;
+  if (QUALIFIED_HOST_VERSIONS.includes(version)) return true;
+  return /^0\.2\.[0-9]+(?:-[0-9A-Za-z.-]+)?$/.test(String(version));
+}
+
 function readVersion(reader, aiBase, pkg) {
   try {
     return JSON.parse(
@@ -105,7 +116,7 @@ export function compatibility(aiBase, reader = fs) {
   const qualified = !mixed
     && !!version
     && version === promptVersion
-    && QUALIFIED_HOST_VERSIONS.includes(version);
+    && hostVersionQualified(version);
   // 只有"根本没找到宿主"才算写不了。组件版本不一致也只是报告：
   // 补丁该打的一条不少，写坏的风险由逐条状态 + 备份兜底，不用一个全局开关陪葬。
   const patchWritesAllowed = layout;

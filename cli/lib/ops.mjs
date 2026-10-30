@@ -367,7 +367,7 @@ export async function setPluginExemption(nameWithVersion, dshVersion, enable) {
   const r = await core.run(dshCli, args, { stream: true })
   return { ok: r.ok, output: r.output, exemptions: pluginExemptions() }
 }
-export function restartDsh() { return core.restartDsh() }
+export async function restartDsh() { return core.restartDsh() }
 
 // ── 日志查看 / 清空 ───────────────────────────────────────
 export const auditFile = () => path.join(core.DSH_HOME, 'dsh-purge-community', 'audit.jsonl')

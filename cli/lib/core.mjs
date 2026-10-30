@@ -143,8 +143,21 @@ function cleanupHandoff() {
   try { const st = RES + '/app.asar.purge-handoff.json'; if (existsSync(st)) { const j = JSON.parse(readFileSync(st, 'utf8')); j.phase = 'complete'; writeFileSync(st, JSON.stringify(j, null, 2)) } } catch {}
   try { execSync('rm -f "' + RES + '/app.asar.rename-pending"') } catch {}
 }
-export function restartDsh() {
-  try { execSync('open -a "' + APP_NAME + '"', { timeout: 10000 }); return { ok: true } } catch (e) { return { ok: false, error: e.message } }
+export async function restartDsh({ quitFirst = true, waitMs = 20000 } = {}) {
+  try {
+    const wasRunning = dshRunning()
+    if (quitFirst && wasRunning) {
+      quitDsh()
+      const t0 = Date.now()
+      while (Date.now() - t0 < waitMs) {
+        if (!dshRunning()) break
+        await new Promise(r => setTimeout(r, 400))
+      }
+      if (dshRunning()) return { ok: false, error: 'dsh 未在 ' + Math.round(waitMs / 1000) + 's 内退出,请手动 ⌘Q 后重试' }
+    }
+    execSync('open -a "' + APP_NAME + '"', { timeout: 15000 })
+    return { ok: true, wasRunning, restarted: wasRunning }
+  } catch (e) { return { ok: false, error: e.message } }
 }
 export function quitDsh() {
   try { execSync('osascript -e \'tell application "' + APP_NAME + '" to quit\'', { timeout: 8000 }) } catch {}

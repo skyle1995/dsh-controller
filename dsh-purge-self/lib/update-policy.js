@@ -18,9 +18,9 @@ function read(file) {
 export function preferences(home, legacy = {}) {
   const saved = read(prefPath(home));
   const value = {
-    autoCheck: legacy.autoCheckUpdates !== false,
+    autoCheck: false, // 私有部署:不自动检查更新(仓库非公开)
     autoInstall: legacy.autoUpdateOnStart === true,
-    intervalHours: legacy.updateCheckIntervalHours ?? 6,
+    intervalHours: 24,
     ...(saved || {}),
   };
   validate(value);
