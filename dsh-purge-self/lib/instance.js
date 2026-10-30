@@ -298,6 +298,15 @@ export function resolveDshCli(options = {}) {
           .find((file) => reader.existsSync(file)) || "";
       desktop = true;
       source = "当前 Desktop 实例";
+      // 封签归档态(app.asar)下 cli.js 在归档内,普通 fs 读不到。
+      // 回落到官方随包 launcher:它自己会以 --expose-internals 从 asar 里加载 CLI。
+      if (!cli) {
+        const launcher = path.join(resources, "runtime/cli/bin/dsh");
+        if (reader.existsSync(launcher)) {
+          cli = launcher;
+          source = "当前 Desktop 启动器";
+        }
+      }
     } else if (host) {
       cli = npmCli(host, reader);
       source = "当前 npm/Node 实例";
