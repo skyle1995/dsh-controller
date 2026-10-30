@@ -863,6 +863,36 @@ function ensurePermissionPreset() {
   }
 }
 
+// ── 宿主解包(asar 态 → resources/app)────────────────────────
+// 升级 dsh 后宿主回到 app.asar 形态:此时 dsh-purge.js --apply 会以
+// 「ai_base 缺失」拒绝执行(CLI 从不自行解包,只有面板 apply 会调用 openSealedDesktopHost)。
+// 控制器 apply 前先调用插件内部解包函数,补上这一步。
+async function ensureHostUnpacked() {
+  const base = await detectDshBase()
+  if (base && validDshBase(base)) return { ok: true, skipped: true, base }
+  const plugin = purgeInstallDir()
+  if (!plugin) return { ok: false, reason: '破甲插件未安装,无法解包' }
+  const script = path.join(os.tmpdir(), 'dshc-unpack-host.mjs')
+  await writeFile(script, [
+    "const pluginDir = " + JSON.stringify(plugin),
+    "const core = await import('file://' + pluginDir + '/lib/core.js')",
+    "try {",
+    "  const r = await core.openSealedDesktopHost({ forApply: true })",
+    "  console.log('UNPACK_RESULT ' + JSON.stringify({ aiBase: r?.aiBase ?? null, extracted: r?.extracted ?? false, swapAsar: r?.swapAsar ?? false }))",
+    "} catch (e) {",
+    "  console.log('UNPACK_ERROR ' + String(e && e.message ? e.message : e))",
+    "  process.exit(1)",
+    "}",
+  ].join('\n'), 'utf8')
+  const { output } = await runOp('node', [script], { capture: true, extraEnv: await purgeExtraEnv(), log: true })
+  const m = /UNPACK_RESULT (\{.*\})/.exec(output)
+  if (m) {
+    try { const r = JSON.parse(m[1]); return { ok: !!r.aiBase, ...r } } catch {}
+  }
+  const err = /UNPACK_ERROR (.+)/.exec(output)
+  return { ok: false, reason: err ? err[1].trim().slice(0, 300) : String(output).slice(-300) }
+}
+
 // 节流版自动去隔离:dsh 每次升级的新 bundle 都会带回 quarantine(下载标志),
 // 不去除则 dsh 二进制执行会被 Gatekeeper 拒绝(表现为 ENOENT),以它身份跑的
 // CLI / 换包助手全部起不来——于是 reseal/rollback/一键 全线失败。
@@ -948,6 +978,9 @@ ipcMain.handle('purge:oneClick', async () => {
   } catch (e) { step('安装插件', { ok: false, error: String(e?.message ?? e).slice(0, 200) }) }
   // 2) 固定权限预设
   step('权限预设', ensurePermissionPreset())
+  // 2.5) 去隔离 + 宿主解包(asar 态下 --apply 会因 ai_base 缺失直接拒绝)
+  step('移除隔离属性', stripQuarantine())
+  step('宿主解包', await ensureHostUnpacked())
   // 3) 应用补丁(带原始归档)
   let applyOk = true
   try {
@@ -955,9 +988,7 @@ ipcMain.handle('purge:oneClick', async () => {
     step('应用补丁', { ok: true, output: String(output).slice(-120) })
   } catch (e) { applyOk = false; step('应用补丁', { ok: false, error: String(e?.message ?? e).slice(0, 200) }) }
   if (!applyOk) return { ok: false, steps, error: '应用补丁失败,已中止' }
-  // 4) 去 quarantine
-  step('移除隔离属性', stripQuarantine())
-  // 5) 部署换包 worker(dsh 身份)
+  // 4) 部署换包 worker(dsh 身份)
   const w = spawnHandoffWorker()
   step('换包助手', w)
   // 6) 退出 dsh → 等 worker 完成(最多 90s)→ 兜底 → 重启
