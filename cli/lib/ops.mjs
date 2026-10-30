@@ -116,7 +116,9 @@ export async function installRedteam({ version = 'local-first' } = {}) {
         '| 技能 | 分类 | 说明 |', '| --- | --- | --- |', idx, '',
       ].join('\n'))
       const reg = registerSubSkills('red')
-      writeFileSync(REDTEAM_STATE, JSON.stringify({ version: ver, source: 'local', skills: entriesLocal.map(e => e.name), installedAt: Date.now(), registered: reg.count }, null, 2))
+      let cur0 = {}
+      try { cur0 = JSON.parse(readFileSync(REDTEAM_STATE, 'utf8')) } catch {}
+      writeFileSync(REDTEAM_STATE, JSON.stringify({ ...cur0, version: ver, source: 'local', skills: entriesLocal.map(e => e.name), installedAt: Date.now() }, null, 2))
       return { ok: true, count: entriesLocal.length, version: ver, source: 'local', registered: reg.count }
     }
   }
@@ -478,7 +480,8 @@ export function permissionPresetState() {
 // dsh 只把 ~/.dsh/skills/<name>/SKILL.md 当技能,包内 SKILLS/ 子技能不单列。
 // 这里把每个子技能复制为独立技能目录,列表里就能逐个看到/命中。
 function clearRegistered(prev) {
-  for (const name of prev || []) {
+  if (!Array.isArray(prev)) return
+  for (const name of prev) {
     try { rmSync(path.join(core.SKILLS_DIR, name), { recursive: true, force: true }) } catch {}
   }
 }
