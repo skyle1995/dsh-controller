@@ -11353,9 +11353,9 @@ function PurgifySection({ page = "status", onStatus } = {}) {
         h(PatchGroups, { state: s })
       ),
       h(
-        "details",
-        null,
-        h("summary", null, "\u9AD8\u7EA7\u9009\u9879"),
+        "div",
+        { className: "dshpp-panel dshpp-fold-open" },
+        h("div", { className: "dshpp-fold-head" }, "\u9AD8\u7EA7\u9009\u9879"),
         h(HooksDenySection, { onSaved: loadAll })
       ),
       askUninstall ? h(
