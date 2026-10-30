@@ -83,45 +83,7 @@ function fm(md) {
   if (m) for (const line of m[1].split('\n')) { const i = line.indexOf(':'); if (i > 0) o[line.slice(0, i).trim()] = line.slice(i + 1).trim() }
   return o
 }
-export async function installRedteam({ version = 'local-first' } = {}) {
-  // 本地源优先:仓库工作区里有 resources/redteam-skill 时用它(避免未推送的改动
-  // 被 git 上的旧版本覆盖——点"更新"时最容易被踩到)。
-  const localDir = path.join(core.REPO_ROOT, 'resources', 'redteam-skill')
-  if (existsSync(path.join(localDir, 'package.json'))) {
-    const entriesLocal = []
-    for (const d of readdirSync(localDir, { withFileTypes: true })) {
-      if (!d.isDirectory()) continue
-      const sub = path.join(localDir, d.name)
-      for (const f of readdirSync(sub)) {
-        if (!f.endsWith('.md') || f.startsWith('._')) continue
-        const md = readFileSync(path.join(sub, f), 'utf8')
-        const fm = /^---\n([\s\S]*?)\n---/.exec(md)?.[1] || ''
-        const name = /^name:\s*(\S+)/m.exec(fm)?.[1] || f.replace(/\.md$/, '')
-        const desc = /^description:\s*(.+)$/m.exec(fm)?.[1] || ''
-        entriesLocal.push({ name, desc, md, category: d.name })
-      }
-    }
-    if (entriesLocal.length) {
-      let ver = null
-      try { ver = JSON.parse(readFileSync(path.join(localDir, 'package.json'), 'utf8')).version } catch {}
-      rmSync(REDTEAM_DIR, { recursive: true, force: true })
-      mkdirSync(path.join(REDTEAM_DIR, 'SKILLS'), { recursive: true })
-      for (const e of entriesLocal) writeFileSync(path.join(REDTEAM_DIR, 'SKILLS', e.name + '.md'), e.md)
-      const idx = entriesLocal.map(e => '| ' + e.name + ' | ' + e.category + ' | ' + e.desc.replace(/\|/g, '/').slice(0, 90) + ' |').join('\n')
-      writeFileSync(path.join(REDTEAM_DIR, 'SKILL.md'), [
-        '---', 'name: redteam-skill',
-        `description: 红队技能包统一入口(${entriesLocal.length} 个子技能:侦察/漏洞/利用/内网/隧道/管理)`,
-        'whenToUse: 处理渗透测试、内网横向、隧道搭建、漏洞扫描、WebShell 管理等任务时使用',
-        '---', '', '# 红队技能包', '', `共 ${entriesLocal.length} 个子技能,已注册为独立技能。`, '',
-        '| 技能 | 分类 | 说明 |', '| --- | --- | --- |', idx, '',
-      ].join('\n'))
-      const reg = registerSubSkills('red')
-      let cur0 = {}
-      try { cur0 = JSON.parse(readFileSync(REDTEAM_STATE, 'utf8')) } catch {}
-      writeFileSync(REDTEAM_STATE, JSON.stringify({ ...cur0, version: ver, source: 'local', skills: entriesLocal.map(e => e.name), installedAt: Date.now() }, null, 2))
-      return { ok: true, count: entriesLocal.length, version: ver, source: 'local', registered: reg.count }
-    }
-  }
+export async function installRedteam({ version = 'repo' } = {}) {
   let files = []
   let src = 'repo'
   try { files = await redteamFiles() } catch { files = [] }
