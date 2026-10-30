@@ -1,5 +1,6 @@
 // 极简终端 UI:颜色 + 菜单 + 输入
 import readline from 'node:readline/promises'
+import * as rlCore from 'node:readline'
 import { stdin, stdout } from 'node:process'
 
 export const C = {
@@ -76,4 +77,72 @@ export async function pick(question, choices, def) {
   if (!Number.isNaN(n) && choices[n - 1]) return choices[n - 1]
   if (choices.includes(a)) return a
   return def || choices[0]
+}
+
+// ── 交互式选择菜单(方向键移动 / 空格勾选 / 回车确认)────────────
+export function menuSelect({ title, items, multi = false, checked: initial = [], footerTip = '' }) {
+  return new Promise((resolve) => {
+    closeAsk() // 释放普通 readline,独占 stdin
+    const stdin = process.stdin
+    const wasRaw = !!stdin.isRaw
+    rlCore.emitKeypressEvents(stdin)
+    let idx = 0
+    const sel = new Set(initial)
+    const n = items.length
+    const draw = () => {
+      clear()
+      banner(title)
+      items.forEach((it, i) => {
+        const cursor = i === idx ? c('cyan', '❯') : ' '
+        const label = it.label || it
+        const hint = it.hint ? dim('  ' + it.hint) : ''
+        if (multi) {
+          const box = sel.has(i) ? c('green', '[x]') : '[ ]'
+          console.log('  ' + cursor + ' ' + box + ' ' + (i === idx ? head(label) : label) + hint)
+        } else {
+          console.log('  ' + cursor + ' ' + (i === idx ? head(label) : label) + hint)
+        }
+      })
+      console.log('\n  ' + dim('↑↓ 移动' + (multi ? ' · 空格 勾选/取消' : '') + ' · 回车 确认 · q 返回') + (footerTip ? dim(' · ' + footerTip) : ''))
+    }
+    const finish = (v) => {
+      stdin.removeListener('keypress', onKey)
+      try { stdin.setRawMode(wasRaw) } catch {}
+      try { stdin.pause() } catch {}
+      resolve(v)
+    }
+    function onKey(str, key) {
+      const name = key?.name
+      if (name === 'up') idx = (idx - 1 + n) % n
+      else if (name === 'down') idx = (idx + 1) % n
+      else if (name === 'space') { if (multi) { sel.has(idx) ? sel.delete(idx) : sel.add(idx) } }
+      else if (name === 'return' || name === 'enter') return finish(multi ? [...sel].sort((a, b) => a - b) : idx)
+      else if (name === 'q' || name === 'escape') return finish(multi ? null : -1)
+      else if (name === 'c' && key?.ctrl) { finish(null); process.exit(0) }
+      draw()
+    }
+    try { stdin.setRawMode(true) } catch {}
+    stdin.resume()
+    stdin.on('keypress', onKey)
+    draw()
+  })
+}
+// 等待任意按键(操作完成后的"回车继续")
+export function waitKey(msg = '回车继续') {
+  return new Promise((resolve) => {
+    closeAsk()
+    const stdin = process.stdin
+    rlCore.emitKeypressEvents(stdin)
+    const wasRaw = !!stdin.isRaw
+    const done = () => { stdin.removeListener('keypress', onKey); try { stdin.setRawMode(wasRaw) } catch {}; try { stdin.pause() } catch {}; resolve() }
+    function onKey() { done() }
+    try { stdin.setRawMode(true) } catch {}
+    stdin.resume()
+    stdin.on('keypress', onKey)
+    process.stdout.write('\n  ' + dim(msg + ' …'))
+  })
+}
+// 文本输入(raw 模式结束后用普通 readline)
+export async function promptText(q) {
+  return (await ask('  ' + c('cyan', '?') + ' ' + q + ' > ')).trim()
 }
