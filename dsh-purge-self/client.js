@@ -10388,172 +10388,7 @@ function UpdatePreferences({ value, status = {}, onSaved }) {
     error ? h("p", { role: "alert" }, error) : null
   );
 }
-function CommunityMaintenance() {
-  const [value, setValue] = useState(null), [notice, setNotice] = useState(""), [busy, setBusy] = useState(false), [selected, setSelected] = useState(""), [checked, setChecked] = useState([]), [releases, setReleases] = useState(null), [release, setRelease] = useState("");
-  const [listState, setListState] = useState("loading"), [listError, setListError] = useState("");
-  const mounted = useRef(false), generation = useRef(0), running = useRef(false);
-  const load = useCallback(async () => {
-    const request = ++generation.current;
-    setListState("loading");
-    setListError("");
-    try {
-      const result = await apiJson("/dsh-purge/community");
-      assertMaintenanceResult(result);
-      if (!Array.isArray(result.backups)) throw new Error("\u5907\u4EFD\u5217\u8868\u54CD\u5E94\u65E0\u6548");
-      if (!mounted.current || request !== generation.current) return;
-      setValue(result);
-      setSelected(
-        (current) => result.backups.some((b) => b.id === current) ? current : ""
-      );
-      setListState("ready");
-    } catch (e) {
-      if (!mounted.current || request !== generation.current) return;
-      setListError(e.message);
-      setListState("error");
-    }
-  }, []);
-  useEffect(() => {
-    mounted.current = true;
-    load();
-    return () => {
-      mounted.current = false;
-      generation.current++;
-    };
-  }, [load]);
-  async function run(op, idOverride) {
-    if (running.current) return;
-    if (op === "deleteBackup" && !window.confirm("确定删除该备份?此操作不可撤销。")) return;
-    if (op === "deleteBackups" && !window.confirm("确定删除选中的 " + (Array.isArray(idOverride) ? idOverride.length : 0) + " 个备份?此操作不可撤销。")) return;
-    if (op === "deleteAllBackups" && !window.confirm("确定删除全部备份?此操作不可撤销。")) return;
-    if (op === "rollback" && !window.confirm(
-      "\u53EA\u56DE\u6EDA Purge \u63D2\u4EF6\u53CA\u5176\u5165\u53E3\uFF0C\u4FDD\u7559\u5F53\u524D\u63D0\u793A\u8BCD\u548C\u8BBE\u7F6E\uFF1B\u5B8C\u6210\u540E\u9700\u91CD\u542F DSH \u8FDB\u7A0B\uFF1B\u4EC5\u5237\u65B0\u6D4F\u89C8\u5668\u4E0D\u4F1A\u52A0\u8F7D\u65B0\u7248\u540E\u7AEF\u3002\u7EE7\u7EED\uFF1F"
-    ))
-      return;
-    if (op === "update" && !window.confirm(
-      "\u5C06\u5148\u5907\u4EFD\uFF0C\u518D\u5B89\u88C5\u6240\u9009\u793E\u533A\u6B63\u5F0F\u7248\uFF1B\u4E0D\u4F1A\u91CD\u65B0\u5E94\u7528\u5BBF\u4E3B\u8865\u4E01\u3002\u5B89\u88C5\u540E\u8BF7\u91CD\u542F DSH \u8FDB\u7A0B\uFF1B\u4EC5\u5237\u65B0\u6D4F\u89C8\u5668\u4E0D\u4F1A\u52A0\u8F7D\u65B0\u7248\u540E\u7AEF\u3002\u7EE7\u7EED\uFF1F"
-    ))
-      return;
-    running.current = true;
-    setBusy(true);
-    setNotice("\u5904\u7406\u4E2D\u2026");
-    try {
-      const r = await apiJson("/dsh-purge/community", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ op, id: Array.isArray(idOverride) ? undefined : (idOverride || selected), ids: Array.isArray(idOverride) ? idOverride : undefined, ref: release })
-      });
-      assertMaintenanceResult(r);
-      if (!mounted.current) return;
-      if (op === "check") {
-        if (!Array.isArray(r.versions)) throw new Error("\u53D1\u884C\u5217\u8868\u54CD\u5E94\u65E0\u6548");
-        setReleases(r.versions.filter((v) => v.asset));
-        setRelease(r.versions.find((v) => v.asset)?.ref || "");
-        setNotice(
-          r.degraded ? `${r.degraded}\uFF1B${r.stale ? "\u5F53\u524D\u663E\u793A\u7F13\u5B58\u5217\u8868\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5" : "\u5DF2\u663E\u793A\u5907\u7528\u5217\u8868"}` : r.error ? `\u68C0\u67E5\u66F4\u65B0\u5931\u8D25\uFF1A${r.error}` : r.hasUpdate ? `\u53D1\u73B0\u65B0\u7248\u672C ${r.remoteVersion}` : "\u5F53\u524D\u5DF2\u662F\u6700\u65B0\u6B63\u5F0F\u7248"
-        );
-      } else {
-        setNotice(maintenanceNotice(op, r));
-      }
-    } catch (e) {
-      if (mounted.current)
-        setNotice(
-          e.message === "timeout" ? "\u7EF4\u62A4\u8BF7\u6C42\u8D85\u65F6\uFF0C\u64CD\u4F5C\u53EF\u80FD\u4ECD\u5728\u6267\u884C\uFF1B\u8BF7\u5148\u5237\u65B0\u72B6\u6001\uFF0C\u52FF\u91CD\u590D\u63D0\u4EA4\u3002" : e.message
-        );
-    } finally {
-      if (op === "deleteBackups" && mounted.current) setChecked([]);
-      if (op !== "check" && mounted.current) await load();
-      running.current = false;
-      if (mounted.current) setBusy(false);
-    }
-  }
-  return h(
-    "section",
-    { className: "dshpp-panel", "aria-label": "\u793E\u533A\u7248\u7EF4\u62A4" },
-    h("h3", null, "\u7EF4\u62A4\uFF1A\u66F4\u65B0\u4E0E\u672C\u673A\u5907\u4EFD"),
-    h(UpdatePreferences, {
-      value: value?.update_preferences,
-      status: value?.update_status,
-      onSaved: (next) => setValue((current) => ({ ...current, update_preferences: next }))
-    }),
-    h(
-      "div",
-      { className: "dshpp-row" },
-      h(
-        Btn,
-        {
-          disabled: busy,
-          onClick: async () => {
-            try {
-              const r = await apiJson("/dsh-purge/audit?limit=10");
-              const lines = (r.entries || []).map(
-                (x) => `${new Date(x.at).toLocaleString()}  ${x.event}  ${JSON.stringify(
-                  Object.fromEntries(
-                    Object.entries(x).filter(
-                      ([k]) => !["at", "event", "pid"].includes(k)
-                    )
-                  )
-                )}`
-              );
-              setNotice(lines.length ? lines.join("\n") : "\u8FD8\u6CA1\u6709\u52A8\u4F5C\u8BB0\u5F55");
-            } catch (e) {
-              setNotice(e.message);
-            }
-          }
-        },
-        "\u6700\u8FD1\u52A8\u4F5C"
-      )
-    ),
-    releases?.length ? h(
-      "div",
-      { className: "dshpp-row" },
-      h(
-        "select",
-        {
-          "aria-label": "\u9009\u62E9\u793E\u533A\u53D1\u884C\u7248\u672C",
-          value: release,
-          onChange: (e) => setRelease(e.target.value),
-          disabled: busy
-        },
-        releases.map(
-          (r) => h("option", { key: r.ref, value: r.ref }, r.label)
-        )
-      ),
-      h(
-        Btn,
-        { disabled: busy || !release, onClick: () => run("update") },
-        "\u5B89\u88C5\u6240\u9009\u7248\u672C"
-      )
-    ) : null,
-    h("h3", { style: { marginTop: 20 } }, "\u672C\u673A\u5907\u4EFD"),
-    h(
-      Btn,
-      { disabled: busy || listState === "loading", onClick: load },
-      "\u5237\u65B0\u5907\u4EFD\u5217\u8868"
-    ),
-    listState === "loading" ? h("p", { role: "status" }, "\u6B63\u5728\u8BFB\u53D6\u5907\u4EFD\u2026") : null,
-    listState === "error" ? h("p", { role: "alert" }, `\u8BFB\u53D6\u5907\u4EFD\u5931\u8D25\uFF1A${listError}`) : null,
-    listState === "ready" && !value.backups.length ? h("p", { role: "status" }, "\u6682\u65E0\u5907\u4EFD") : null,
-    h("div", { className: "dshpp-row" },
-      h(Btn, { disabled: busy, onClick: () => run("backup") }, "\u7ACB\u5373\u5907\u4EFD"),
-      h(Btn, { disabled: busy || !checked.length || listState !== "ready", onClick: () => run("deleteBackups", checked) }, "\u5220\u9664\u9009\u4E2D" + (checked.length ? "(" + checked.length + ")" : "")),
-      h(Btn, { disabled: busy || !(value?.backups || []).length || listState !== "ready", onClick: () => run("deleteAllBackups") }, "\u5168\u90E8\u5220\u9664")
-    ),
-    h("div", { className: "dshpp-bk-list" },
-      ...(value?.backups || []).map((b) => h("div", { className: "dshpp-bk-row", key: b.id },
-        h("input", { type: "checkbox", "aria-label": "选择备份 " + b.id, checked: checked.includes(b.id), onChange: (e) => setChecked((prev) => e.target.checked ? [...prev, b.id] : prev.filter((x) => x !== b.id)) }),
-        h("span", { className: "dshpp-bk-meta" }, new Date(b.created_at).toLocaleString() + (b.reason ? " · " + b.reason : "") + (b.host_version ? " · dsh " + b.host_version : "") + (b.plugins && b.plugins.length ? " · 破甲 v" + b.plugins.map((p) => p.version).join(" / ") : "")),
-        h(Btn, { disabled: busy, onClick: () => run("rollback", b.id) }, "\u56DE\u6EDA"),
-        h(Btn, { disabled: busy, onClick: () => run("deleteBackup", b.id) }, "\u5220\u9664")
-      ))
-    ),
-    h(
-      "p",
-      { className: "dshpp-hint" },
-      "\u5907\u4EFD\u53EA\u4FDD\u5B58\u5728\u672C\u673A\u3002\u56DE\u6EDA\u4FDD\u7559\u5F53\u524D\u63D0\u793A\u8BCD\u3001\u89C4\u5219\u548C\u5176\u4ED6\u63D2\u4EF6\u8BBE\u7F6E\uFF1B\u5B89\u88C5\u6216\u56DE\u6EDA\u540E\u9700\u8981\u91CD\u542F DSH \u8FDB\u7A0B\uFF1B\u4EC5\u5237\u65B0\u6D4F\u89C8\u5668\u4E0D\u4F1A\u52A0\u8F7D\u65B0\u7248\u540E\u7AEF\u3002"
-    ),
-    notice ? h("p", { role: "status" }, notice) : null
-  );
-}
+function CommunityMaintenance() { return null; /* [dsh-controller] 维护/更新/最近动作 区块已移除(私有部署) */ }
 
 // src/shared/apply-result.js
 function incompleteApplyDetail(result, t) {
@@ -12840,7 +12675,7 @@ function SettingsRoot(props = {}) {
       h(
         "span",
         { className: "dshpp-native-badge" },
-        (true ? "Purge Self " : "\u72EC\u7ACB\u754C\u9762 ") + "1.1.20"
+        (true ? "Purge Self " : "\u72EC\u7ACB\u754C\u9762 ") + "1.1.21"
       )
     ),
     h(CompatibilityNote, { status: backendStatus }),
@@ -12996,7 +12831,7 @@ function StatusStrip({ info }) {
       "span",
       { className: "dshpp-strip-item" },
       "\u63D2\u4EF6 ",
-      h("b", null, info?.plugin_version || "1.1.20")
+      h("b", null, info?.plugin_version || "1.1.21")
     )
   );
 }
@@ -13031,11 +12866,11 @@ function VersionNotice({ info }) {
     );
   }
   const backend = info?.plugin_version;
-  if (!backend || backend === "1.1.20") return null;
+  if (!backend || backend === "1.1.21") return null;
   return h(
     "p",
     { className: "dshpp-warn", role: "status" },
-    `\u5B98\u65B9\u7248\u672C ${backend}\uFF1B\u754C\u9762 ${"1.1.20"}\u3002\u4E24\u8005\u4E0D\u4E00\u81F4\u65F6\u8BBE\u7F6E\u53EF\u80FD\u4E0D\u751F\u6548\uFF0C\u8BF7\u66F4\u65B0\u5230\u540C\u4E00\u7248\u672C\u540E\u91CD\u542F DSH\u3002`
+    `\u5B98\u65B9\u7248\u672C ${backend}\uFF1B\u754C\u9762 ${"1.1.21"}\u3002\u4E24\u8005\u4E0D\u4E00\u81F4\u65F6\u8BBE\u7F6E\u53EF\u80FD\u4E0D\u751F\u6548\uFF0C\u8BF7\u66F4\u65B0\u5230\u540C\u4E00\u7248\u672C\u540E\u91CD\u542F DSH\u3002`
   );
 }
 function PurgePage() {
@@ -13092,7 +12927,7 @@ function PurgePage() {
           true ? h(
             "span",
             { className: "dshpp-page-ver" },
-            "Purge Self 1.1.20"
+            "Purge Self 1.1.21"
           ) : null
         )
       )
