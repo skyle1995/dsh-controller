@@ -160,13 +160,7 @@ export async function pluginsInstalled() {
     })
   } catch { return [] }
 }
-export async function pluginsCatalog() {
-  try {
-    const r = await core.hubFetch('https://hub.ifunx.com/api/v1/repos/skyle1995/dsh-plugins/contents/packages')
-    const items = await r.json()
-    return (Array.isArray(items) ? items : []).map(i => i.name)
-  } catch { return [] }
-}
+
 export async function pluginInstall(spec) {
   const dshCli = RES + '/runtime/cli/bin/dsh'
   const r = await core.run(dshCli, ['plugin', '--profile', 'desktop', 'add', spec], { stream: true })
@@ -247,4 +241,60 @@ export function grantDrill(on) {
   mkdirSync(path.dirname(DRILL_FILE), { recursive: true })
   writeFileSync(DRILL_FILE, JSON.stringify({ granted: !!on, at: new Date().toISOString() }, null, 2) + '\n', 'utf8')
   return { ok: true, granted: !!on }
+}
+
+// ── 域名拦截 region gate(公网/银行域名拦截)──────────────────
+const NET_SCOPE = path.join(core.PLUGIN_DIR, 'lib', 'net-scope.js')
+const GATE_TAG = '[dsh-controller] region gate disabled'
+const GATE_ANCHOR = 'export function installRegionGate(ctx) {\n  if (!ctx || typeof ctx.on !== "function") return;'
+export function regionGateState() {
+  try {
+    const t = readFileSync(NET_SCOPE, 'utf8')
+    const disabled = t.includes('region gate disabled')
+    const sourceLevel = t.includes('[self] region gate disabled at source')
+    return { available: true, disabled, sourceLevel }
+  } catch { return { available: false } }
+}
+export function setRegionGate(disabled) {
+  try {
+    const t = readFileSync(NET_SCOPE, 'utf8')
+    const bak = NET_SCOPE + '.controller-bak'
+    if (disabled) {
+      if (t.includes('region gate disabled')) return { ok: true, already: true }
+      if (!t.includes(GATE_ANCHOR.replace(/\\n/g, '\n'))) return { ok: false, error: '未找到 region gate 锚点(插件版本可能已变)' }
+      if (!existsSync(bak)) writeFileSync(bak, t, 'utf8')
+      const anchor = GATE_ANCHOR.replace(/\\n/g, '\n')
+      const patched = t.replace(anchor, anchor + '\n  return; // ' + GATE_TAG)
+      writeFileSync(NET_SCOPE + '.tmp', patched, 'utf8')
+      renameSync(NET_SCOPE + '.tmp', NET_SCOPE)
+      return { ok: true, disabled: true }
+    }
+    // 恢复:移除我们插入的 return 行;源码级禁用无法恢复
+    if (!t.includes(GATE_TAG)) {
+      if (t.includes('[self] region gate disabled at source')) return { ok: false, error: '插件源码级已禁用该拦截(cli 无法恢复)' }
+      return { ok: true, already: true }
+    }
+    const cleaned = t.replace('\n  return; // ' + GATE_TAG, '')
+    writeFileSync(NET_SCOPE + '.tmp', cleaned, 'utf8')
+    renameSync(NET_SCOPE + '.tmp', NET_SCOPE)
+    try { rmSync(bak, { force: true }) } catch {}
+    return { ok: true, disabled: false }
+  } catch (e) { return { ok: false, error: e.message } }
+}
+
+// ── 在线插件目录(自建源 packages/)──────────────────────────
+export async function pluginsCatalog() {
+  try {
+    const top = await core.hubJson(core.HUB.api.replace('dsh-controller', 'dsh-plugins') + '/contents/packages?ref=main')
+    const out = []
+    for (const d of (Array.isArray(top) ? top : [])) {
+      if (d?.type !== 'dir') continue
+      try {
+        const meta = await core.hubJson(core.HUB.api.replace('dsh-controller', 'dsh-plugins') + '/contents/' + d.path + '/package.json?ref=main')
+        const pkg = JSON.parse(Buffer.from(meta.content, 'base64').toString())
+        out.push({ name: pkg.name, version: pkg.version || '', description: pkg.description || '', spec: core.HUB.git.replace('dsh-controller', 'dsh-plugins') + '.git#main&path:' + d.path })
+      } catch {}
+    }
+    return out
+  } catch { return [] }
 }

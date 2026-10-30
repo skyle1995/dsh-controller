@@ -32,10 +32,12 @@ async function menuPurge() {
     const st = await ops.purgeStatus()
     const tun = ops.readTuning()
     const drill = ops.drillState()
+    const gate = ops.regionGateState()
     const items = [
       { label: '一键安装', hint: '安装/更新插件 → 解包 → 应用 → 换包 → 重启' },
       { label: '卸载安装', hint: '退出 dsh,卸载插件与补丁(需管理员)' },
       { label: '还原签名', hint: '修官方更新失败(丢弃解包目录)' },
+      { label: '域名拦截', hint: gate.disabled ? '公网/银行域名拦截已解除' : '拦截已启用(仅自建源插件可控)' },
       { label: '能力自检', hint: '逐层证据 + 待确认标注' },
       { label: '运行开关', hint: 'boost / retry / rewind / inject' },
       { label: '授权管理', hint: '演练台授权 / 撤销' },
@@ -43,7 +45,7 @@ async function menuPurge() {
       { label: '返回' },
     ]
     const sel = await menuSelect({ title: '一键破甲', items })
-    if (sel < 0 || sel === 7) return
+    if (sel < 0 || sel === 8) return
     if (sel === 0) {
       console.log(dim('\n—— 一键安装开始 ——'))
       const ins = await ops.installLatest()
@@ -66,6 +68,19 @@ async function menuPurge() {
       console.log('\n  ' + (r.ok ? ok('已还原签名') : bad('失败')))
       await waitKey()
     } else if (sel === 3) {
+      // 域名拦截 region gate
+      const g = ops.regionGateState()
+      const cur = g.disabled ? '已解除' : (g.available ? '已启用' : '不可用')
+      const items2 = g.disabled
+        ? [{ label: '恢复拦截', hint: g.sourceLevel ? '插件源码级已禁用,CLI 无法恢复' : '重新启用公网/银行域名拦截' }, { label: '返回' }]
+        : [{ label: '解除拦截', hint: '给 net-scope.js 打补丁(重启 dsh 生效)' }, { label: '返回' }]
+      const s2 = await menuSelect({ title: '域名拦截(当前:' + cur + ')', items: items2 })
+      if (s2 === 0) {
+        const r = ops.setRegionGate(!g.disabled)
+        console.log('  ' + (r.ok ? ok(g.disabled ? '已恢复拦截' : '已解除拦截(重启 dsh 生效)') : bad(r.error || '失败')))
+        await waitKey()
+      }
+    } else if (sel === 4) {
       const r = await ops.purgeSelfcheck()
       if (r.error) { console.log('\n  ' + bad(r.error)) } else {
         const s = r.summary || {}
@@ -76,7 +91,7 @@ async function menuPurge() {
         }
       }
       await waitKey()
-    } else if (sel === 4) {
+    } else if (sel === 5) {
       // 运行开关:一屏 4 项(空格切换/循环),回车保存
       const t = ops.readTuning()
       const st2 = {
@@ -101,14 +116,14 @@ async function menuPurge() {
       if (st2.inject !== (t.injectPosition || 'head')) { await ops.setTuning('inject', st2.inject); changed++ }
       console.log('\n  ' + (changed ? ok('已保存 ' + changed + ' 项(下一轮对话生效)') : dim('未改动')))
       await waitKey()
-    } else if (sel === 5) {
+    } else if (sel === 6) {
       const d = ops.drillState()
       const items = d?.granted
         ? [{ label: '撤销演练台授权' }, { label: '返回' }]
         : [{ label: '授权演练台' }, { label: '返回' }]
       const s2 = await menuSelect({ title: '授权管理(当前:' + (d?.granted ? '已授权' : '未授权') + ')', items })
       if (s2 === 0) { ops.grantDrill(!d?.granted); console.log('  ' + ok(d?.granted ? '已撤销' : '已授权')) ; await waitKey() }
-    } else if (sel === 6) {
+    } else if (sel === 7) {
       const st2 = await ops.purgeStatus()
       const bks = st2.backups || []
       const items = [
@@ -163,17 +178,29 @@ async function menuPlugins() {
   while (true) {
     const inst = await ops.pluginsInstalled()
     const items = [
+      { label: '在线插件目录', hint: '从自建源拉取可装插件' },
       { label: '查看已安装', hint: inst.length + ' 个' },
       { label: '安装插件' },
       { label: '卸载插件' },
       { label: '返回' },
     ]
     const sel = await menuSelect({ title: '插件商店', items })
-    if (sel < 0 || sel === 3) return
+    if (sel < 0 || sel === 4) return
     if (sel === 0) {
-      inst.forEach(p => console.log('  · ' + p.name + dim(' v' + p.version)))
+      console.log(dim('\n  正在拉取在线目录…'))
+      const cat = await ops.pluginsCatalog()
+      if (!cat.length) { console.log('  ' + warn('目录为空或自建源不可达(检查密钥)')); await waitKey(); continue }
+      const installedNames = new Set(inst.map(p => p.name))
+      const s0 = await menuSelect({ title: '在线插件目录(' + cat.length + ' 个)', items: [...cat.map(p => ({ label: p.name + ' v' + p.version + (installedNames.has(p.name) ? c('green', ' · 已装') : ''), hint: (p.description || '').slice(0, 60) })), { label: '返回' }] })
+      if (s0 < 0 || s0 === cat.length) continue
+      const target = cat[s0]
+      const r = await ops.pluginInstall(target.spec)
+      console.log('  ' + (r.ok ? ok('已安装 ' + target.name) : bad('失败')))
       await waitKey()
     } else if (sel === 1) {
+      inst.forEach(p => console.log('  · ' + p.name + dim(' v' + p.version)))
+      await waitKey()
+    } else if (sel === 2) {
       const spec = await promptText('包名 / 本地路径 / tarball')
       if (!spec) continue
       const r = await ops.pluginInstall(spec)
