@@ -11,7 +11,7 @@
     "cli": "node cli/index.mjs",
     "status": "node cli/index.mjs status",
     "link": "npm link",
-    "test": "node --test demo-test/platform.test.mjs"
+    "test": "node --test demo-test/platform.test.mjs demo-test/skill-packs.test.mjs demo-test/purge-skill-packs.test.mjs"
   },
   "files": [
     "cli",

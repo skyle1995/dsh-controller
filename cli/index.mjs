@@ -238,16 +238,18 @@ async function menuBackup() {
 }
 
 // ═══ 技能包 ═════════════════════════════════════════════
+/** 管理技能包。参数 kind 为 red 或 reverse，返回菜单结束时完成的 Promise，不执行子技能正文。 */
 async function menuSkill(kind) {
   const isRed = kind === 'red'
   while (true) {
     const st = readState(isRed ? REDTEAM_STATE : REVERSE_STATE)
     ui.clear()
-    const cnt = st ? (isRed ? (st.skills?.length || 0) : (st.modules?.length || 0)) : 0
+    const cnt = st ? (st.moduleIds?.length || (isRed ? (st.skills?.length || 0) : (st.modules?.length || 0))) : 0
     if (st) {
       console.log('  ' + [
         c('green', 'v' + (st.version || '?')),
         cnt + (isRed ? ' 个技能' : ' 个模块'),
+        st.mode === 'entry-only' ? '仅显示一个包入口' : '待迁移旧布局',
         st.source === 'repo' ? 'git 安装' : (st.source === 'local' ? '本地安装' : '?'),
         st.installedAt ? new Date(st.installedAt).toLocaleString() : '',
       ].filter(Boolean).join(c('gray', '  ·  ')))
@@ -257,35 +259,59 @@ async function menuSkill(kind) {
     const items = [
       { type: 'group', label: '安装' },
       { label: st ? '更新' : '安装', hint: isRed ? '仓库分类技能 → 统一入口' : '仓库子目录 → 统一入口' },
-      { label: '重装', hint: '清空后重新安装(本地源优先)' },
-      { label: '卸载', hint: '删除技能包与独立注册' },
-      { label: '查看清单', hint: st ? (isRed ? (st.skills?.length || 0) + ' 个技能' : (st.modules?.length || 0) + ' 个模块') : '未安装' },
+      { label: '重装', hint: '完整源包安装 · 保留旧包备份' },
+      { label: '刷新入口', hint: '生成分类索引 · 安全归档旧散装副本' },
+      { label: '加载验证', hint: '逐个读取完整正文 · 不执行模块脚本' },
+      { label: '卸载', hint: '归档入口与资源 · 不删除未知技能' },
+      { label: '查看清单', hint: st ? cnt + ' 个包内模块' : '未安装' },
       { type: 'group', label: '返回' },
       { label: '返回主菜单' },
     ]
     const sel = await menuSelect({ title: isRed ? '红队技能包' : '逆向技能包', subtitle: st ? '已安装 v' + (st.version || '?') : '未安装', items })
     if (sel < 0 || sel === items.length - 1) return
     const chosen = items[sel]
-    if (chosen.label === '更新' || chosen.label === '安装') {
+    switch (chosen.label) {
+    case '更新':
+    case '安装': {
       const r = isRed ? await ops.installRedteam() : await ops.installReverse()
       console.log(r?.ok ? '  ' + ok((isRed ? r.count + ' 个技能' : r.modules + ' 个模块') + ' · v' + (r.version || '?')) : '  ' + bad(r?.error || '失败'))
       await waitKey()
-    } else if (chosen.label === '重装') {
-      if (st) ops.uninstallPack(isRed ? 'red' : 'reverse')
+      break
+    }
+    case '重装': {
       const r = isRed ? await ops.installRedteam() : await ops.installReverse()
       console.log(r?.ok ? '  ' + ok('重装完成:' + (isRed ? r.count + ' 个技能' : r.modules + ' 个模块') + ' · v' + (r.version || '?') + (r.source ? ' (' + r.source + ')' : '')) : '  ' + bad(r?.error || '失败'))
       await waitKey()
-    } else if (chosen.label === '卸载') {
-      const chk2 = await menuSelect({ title: '确认卸载' + (isRed ? '红队' : '逆向') + '技能包', subtitle: '将删除已安装技能与独立注册', items: [{ label: '确认卸载' }, { label: '取消' }] })
+      break
+    }
+    case '刷新入口': {
+      const r = ops.registerSubSkills(kind)
+      console.log(r.ok ? ok('入口已刷新 · ' + r.count + ' 个模块 · 归档 ' + r.archived.length + ' 个旧副本') : bad(r.error || '失败'))
+      if (r.preserved?.length) console.log(warn('以下目录无法确认或已修改，保留: ' + r.preserved.join(', ')))
+      await waitKey()
+      break
+    }
+    case '加载验证': {
+      try { console.log(JSON.stringify(ops.verifySkillPacks(), null, 2)) } catch (error) { console.log(bad(error.message)) }
+      await waitKey()
+      break
+    }
+    case '卸载': {
+      const chk2 = await menuSelect({ title: '确认卸载' + (isRed ? '红队' : '逆向') + '技能包', subtitle: '将归档技能包，备份可恢复；自定义副本保留', items: [{ label: '确认卸载' }, { label: '取消' }] })
       if (chk2 !== 0) continue
       const r2 = ops.uninstallPack(isRed ? 'red' : 'reverse')
-      console.log('  ' + ok('已卸载,移除 ' + r2.removed + ' 个独立技能目录'))
+      console.log('  ' + (r2.ok ? ok('已归档入口 · 备份: ' + (r2.backup || '')) : bad(r2.error || '失败')))
       await waitKey()
-    } else if (chosen.label === '查看清单') {
+      break
+    }
+    case '查看清单': {
       if (!st) { console.log('  ' + warn('未安装')); await waitKey(); continue }
-      const list = isRed ? (st.skills || []) : (st.modules || [])
+      const list = st.moduleIds || (isRed ? (st.skills || []) : (st.modules || []))
       console.log('\n  ' + list.join('\n  '))
       await waitKey()
+      break
+    }
+    default: break
     }
   }
 }
@@ -508,8 +534,8 @@ async function mainMenu() {
       { label: '运行配置', hint: '域名拦截 / 自检 / 开关 / 授权' },
       { label: '备份与恢复', hint: '备份 / 回滚 / 删除' },
       { type: 'group', label: '扩展' },
-      { label: '红队技能', hint: rt ? (rt.skills?.length || 0) + ' 个 · v' + (rt.version || '?') : '未安装' },
-      { label: '逆向技能', hint: rv ? (rv.modules?.length || 0) + ' 模块 · v' + (rv.version || '?') : '未安装' },
+      { label: '红队技能', hint: rt ? (rt.moduleIds?.length ?? rt.skills?.length ?? 0) + ' 个包内模块 · v' + (rt.version || '?') : '未安装' },
+      { label: '逆向技能', hint: rv ? (rv.moduleIds?.length ?? rv.modules?.length ?? 0) + ' 个包内模块 · v' + (rv.version || '?') : '未安装' },
       { type: 'group', label: '管理' },
       { label: '插件商店', hint: '在线目录 / 安装 / 卸载' },
       { label: '设置', hint: '密钥 / 连接 / 日志' },
@@ -529,10 +555,12 @@ async function mainMenu() {
 }
 
 // ═══ 非交互命令 ═════════════════════════════════════════
+/** 输出命令帮助。无参数，无返回值。 */
 function help() {
-  console.log(head('DSH Controller CLI') + '\n\n用法: dshc [命令]   (不带命令 = 交互式 TUI)\n\n命令:\n  status\n  purge oneclick|apply|revert|reseal|backup|prune|selfcheck|rollback <id>\n  skills redteam|reverse\n  plugins list|install <spec>|remove <name>\n  settings token [值]|test\n  help')
+  console.log(head('DSH Controller CLI') + '\n\n用法: dshc [命令]   (不带命令 = 交互式 TUI)\n\n命令:\n  status\n  purge oneclick|apply|revert|reseal|backup|prune|selfcheck|rollback <id>\n  skills redteam|reverse|migrate|verify\n  plugins list|install <spec>|remove <name>|repair <name>\n  settings token [值]|test\n  help')
 }
 /** 处理 CLI 参数。参数 argv 为命令参数数组，返回操作结果或完成交互；非 TTY 显示帮助。 */
+/** 执行命令入口。参数 argv 为命令参数数组，返回分派完成的 Promise；未捕获异常由顶层处理。 */
 async function cli(argv) {
   const [cmd, sub, ...rest] = argv
   if (!cmd || cmd === 'menu') {
@@ -543,7 +571,7 @@ async function cli(argv) {
   if (cmd === 'status') {
     const st = await ops.purgeStatus(); const rt = readState(REDTEAM_STATE), rv = readState(REVERSE_STATE)
     console.log('插件 ' + (st.installed ? 'v' + st.version : '未安装') + ' · 布局 ' + st.layout + ' · 备份 ' + (st.backups?.length || 0))
-    console.log('红队 ' + (rt ? (rt.skills?.length || 0) + ' 个 v' + rt.version : '未安装') + ' · 逆向 ' + (rv ? (rv.modules?.length || 0) + ' 模块 v' + rv.version : '未安装'))
+    console.log('红队 ' + (rt ? (rt.moduleIds?.length ?? rt.skills?.length ?? 0) + ' 个包内模块 v' + rt.version : '未安装') + ' · 逆向 ' + (rv ? (rv.moduleIds?.length ?? rv.modules?.length ?? 0) + ' 个包内模块 v' + rv.version : '未安装'))
     return
   }
   if (cmd === 'purge') {
@@ -557,10 +585,22 @@ async function cli(argv) {
     if (sub === 'selfcheck') { const r = await ops.purgeSelfcheck(); if (r.error) return console.log(bad(r.error)); for (const l of r.layers || []) console.log((l.ok ? '✓' : (l.state === 'unknown' ? '?' : '✗')) + ' ' + l.title); return }
     return help()
   }
-  if (cmd === 'skills') { const r = sub === 'reverse' ? await ops.installReverse() : await ops.installRedteam(); console.log(r.ok ? ok('完成') : bad(r.error || '')); process.exit(r.ok ? 0 : 1) }
+  if (cmd === 'skills') {
+    let r
+    switch (sub) {
+      case 'redteam': r = await ops.installRedteam(); break
+      case 'reverse': r = await ops.installReverse(); break
+      case 'migrate': r = ops.migrateSkillPacks(); break
+      case 'verify': r = ops.verifySkillPacks(); break
+      default: return help()
+    }
+    console.log(JSON.stringify(r, null, 2))
+    process.exit(r.ok ? 0 : 1)
+  }
   if (cmd === 'plugins') {
     if (sub === 'list') { (await ops.pluginsInstalled()).forEach(p => console.log(p.name + ' v' + p.version)); return }
-    if (sub === 'install') { const r = await ops.pluginInstall(rest[0]); console.log(r.ok ? ok('已安装') : bad('失败')); process.exit(r.ok ? 0 : 1) }
+    if (sub === 'repair') { const r = await ops.repairLocalPlugin(rest[0]); console.log(r.ok ? ok('安装来源已修复 v' + r.version + '\n配置备份: ' + r.backup) : bad(r.error || '修复失败')); process.exit(r.ok ? 0 : 1) }
+    if (sub === 'install') { const r = await ops.pluginInstall(rest[0]); console.log(r.ok ? ok('已安装') : bad(r.hint || '失败')); process.exit(r.ok ? 0 : 1) }
     if (sub === 'remove') { const r = await ops.pluginRemove(rest[0]); console.log(r.ok ? ok('已卸载') : bad('失败')); process.exit(r.ok ? 0 : 1) }
     return help()
   }

@@ -59,16 +59,33 @@ export function locateDesktop({ platform = process.platform, env = process.env, 
   return { root: '', resources: '', executable: '', cli: '' }
 }
 
-/** 解析官方 Windows CLI 的直接入口。参数 cli 为 cmd 路径，返回 Electron 程序、参数和环境。 */
+/** 检查归档内入口的容器。参数 file 为入口路径，返回布尔值；归档内部由 Electron 在执行时读取。 */
+function hasAsarContainer(file) {
+  for (let parent = path.dirname(file); parent !== path.dirname(parent); parent = path.dirname(parent)) {
+    if (path.extname(parent).toLowerCase() === '.asar') return isFile(parent)
+  }
+  return false
+}
+
+/** 解析官方或补丁后的 Windows CLI。参数 cli 为 cmd 路径，返回 Electron 程序、参数和环境，不执行批处理。 */
 export function desktopCliInvocation(cli) {
   const body = readFileSync(cli, 'utf8')
   const base = path.dirname(cli)
+  const entries = []
   for (const line of body.split(/\r?\n/)) {
-    const match = /^\s*"(%~dp0[^"]+\.exe)"\s+(?:--expose-internals\s+)?"(%~dp0[^"]*cli\.js)"/i.exec(line)
+    const assignment = /^\s*(?:if not exist "%entry%"\s+)?set "entry=(%~dp0[^"]*cli\.js)"\s*$/i.exec(line)
+    if (assignment) {
+      entries.push(path.resolve(base, assignment[1].slice(5)))
+      continue
+    }
+    const match = /^\s*"(%~dp0[^"]+\.exe)"\s+(?:--expose-internals\s+)?"(%~dp0[^"]*cli\.js|%entry%)"(?:\s+%\*)?\s*$/i.exec(line)
     if (!match) continue
     const executable = path.resolve(base, match[1].slice(5))
-    const entry = path.resolve(base, match[2].slice(5))
+    const candidates = match[2].toLowerCase() === '%entry%' ? entries : [path.resolve(base, match[2].slice(5))]
+    // 普通 Node 无法 stat 归档内文件，优先使用可检查的实体入口，最后交给 Electron 读取归档。
+    const entry = candidates.find(isFile) || candidates.find(hasAsarContainer)
     if (!isFile(executable)) throw new Error('DSH CLI 引用的桌面程序不存在: ' + executable)
+    if (!entry) throw new Error('DSH CLI 引用的入口文件不存在，请修复桌面安装: ' + cli)
     return { command: executable, args: ['--expose-internals', entry], env: { ELECTRON_RUN_AS_NODE: '1' } }
   }
   throw new Error('无法识别 DSH CLI 入口，请更新安装或设置 DSH_APP_ROOT: ' + cli)

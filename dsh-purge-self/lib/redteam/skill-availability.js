@@ -26,6 +26,7 @@ import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { fixesForIssue } from './skill-fixes.js'
+import { installedPackCatalog, isPackEntry } from './skill-pack-catalog.js'
 
 /** 解析 $DSH_HOME / ${DSH_HOME} / ~（技能正文里几种写法都有）。 */
 export function expandSkillPath(p, env = process.env) {
@@ -107,8 +108,10 @@ export function referencedPathsOf(content) {
   return Array.from(out)
 }
 
-/** 宿主技能服务列不出来时，用本包 skills/redteam 和 $DSH_HOME/redteam/skills。 */
+/** 取得演练模块。无参数，返回安装包摘要；未安装红队包时回退本插件及旧同步目录。 */
 export function bundledSkillSummaries() {
+  const indexed = installedPackCatalog()
+  if (indexed.packs.includes('redteam-skill')) return indexed.items
   const here = dirname(fileURLToPath(import.meta.url))
   /* 两个候选 home 都扫：宿主按 dshHomePath 列技能时用的是它自己的 home，
      只扫 env 那一份会在分叉的机器上"装了却列不出来"。 */
@@ -142,13 +145,14 @@ export function bundledSkillSummaries() {
       })
     }
   }
-  return out
+  return indexed.items.concat(out)
 }
 
-/** 官方技能在 `$DSH_HOME/skills`。红队技能在本包 `skills/redteam` 或 `$DSH_HOME/redteam/skills`。 */
+/** 判断技能分类。参数 summary 为摘要，返回 official、redteam、reverse、entry 或空串。 */
 export function skillLibraryOf(summary) {
   if (!summary || typeof summary !== 'object') return ''
-  if (summary.library === 'official' || summary.library === 'redteam') return summary.library
+  if (isPackEntry(summary)) return 'entry'
+  if (['official', 'redteam', 'reverse'].includes(summary.library)) return summary.library
   const n = [summary.path, summary.dir, summary.root, summary.resourceBase && summary.resourceBase.path]
     .filter((item) => typeof item === 'string')
     .join('\n')
@@ -158,7 +162,7 @@ export function skillLibraryOf(summary) {
   return ''
 }
 
-/** 官方用户技能。不拿红队工具路径去判它们可不可用。 */
+/** 读取官方用户技能。无参数，返回摘要数组，排除已索引的包入口以免重复计数。 */
 export function officialSkillSummaries() {
   const home = process.env.DSH_HOME || join(homedir(), '.dsh')
   const dir = join(home, 'skills')
@@ -180,6 +184,7 @@ export function officialSkillSummaries() {
       continue
     }
     if (seen.has(name) || !existsSync(filePath)) continue
+    if (isPackEntry({ name, path: filePath })) continue
     let content = ''
     try { content = readFileSync(filePath, 'utf8') } catch { continue }
     if (!content.trim()) continue
@@ -191,23 +196,25 @@ export function officialSkillSummaries() {
       content,
       path: filePath,
       library: 'official',
-      resourceBase: { kind: 'directory', path: dir },
+      resourceBase: { kind: 'directory', path: entry.isDirectory() ? dirname(filePath) : dir },
     })
   }
   return out
 }
 
-/** 红队自检只用红队技能。官方技能即使出现在宿主列表里也不参与路径判断。 */
+/** 合并演练预检目录。参数为宿主摘要、包摘要和作用域标记，返回红队/逆向模块，排除官方及重复入口。 */
 export function redteamSummariesForCheck(summaries, bundled, scoped) {
   const base = Array.isArray(bundled) ? bundled : []
   const names = new Set(base.map((item) => item && item.name).filter(Boolean))
   const picked = []
   const seen = new Set()
+  const indexedRedteam = base.some(item => item.pack === 'redteam-skill')
   for (const summary of Array.isArray(summaries) ? summaries : []) {
     if (!summary || !summary.name || seen.has(summary.name)) continue
     const library = skillLibraryOf(summary)
-    if (library === 'official') continue
-    if (library === 'redteam' || scoped === true || names.has(summary.name)) {
+    if (library === 'official' || library === 'entry') continue
+    if (indexedRedteam && library === 'redteam' && !summary.pack) continue
+    if (library === 'redteam' || library === 'reverse' || scoped === true || names.has(summary.name)) {
       seen.add(summary.name)
       picked.push(summary)
     }
@@ -255,6 +262,10 @@ export function checkSkill(skill, options = {}) {
   const content = skill && typeof skill.content === 'string' ? skill.content : ''
   const file = skill && typeof skill.path === 'string' ? skill.path : null
   const root = skill && typeof skill.root === 'string' ? skill.root : null
+  if (skill && skill.error) {
+    const detail = String(skill.error)
+    return { name, status: 'broken', issues: [{ kind: 'file-missing', detail, fix: '恢复模块文件并刷新包入口索引。' }], problems: [detail], needs_user: [], checked: { file, env: [], paths: [] } }
+  }
   const issues = []
   const needsUser = []
   /** 记一条问题：detail 是给用户看的"不可用原因"，fix 是"怎么修"（见 skill-fixes.js）。 */

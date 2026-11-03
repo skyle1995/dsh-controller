@@ -95,16 +95,23 @@ export function stopRunningCommands() {
   }
   runningCommands.clear()
 }
-/** 克隆私有仓库。参数 destination 为目标目录、cwd 为工作目录，返回结果；认证不写入 URL。 */
-export async function cloneRepository(destination, cwd) {
+/** 克隆仓库。参数为目标目录、工作目录及可选 URL/分支，返回结果；只向自建源发送认证且不写入 URL。 */
+export async function cloneRepository(destination, cwd, { url = HUB.git, ref } = {}) {
+  const remote = new URL(url)
+  if (remote.protocol !== 'https:' || remote.username || remote.password) return { ok: false, output: '仓库必须使用无内嵌凭据的 HTTPS URL' }
   const token = readToken()
-  const env = token ? {
+  const env = token && remote.origin === new URL(HUB.git).origin ? {
     GIT_CONFIG_COUNT: '1',
     GIT_CONFIG_KEY_0: 'http.' + new URL(HUB.git).origin + '/.extraHeader',
     GIT_CONFIG_VALUE_0: 'Authorization: Basic ' + Buffer.from('oauth2:' + token).toString('base64'),
     GIT_TERMINAL_PROMPT: '0',
   } : { GIT_TERMINAL_PROMPT: '0' }
-  return run('git', ['clone', '--depth', '1', HUB.git, destination], { cwd, env })
+  const commitRef = ref && ref.length === 40 && [...ref.toLowerCase()].every(ch => '0123456789abcdef'.includes(ch))
+  const cloned = await run('git', ['clone', '--depth', '1', ...(ref && !commitRef ? ['--branch', ref] : []), url, destination], { cwd, env })
+  if (!cloned.ok || !commitRef) return cloned
+  const fetched = await run('git', ['-C', destination, 'fetch', '--depth', '1', 'origin', ref], { cwd, env })
+  if (!fetched.ok) return fetched
+  return run('git', ['-C', destination, 'checkout', '--detach', 'FETCH_HEAD'], { cwd, env })
 }
 /** 执行 DSH CLI。参数 args 为 CLI 参数，opts 为执行选项，返回命令结果；Windows 不经过 cmd shell。 */
 export async function runDsh(args, opts = {}) {
@@ -245,7 +252,7 @@ export function quitDsh() {
   try {
     switch (process.platform) {
       case 'win32': {
-        const script = `$ErrorActionPreference='Stop'; Get-Process | Where-Object { try { $_.Path -and [string]::Equals($_.Path, ${psLiteral(DSHEXE)}, [StringComparison]::OrdinalIgnoreCase) } catch { $false } } | ForEach-Object { [void]$_.CloseMainWindow() }`
+        const script = `$ProgressPreference='SilentlyContinue'; $ErrorActionPreference='Stop'; Get-Process | Where-Object { try { $_.Path -and [string]::Equals($_.Path, ${psLiteral(DSHEXE)}, [StringComparison]::OrdinalIgnoreCase) } catch { $false } } | ForEach-Object { [void]$_.CloseMainWindow() }`
         execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', encodePowerShell(script)], { stdio: 'ignore', timeout: 15000, windowsHide: true })
         break
       }
@@ -265,7 +272,7 @@ export function dshRunning() {
   if (!DSHEXE) return false
   try {
     if (IS_WIN) {
-      const script = `Get-Process | Where-Object { try { $_.Path -and [string]::Equals($_.Path, ${psLiteral(DSHEXE)}, [StringComparison]::OrdinalIgnoreCase) } catch { $false } } | ForEach-Object { $_.Id }`
+      const script = `$ProgressPreference='SilentlyContinue'; Get-Process | Where-Object { try { $_.Path -and [string]::Equals($_.Path, ${psLiteral(DSHEXE)}, [StringComparison]::OrdinalIgnoreCase) } catch { $false } } | ForEach-Object { $_.Id }`
       return execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', encodePowerShell(script)], { encoding: 'utf8', timeout: 5000, windowsHide: true }).trim().length > 0
     }
     return execFileSync('pgrep', ['-f', DSHEXE], { encoding: 'utf8', timeout: 5000 }).trim().length > 0

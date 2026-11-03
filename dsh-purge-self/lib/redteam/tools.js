@@ -20,6 +20,7 @@ import { dirname, join, resolve } from 'node:path'
 import { ROLE_TITLES, PLANNER_ROLE, ROLE_ORDER } from './store-core.js'
 /* 技能可用性判定只有一份实现：面板的「技能库」页签与这里共用（见该文件头注释） */
 import { bundledSkillSummaries, checkSkill, summarizeSkills, expandSkillPath, redteamSummariesForCheck } from './skill-availability.js'
+import { skillSelectionMatches } from './skill-pack-catalog.js'
 import {
   loadPlatformConfig,
   mergeConfigEnv,
@@ -621,7 +622,7 @@ export function apply(ctx) {
           scoped = scope != null
           const listed = scoped ? await skills.list({ scope }) : await skills.list()
           summaries = redteamSummariesForCheck(listed, bundledSkills, scoped)
-          fromBundle = summaries.every((item) => item && item.library === 'redteam' && item.content)
+          fromBundle = summaries.every((item) => item && ['redteam', 'reverse'].includes(item.library) && item.content)
         } catch (error) {
           if (bundledSkills.length === 0) {
             return JSON.stringify({ ok: false, error: '读取技能目录失败：' + (error && error.message ? error.message : String(error)), platform: plat }, null, 2)
@@ -631,10 +632,10 @@ export function apply(ctx) {
         }
       }
       summaries = redteamSummariesForCheck(summaries, bundledSkills, scoped)
-      const wanted = summaries.filter((s) => only.length === 0 || only.includes(s.name))
+      const wanted = summaries.filter((s) => only.length === 0 || only.some(name => skillSelectionMatches(s, name)))
       /* include 时只体检点名的技能：否则 ok 被无关 broken 拖成 false，模型会误以为目标技能坏了 */
       const toCheck = only.length > 0 ? wanted : summaries
-      unknownIncludes = only.filter((n) => !summaries.some((s) => s.name === n))
+      unknownIncludes = only.filter((n) => !summaries.some((s) => skillSelectionMatches(s, n)))
       const rootsWith = new Map()
       for (const x of summaries) {
         const dir = x.resourceBase && x.resourceBase.kind === 'directory' ? x.resourceBase.path : null
@@ -644,7 +645,7 @@ export function apply(ctx) {
       }
       for (const summary of toCheck) {
         let def
-        if (!fromBundle && skills && typeof skills.get === 'function') {
+        if (!fromBundle && !summary.pack && skills && typeof skills.get === 'function') {
           try { def = await skills.get(summary.name) } catch { def = undefined }
         }
         const path = def && typeof def.path === 'string'
@@ -656,7 +657,7 @@ export function apply(ctx) {
         const content = def && typeof def.content === 'string' && def.content.trim() !== ''
           ? def.content
           : summary.content
-        const verdict = checkSkill({ name: summary.name, content, path, root },
+        const verdict = checkSkill({ name: summary.name, content, path, root, error: summary.error },
           { env: effectiveEnv, sameNameIn: rootsWith.get(summary.name) || [] })
         checked.push(Object.assign({}, verdict, {
           title: summary.description,
@@ -671,7 +672,7 @@ export function apply(ctx) {
       }
       allBroken = checked.filter((s) => s.status === 'broken')
       allAvailable = checked.filter((s) => s.status === 'available')
-      const shown = (x) => only.length === 0 || only.includes(x.name)
+      const shown = (x) => only.length === 0 || only.some(name => summaries.some(summary => summary.name === x.name && skillSelectionMatches(summary, name)))
       broken = allBroken.filter(shown)
       available = allAvailable.filter(shown)
       const toolMissing = (plat.tools.items || []).filter((t) => !t.path)
@@ -727,7 +728,7 @@ export function apply(ctx) {
           fix_note: '修复步骤由用户执行（或经「环境适配」页）；不要由你下载/安装工具。' })),
         unknown: checked.filter((s) => s.status === 'unknown').map((s) => s.name),
         toolkit: { dir: toolkit, exists: existsSync(toolkit), entries: toolkitEntries, hint: toolkitHint },
-        skills_root_hint: '这里只检查红队技能。官方技能在 $DSH_HOME/skills，不按红队工具路径判不可用。',
+        skills_root_hint: '检查已安装红队和逆向包的模块；未安装红队包时回退随包技能。包模块通过包入口读取，官方用户技能不参与演练路径检查。',
         next,
         needs_user_flat: needsUser,
         wanted_count: wanted.length,

@@ -1296,7 +1296,8 @@ window.__ModuleLoader__.load({
               '保存后写入 agents/' + (active || 'role') + '.md。子会话任务第一行写 redteamRole: recon、assess、vuln-scan、exploit 或 internal 后，对应文件进入系统提示词。'))))
     }
 
-    /* ---------------------------------------------------------- 技能库（DSH 原生） */
+    /* ---------------------------------------------------------- 技能库（包索引与 DSH 原生） */
+    /** 展示演练技能。参数 props 提供刷新标记，返回按红队、逆向和官方分类的 React 元素。 */
     function SkillsTab(props) {
       const refreshKey = props.refreshKey || 0
       const [items, setItems] = React.useState([])
@@ -1336,9 +1337,9 @@ window.__ModuleLoader__.load({
 
       const needle = q.trim().toLowerCase()
       let filtered = needle
-        ? items.filter((s) => (s.name + ' ' + s.description + ' ' + s.whenToUse).toLowerCase().indexOf(needle) >= 0)
+        ? items.filter((s) => (s.name + ' ' + (s.displayName || '') + ' ' + (s.category || '') + ' ' + s.description + ' ' + s.whenToUse).toLowerCase().indexOf(needle) >= 0)
         : items
-      if (srcOnly) filtered = filtered.filter((s) => s.library !== 'official' && s.fromPlugin === true)
+      if (srcOnly) filtered = filtered.filter((s) => s.library !== 'official' && (s.fromPlugin === true || s.pack))
       if (brokenOnly) filtered = filtered.filter((s) => s.library !== 'official' && (s.availability === 'broken' || s.availability === 'unknown'))
       /* 目录聚合：一眼看出"这么多技能是哪来的"（本项目/别的插件/自带根…） */
       const dirs = (meta.byDir || []).filter((d) => d.n > 0).slice(0, 6)
@@ -1348,8 +1349,9 @@ window.__ModuleLoader__.load({
       const renderSkill = (s) => h('div', Object.assign({
         key: (s.library || 'redteam') + ':' + s.name, className: 'rt-item' + (active === ((s.library || 'redteam') + ':' + s.name) ? ' on' : ''),
       }, clickable(() => open(s), { label: '查看技能 ' + s.name, expanded: active === ((s.library || 'redteam') + ':' + s.name) })),
-        h('div', { className: 'rt-item-name' }, s.name,
-          s.modelInvocable === false ? h('span', { className: 'rt-tag', style: { marginLeft: 6 } }, '仅人工') : null,
+        h('div', { className: 'rt-item-name', title: s.name }, s.displayName || s.name,
+          s.pack ? h('span', { className: 'rt-tag', style: { marginLeft: 6 }, title: '通过 ' + s.loadVia + ' 入口读取，不是独立顶层技能' }, '包内模块') : null,
+          s.modelInvocable === false && !s.pack ? h('span', { className: 'rt-tag', style: { marginLeft: 6 } }, '仅人工') : null,
           s.library === 'official'
             ? h('span', { className: 'rt-tag', style: { marginLeft: 6 }, title: '官方技能目录，不按红队工具路径检查' }, '官方')
             : h('span', {
@@ -1362,6 +1364,8 @@ window.__ModuleLoader__.load({
         h('div', { className: 'rt-item-desc' }, s.description || '（无描述）'),
         h('div', { className: 'rt-kb-sub' },
           [s.source ? '来源 ' + s.source : null,
+            s.category ? '分类 ' + s.category : null,
+            s.moduleId ? '模块 ' + s.moduleId : null,
             s.fromPlugin ? '本插件自带' : null,
             s.provider ? s.provider : null,
             s.dir ? s.dir : null].filter(Boolean).join(' · ')),
@@ -1369,12 +1373,17 @@ window.__ModuleLoader__.load({
           ? h('div', { className: 'rt-kb-sub', style: { color: 'var(--dsw-alias-state-warn-primary, #f59e0b)' } },
               '⚠ ' + String(s.problems[0]).slice(0, 60))
           : null))
-      const redteamRows = filtered.filter((s) => s.library !== 'official').map(renderSkill)
+      const redteamRows = filtered.filter((s) => s.library !== 'official' && s.library !== 'reverse').map(renderSkill)
+      const reverseRows = filtered.filter((s) => s.library === 'reverse').map(renderSkill)
       const officialRows = filtered.filter((s) => s.library === 'official').map(renderSkill)
       const listItems = []
       if (redteamRows.length > 0) {
         listItems.push(h('div', { key: 'head-redteam', className: 'rt-kb-sub', style: { margin: '8px 0 4px', fontWeight: 600 } }, '红队技能'))
         listItems.push.apply(listItems, redteamRows)
+      }
+      if (reverseRows.length > 0) {
+        listItems.push(h('div', { key: 'head-reverse', className: 'rt-kb-sub', style: { margin: '8px 0 4px', fontWeight: 600 } }, '逆向技能'))
+        listItems.push.apply(listItems, reverseRows)
       }
       if (officialRows.length > 0) {
         listItems.push(h('div', { key: 'head-official', className: 'rt-kb-sub', style: { margin: '8px 0 4px', fontWeight: 600 } }, '官方技能'))
@@ -1389,7 +1398,7 @@ window.__ModuleLoader__.load({
           }),
           h('label', { className: 'rt-kb-check', style: { display: 'flex', margin: '0 0 6px' } },
             h('input', { type: 'checkbox', checked: srcOnly, onChange: (e) => setSrcOnly(e.target.checked) }),
-            '只看本插件自带（' + (meta.fromPlugin || 0) + ' 个）'),
+            '只看技能包/本插件（' + ((meta.fromPlugin || 0) + (meta.fromPacks || 0)) + ' 个）'),
           availSummary && (availSummary.broken > 0 || availSummary.unknown > 0)
             ? h('label', {
                 className: 'rt-kb-check', style: { display: 'flex', margin: '0 0 8px' },
@@ -1409,13 +1418,13 @@ window.__ModuleLoader__.load({
                 }, clickable(() => load(true), { label: '重新检查技能可用性' })), '重查可用性'))
             : null,
           h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)', marginBottom: 6 } },
-            '红队 ' + ((meta.libraries && meta.libraries.redteam) || 0) + ' · 官方 ' + ((meta.libraries && meta.libraries.official) || 0),
+            '红队 ' + ((meta.libraries && meta.libraries.redteam) || 0) + ' · 逆向 ' + ((meta.libraries && meta.libraries.reverse) || 0) + ' · 官方 ' + ((meta.libraries && meta.libraries.official) || 0),
             items.length > 100 ? h('div', { style: { marginTop: 3 } },
-              '（技能多来自其它插件注册的根或你自己的技能目录；本插件只自带 ' + (meta.fromPlugin || 0) + ' 个）') : null),
+              '（已安装包模块 ' + (meta.fromPacks || 0) + ' 个；包内模块不增加 DSH 顶层入口）') : null),
           listItems),
         h('div', { className: 'rt-main' },
           h('div', { className: 'rt-toolbar' },
-            h('span', { style: { fontWeight: 600 } }, detail ? detail.name : '技能目录（DSH 原生）'),
+            h('span', { style: { fontWeight: 600 } }, detail ? (detail.displayName || detail.name) : '技能目录（包索引 + DSH）'),
             h('div', { className: 'rt-spacer' }),
             h('button', { className: 'rt-btn', disabled: busy, onClick: () => load(true) }, busy ? '刷新中…' : '刷新')),
           err
@@ -1423,11 +1432,14 @@ window.__ModuleLoader__.load({
                 ? h('div', { className: 'rt-empty' }, '该模块的宿主代码已更新，需重启一次当前宿主（官方 exe / 社区版 / dsh web）后生效')
                 : h('div', { className: 'rt-err' }, err))
             : null,
+          (meta.packErrors || []).length ? h('div', { className: 'rt-err' }, meta.packErrors.map(item => item.pack + ': ' + item.error).join('；')) : null,
           detail
             ? h('div', { className: 'rt-pane' },
                 h('div', { className: 'rt-kv' }, h('b', null, '描述'), h('span', null, detail.description || '—')),
                 h('div', { className: 'rt-kv' }, h('b', null, '何时使用'), h('span', null, detail.whenToUse || '—')),
                 h('div', { className: 'rt-kv' }, h('b', null, '来源'), h('span', null, (detail.provider || '—') + ' / ' + (detail.source || '—'))),
+                detail.pack ? h('div', { className: 'rt-kv' }, h('b', null, '包入口'), h('span', null, detail.loadVia + ' → ' + detail.moduleId)) : null,
+                detail.resourceBase ? h('div', { className: 'rt-kv' }, h('b', null, '资源基目录'), h('span', { className: 'rt-mono', style: { wordBreak: 'break-all' } }, detail.resourceBase.path)) : null,
                 (() => {
                   const s2 = items.find((x) => ((x.library || 'redteam') + ':' + x.name) === active)
                   if (!s2) return null

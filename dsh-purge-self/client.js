@@ -2276,6 +2276,7 @@ body[data-ds-dark-theme] .rt-dot,body[data-ds-dark-theme] .dshpp-live-dot{backgr
       )
     );
   }
+  /** 展示演练技能。参数 props 提供刷新标记，返回红队、逆向及官方分类元素。 */
   function SkillsTab(props) {
     const refreshKey = props.refreshKey || 0;
     const [items, setItems] = import_react2.default.useState([]);
@@ -2331,11 +2332,11 @@ body[data-ds-dark-theme] .rt-dot,body[data-ds-dark-theme] .dshpp-live-dot{backgr
     };
     const needle = q.trim().toLowerCase();
     let filtered = needle ? items.filter(
-      (s) => (s.name + " " + s.description + " " + s.whenToUse).toLowerCase().indexOf(needle) >= 0
+      (s) => (s.name + " " + (s.displayName || "") + " " + (s.category || "") + " " + s.description + " " + s.whenToUse).toLowerCase().indexOf(needle) >= 0
     ) : items;
     if (srcOnly)
       filtered = filtered.filter(
-        (s) => s.library !== "official" && s.fromPlugin === true
+        (s) => s.library !== "official" && (s.fromPlugin === true || s.pack)
       );
     if (brokenOnly)
       filtered = filtered.filter(
@@ -2358,9 +2359,10 @@ body[data-ds-dark-theme] .rt-dot,body[data-ds-dark-theme] .dshpp-live-dot{backgr
       ),
       h2(
         "div",
-        { className: "rt-item-name" },
-        s.name,
-        s.modelInvocable === false ? h2(
+        { className: "rt-item-name", title: s.name },
+        s.displayName || s.name,
+        s.pack ? h2("span", { className: "rt-tag", style: { marginLeft: 6 }, title: "\u901A\u8FC7 " + s.loadVia + " \u5165\u53E3\u8BFB\u53D6\uFF0C\u4E0D\u662F\u72EC\u7ACB\u9876\u5C42\u6280\u80FD" }, "\u5305\u5185\u6A21\u5757") : null,
+        s.modelInvocable === false && !s.pack ? h2(
           "span",
           { className: "rt-tag", style: { marginLeft: 6 } },
           "\u4EC5\u4EBA\u5DE5"
@@ -2392,6 +2394,8 @@ body[data-ds-dark-theme] .rt-dot,body[data-ds-dark-theme] .dshpp-live-dot{backgr
           { className: "rt-kb-sub" },
           [
             s.source ? "\u6765\u6E90 " + s.source : null,
+            s.category ? "\u5206\u7C7B " + s.category : null,
+            s.moduleId ? "\u6A21\u5757 " + s.moduleId : null,
             s.fromPlugin ? "\u672C\u63D2\u4EF6\u81EA\u5E26" : null,
             s.provider ? s.provider : null,
             s.dir ? s.dir : null
@@ -2409,7 +2413,8 @@ body[data-ds-dark-theme] .rt-dot,body[data-ds-dark-theme] .dshpp-live-dot{backgr
         ) : null
       )
     );
-    const redteamRows = filtered.filter((s) => s.library !== "official").map(renderSkill);
+    const redteamRows = filtered.filter((s) => s.library !== "official" && s.library !== "reverse").map(renderSkill);
+    const reverseRows = filtered.filter((s) => s.library === "reverse").map(renderSkill);
     const officialRows = filtered.filter((s) => s.library === "official").map(renderSkill);
     const listItems = [];
     if (redteamRows.length > 0) {
@@ -2425,6 +2430,10 @@ body[data-ds-dark-theme] .rt-dot,body[data-ds-dark-theme] .dshpp-live-dot{backgr
         )
       );
       listItems.push.apply(listItems, redteamRows);
+    }
+    if (reverseRows.length > 0) {
+      listItems.push(h2("div", { key: "head-reverse", className: "rt-kb-sub", style: { margin: "8px 0 4px", fontWeight: 600 } }, "\u9006\u5411\u6280\u80FD"));
+      listItems.push.apply(listItems, reverseRows);
     }
     if (officialRows.length > 0) {
       listItems.push(
@@ -2464,7 +2473,7 @@ body[data-ds-dark-theme] .rt-dot,body[data-ds-dark-theme] .dshpp-live-dot{backgr
             checked: srcOnly,
             onChange: (e) => setSrcOnly(e.target.checked)
           }),
-          "\u53EA\u770B\u672C\u63D2\u4EF6\u81EA\u5E26\uFF08" + (meta.fromPlugin || 0) + " \u4E2A\uFF09"
+          "\u53EA\u770B\u6280\u80FD\u5305/\u672C\u63D2\u4EF6\uFF08" + ((meta.fromPlugin || 0) + (meta.fromPacks || 0)) + " \u4E2A\uFF09"
         ),
         availSummary && (availSummary.broken > 0 || availSummary.unknown > 0) ? h2(
           "label",
@@ -2527,11 +2536,11 @@ body[data-ds-dark-theme] .rt-dot,body[data-ds-dark-theme] .dshpp-live-dot{backgr
               marginBottom: 6
             }
           },
-          "\u7EA2\u961F " + (meta.libraries && meta.libraries.redteam || 0) + " \xB7 \u5B98\u65B9 " + (meta.libraries && meta.libraries.official || 0),
+          "\u7EA2\u961F " + (meta.libraries && meta.libraries.redteam || 0) + " \xB7 \u9006\u5411 " + (meta.libraries && meta.libraries.reverse || 0) + " \xB7 \u5B98\u65B9 " + (meta.libraries && meta.libraries.official || 0),
           items.length > 100 ? h2(
             "div",
             { style: { marginTop: 3 } },
-            "\uFF08\u6280\u80FD\u591A\u6765\u81EA\u5176\u5B83\u63D2\u4EF6\u6CE8\u518C\u7684\u6839\u6216\u4F60\u81EA\u5DF1\u7684\u6280\u80FD\u76EE\u5F55\uFF1B\u672C\u63D2\u4EF6\u53EA\u81EA\u5E26 " + (meta.fromPlugin || 0) + " \u4E2A\uFF09"
+            "\uFF08\u5DF2\u5B89\u88C5\u5305\u6A21\u5757 " + (meta.fromPacks || 0) + " \u4E2A\uFF1B\u5305\u5185\u6A21\u5757\u4E0D\u589E\u52A0 DSH \u9876\u5C42\u5165\u53E3\uFF09"
           ) : null
         ),
         listItems
@@ -2545,7 +2554,7 @@ body[data-ds-dark-theme] .rt-dot,body[data-ds-dark-theme] .dshpp-live-dot{backgr
           h2(
             "span",
             { style: { fontWeight: 600 } },
-            detail ? detail.name : "\u6280\u80FD\u76EE\u5F55\uFF08DSH \u539F\u751F\uFF09"
+            detail ? (detail.displayName || detail.name) : "\u6280\u80FD\u76EE\u5F55\uFF08\u5305\u7D22\u5F15 + DSH\uFF09"
           ),
           h2("div", { className: "rt-spacer" }),
           h2(
@@ -2559,6 +2568,7 @@ body[data-ds-dark-theme] .rt-dot,body[data-ds-dark-theme] .dshpp-live-dot{backgr
           { className: "rt-empty" },
           "\u8BE5\u6A21\u5757\u7684\u5BBF\u4E3B\u4EE3\u7801\u5DF2\u66F4\u65B0\uFF0C\u9700\u91CD\u542F\u4E00\u6B21\u5F53\u524D\u5BBF\u4E3B\uFF08\u5B98\u65B9 exe / Purge Self / dsh web\uFF09\u540E\u751F\u6548"
         ) : h2("div", { className: "rt-err" }, err) : null,
+        (meta.packErrors || []).length ? h2("div", { className: "rt-err" }, meta.packErrors.map(item => item.pack + ": " + item.error).join("\uFF1B")) : null,
         detail ? h2(
           "div",
           { className: "rt-pane" },
@@ -2584,6 +2594,8 @@ body[data-ds-dark-theme] .rt-dot,body[data-ds-dark-theme] .dshpp-live-dot{backgr
               (detail.provider || "\u2014") + " / " + (detail.source || "\u2014")
             )
           ),
+          detail.pack ? h2("div", { className: "rt-kv" }, h2("b", null, "\u5305\u5165\u53E3"), h2("span", null, detail.loadVia + " \u2192 " + detail.moduleId)) : null,
+          detail.resourceBase ? h2("div", { className: "rt-kv" }, h2("b", null, "\u8D44\u6E90\u57FA\u76EE\u5F55"), h2("span", { className: "rt-mono", style: { wordBreak: "break-all" } }, detail.resourceBase.path)) : null,
           (() => {
             const s2 = items.find(
               (x) => (x.library || "redteam") + ":" + x.name === active

@@ -11,6 +11,8 @@ import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { readPresetDefinition } from './preset-composition.js'
+import { bundledSkillSummaries } from './skill-availability.js'
+import { installedPackCatalog } from './skill-pack-catalog.js'
 
 /** Cordis 插件名。 */
 export const name = 'dsh-purge-redteam'
@@ -125,6 +127,22 @@ function renderSkillsDir(text) {
     return wanted
   }).join('\n')
   return { text: out, changed, reason: changed ? 'stale-path' : 'none' }
+}
+
+/** 切换已索引包的原生技能根。参数 text 为预设、enabled 为是否启用，返回文本及修改标记，仅处理本插件的标准旧根。 */
+export function renderPackSkillsDir(text, enabled) {
+  if (!enabled) return { text, changed: false }
+  const lines = text.split('\n')
+  const root = "!!js dshHomePath('skills')"
+  const hasRoot = lines.some(line => line.trim() === '- ' + root || line.trim() === '- !!js dshHomePath("skills")')
+  let changed = false
+  const out = []
+  for (const line of lines) {
+    if (line.trim() !== '- ' + BUNDLED_SKILLS_EXPR) { out.push(line); continue }
+    changed = true
+    if (!hasRoot) out.push(line.slice(0, line.indexOf('-')) + '- ' + root)
+  }
+  return { text: out.join('\n'), changed }
 }
 
 /**
@@ -373,9 +391,9 @@ export function installPreset(options = {}) {
   const bundled = installBundledSkills()
   const target = join(userPresetRoot(), 'redteam')
   const log = options.log ?? (() => {})
-  const skillCount = existsSync(paths.skills)
-    ? readdirSync(paths.skills).filter((f) => f.endsWith('.md')).length
-    : 0
+  const skillCount = bundledSkillSummaries().length
+  const indexed = installedPackCatalog().packs.includes('redteam-skill')
+  const skillsDir = indexed ? join(process.env.DSH_HOME || join(homedir(), '.dsh'), 'skills') : bundled.path
   const presetFile = join(target, 'agent.cordis.yml')
 
   if (existsSync(presetFile) && options.force !== true) {
@@ -385,9 +403,11 @@ export function installPreset(options = {}) {
       text = readFileSync(presetFile, 'utf8')
     } catch (error) {
       log(`读取 ${presetFile} 失败：${error && error.message ? error.message : String(error)}`)
-      return { action: 'kept', dir: target, skillsDir: bundled.path, skills: skillCount }
+      return { action: 'kept', dir: target, skillsDir, skills: skillCount }
     }
-    const rendered = renderSkillsDir(text)
+    const legacy = renderSkillsDir(text)
+    const packed = renderPackSkillsDir(legacy.text, indexed)
+    const rendered = { text: packed.text, changed: legacy.changed || packed.changed, reason: packed.changed ? 'pack-index' : legacy.reason }
     const tools = renderToolsPackage(rendered.text)
     const filtered = repairToolFilter(tools.text)
     const delegation = repairDelegation(filtered.text)
@@ -396,10 +416,8 @@ export function installPreset(options = {}) {
       writeFileSync(presetFile, next.replace(/\r\n/g, '\n').replace(/\r/g, '\n'), 'utf8')
       log(
         (rendered.changed
-          ? (rendered.reason === 'placeholder'
-            ? '预设里还留着 ' + SKILLS_PLACEHOLDER + '（会导致整个预设挂载失败）'
-            : '预设里的技能目录写成了本机绝对路径')
-            + '，已改为 dshHomePath(\'redteam/skills\')'
+          ? ({ placeholder: '预设里还留着 ' + SKILLS_PLACEHOLDER + '（会导致整个预设挂载失败）', 'pack-index': '检测到已安装索引包，原有平铺技能根', 'stale-path': '预设里的技能目录写成了本机绝对路径' }[rendered.reason] || '预设技能根')
+            + '，已改为 ' + (indexed ? '包入口根 dshHomePath(\'skills\')' : 'dshHomePath(\'redteam/skills\')')
           : '')
         + (tools.changed ? (rendered.changed ? '；' : '') + '工具包名已改为 dsh-purge-community/redteam/tools' : '')
         + (filtered.changed ? '；已移除 0.2.1 不再支持的 toolFilter' : '')
@@ -423,25 +441,25 @@ export function installPreset(options = {}) {
     ].filter(Boolean)
     if (repaired.length > 0) {
       return {
-        action: 'repaired', dir: target, skillsDir: bundled.path, skills: skillCount,
+        action: 'repaired', dir: target, skillsDir, skills: skillCount,
         repaired: repaired.join('+'),
       }
     }
     log(`已存在用户自己的预设 ${target}，保留不动（要覆盖：REDTEAM_PRESET_REFRESH=1 启动一次）`)
-    return { action: 'kept', dir: target, skillsDir: bundled.path, skills: skillCount }
+    return { action: 'kept', dir: target, skillsDir, skills: skillCount }
   }
 
   mkdirSync(target, { recursive: true })
   for (const file of readdirSync(paths.presetDir)) {
     const text = readFileSync(join(paths.presetDir, file), 'utf8')
-    const rendered = renderToolsPackage(renderSkillsDir(text).text).text
+    const rendered = renderToolsPackage(renderPackSkillsDir(renderSkillsDir(text).text, indexed).text).text
       .replace(/\r\n/g, '\n')
       .replace(/\r/g, '\n')
     writeFileSync(join(target, file), rendered, 'utf8')
   }
   syncAnchorGate(target)
-  log(`预设已安装到 ${target}（随包技能 ${skillCount} 个，目录 ${bundled.path}）`)
-  return { action: 'installed', dir: target, skillsDir: bundled.path, skills: skillCount }
+  log(`预设已安装到 ${target}（可发现技能模块 ${skillCount} 个，兜底目录 ${bundled.path}）`)
+  return { action: 'installed', dir: target, skillsDir, skills: skillCount }
 }
 
 /**

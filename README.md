@@ -17,6 +17,8 @@ DeepSeek Harness 的**纯命令行管理器**。管理破甲补丁、红队/逆�
 安装 Node.js 18 或以上版本及 Git，使用 PowerShell 或 Windows Terminal 运行上面的 Node/npm 命令。
 安装定位优先使用显式配置，其次读取 PATH 中的 `dsh.cmd`、卸载注册表及常见用户安装目录。
 中文、空格路径及插件来源中的 `&` 不会经过 shell 拼接。
+CLI 兼容官方直接入口和插件生成的 `%entry%` 回退脚本，优先读取 `app.asar.unpacked` 或
+`app` 中的实体入口；仅有 `app.asar` 时由 Electron 读取归档入口，不执行批处理脚本。
 
 使用便携版、自定义目录或多实例时，可显式设置：
 
@@ -35,6 +37,26 @@ Windows 卸载、换包前需要从托盘完全退出 DeepSeek；关闭窗口可
 profile 的 `package.json` 若带 UTF-8 BOM，插件安装、卸载和版本豁免操作会在执行前后校验并修复。
 修复只去掉 BOM，保留原始字节备份 `package.json.bom-bak`；非法 JSON 不会被自动改写。
 这不能证明 BOM 一定由官方 CLI 产生，PowerShell、编辑器或其他脚本也可能写入 BOM。
+
+若安装提示 `ENOENT`，请检查现有插件的 `file:` 来源。不要把发布来源放在
+profile 的 `node_modules` 中：pnpm 重建目录时可能清掉源包，从而阻塞任何插件安装。
+已安装文件仍完整且包具有明确发布清单时，可在完全退出桌面后运行：
+
+```powershell
+node cli/index.mjs plugins repair dsh-plugin-repo
+```
+
+恢复会保留现有版本，把发布文件打成持久 tarball，并备份 profile；
+先只替换目标依赖的来源，再交给官方 CLI 同步锁文件。归档排除嵌套 `node_modules`。
+若同步失败，持久来源与备份仍保留，不自动还原已失效路径。
+遇到 `ERR_PNPM_EPERM` 时先完全退出桌面再试，不应直接删除插件目录或放宽系统权限。
+
+Windows 下控制器会在插件安装、卸载或修复前检查桌面进程，要求完全退出后再操作。
+在线目录的 Git 子目录插件会先在独立临时目录检出，校验已构建的发布文件后生成持久 tarball，
+再交给官方 CLI 安装，不依赖 profile 的 `node_modules` 存放 Git 源码。
+此过程记录检出的提交，不自动执行仓库构建脚本或修改 `allowBuilds`；发布文件缺失时停止并报告。
+若日志先报 `ENOENT`，随后追加通用构建授权建议，控制器会优先报告文件来源错误。
+更新控制器代码后请关闭旧的 `dshc` 界面，再运行 `node cli/index.mjs`，旧进程不会热加载修改。
 
 ### 方式 A:克隆 + 本地链接(推荐)
 
@@ -87,7 +109,7 @@ Windows 下用 `Get-Command dshc` 检查入口。PowerShell 执行策略阻止 `
 cd dsh-controller && git pull && npm install -g .
 ```
 
-安装内容只有 `cli/` 与 README(约 80KB);技能包与插件在运行时从仓库拉取,不占全局包体积。
+安装内容只有 `cli/` 与 README；技能包与插件在运行时从仓库拉取，不占全局包体积。
 
 ### 回归验证
 
@@ -99,6 +121,10 @@ npm pack --dry-run
 测试均位于 `demo-test/`，运行夹具放在其隔离目录并自动清理，不修改真实 dsh 配置。
 Windows 用例覆盖安装定位、中文及特殊字符参数、官方 cmd 入口解析、BOM、失败退出码、
 子进程清理、换包备份和非 TTY 行为。管理员 UAC、真实插件下载及完整桌面更新流程需要实际环境验证。
+技能用例覆盖两个入口、完整嵌套资源、只读模块加载、越界拒绝、CRLF、
+旧副本归档、已修改内容保留和失败安装不删除原包。
+本机已解包的 DSH 安装还可执行 `node demo-test/skill-provider-smoke.mjs`，
+用当前官方技能提供器只读验证入口发现与全部模块正文加载；此项不启动桌面或运行模块工具。
 
 ### 卸载
 
@@ -162,10 +188,58 @@ dshc                    # 进入交互菜单
 
 | 项 | 作用 |
 |---|---|
-| 安装 / 更新 | 红队:仓库分类目录(recon/vuln-scan/exploit/internal/tunnel/plan)递归拉取;逆向:仓库 `resources/reverse-skill` 子目录;统一生成入口 `SKILL.md` |
-| 查看清单 | 已装技能/模块列表 |
+| 安装 / 更新 | 复制完整源包，保留分类、参考资料和脚本，只生成一个对外入口 |
+| 重装 | 新包准备后替换，旧包保留可恢复备份，不先清空 |
+| 刷新入口 | 更新分类索引，归档已确认的旧散装副本 |
+| 加载验证 | 逐个读取完整正文与资源基目录，不执行模块脚本 |
+| 卸载 | 将入口及完整包归档到备份，保留无法确认的自定义技能 |
+| 查看清单 | 查看分类索引中的稳定模块 ID |
 
 安装位置:`~/.dsh/skills/redteam-skill/`、`~/.dsh/skills/reverse-skill/`
+
+DSH 只扫描技能根目录下一层，因此这两个包在宿主中只显示两个入口；
+完整子模块留在包内，不再复制成顶层独立技能。其他用户自定义技能不受影响。
+
+```text
+skills/
+  redteam-skill/
+    SKILL.md                  # 红队分类入口
+    .dshc-index.json           # 模块 ID、路径、内容签名
+    .dshc-load.mjs             # 独立只读加载器
+    recon/ ...                # 完整分类及配套资源
+  reverse-skill/
+    SKILL.md                  # 逆向分类入口
+    .dshc-index.json
+    .dshc-load.mjs
+    skill/ skills/ scripts/ ... # 保留原始资源布局
+```
+
+先通过宿主 `skill` 工具加载包入口，再按入口索引读取目标模块正文。
+子模块 ID 不是顶层技能名，不能直接传给宿主 `skill(name=...)`。
+也可运行包内加载器的 `list` / `read <模块ID>`；
+返回 `content`、`packRoot`、`resourceBase.path`，相对资源按模块基目录解析。
+正文修改会返回 `changed: true`，可刷新索引；被修改的生成入口不会自动覆盖。
+
+旧布局迁移命令为 `dshc skills migrate`，验证命令为 `dshc skills verify`。
+仅当状态记录、模块名称、正文签名匹配且目录只有 `SKILL.md` 时，
+旧散装副本才会移入 `$DSH_HOME/dsh-controller/skill-backups/`；仅 CRLF 差异视为相同正文，
+备份仍保留原始字节。修改过、包含额外资源或无法确认的目录保留并报告。
+迁移不自动安装外部工具、连接 MCP 或修改全局规则；正文可加载不代表工具依赖已就绪。
+
+### Purge 演练台
+
+演练台优先读取已安装包的 `.dshc-index.json`，分别展示红队、逆向和官方用户技能；
+安装红队索引包后不再重复统计旧随包红队目录，两个包入口也不计作内部模块。
+点击模块可读取完整正文、包入口、模块 ID 和资源基目录；重名模块用包名与模块 ID 区分。
+预检共用该模块目录，支持稳定名称及兼容旧别名；缺文件或越界路径会报告不可用。
+
+演练模式发现红队索引包后，只移除预设中标准的旧平铺技能根，
+保留入口根和用户自定义目录，因此不会重新把子模块登记为宿主顶层技能。
+未安装红队包时仍可回退插件自带技能。安装或更新包后可在演练台点击“刷新”重新读取索引。
+本机链接安装的插件在修改后需要重启 DSH，以同时重新加载后端、预设及客户端。
+
+此仓库未附带完整面板构建源码；演练台变更同时维护兼容组件和实际 `dsh-purge-self/client.js`
+分发组件，并由回归测试验证分类、统计与详情显示，不以旧构建脚本替代完整前端构建。
 
 ### 插件商店
 
@@ -211,6 +285,8 @@ dshc purge selfcheck                         # 逐层自检
 # 技能包
 dshc skills redteam                          # 安装/更新红队技能包
 dshc skills reverse                          # 安装/更新逆向技能包
+dshc skills migrate                          # 迁移旧布局，只保留包入口
+dshc skills verify                           # 验证全部模块正文及资源基目录
 
 # 插件
 dshc plugins list                            # 已安装列表
@@ -305,7 +381,7 @@ cli/lib/ui.mjs       TUI 渲染(局部重绘 / 分组 / 勾选 / EOF 保护)
 cli/lib/core.mjs     环境探测 / 执行 / 认证 / 解包 / 改名 / 重启
 cli/lib/ops.mjs      破甲 / 技能 / 插件 / 备份 / 日志 / 权限预设
 dsh-purge-self/      破甲插件源码(随仓库发布)
-resources/           红队技能包(38) / 逆向技能包(14 模块)源
+resources/           红队 / 逆向完整技能源（子模块、参考资料和脚本）
 docs/                设计记录与版本范围指南
 ```
 

@@ -21,6 +21,7 @@ import { request as httpsRequest } from 'node:https'
 import { dispatch, dispatchAsync } from './store-core.js'
 /* 技能可用性判定与 redteam_preflight 共用同一份实现（环境变量 / 本机路径 / 占位符） */
 import { checkSkill, officialSkillSummaries, skillLibraryOf, summarizeSkills } from './skill-availability.js'
+import { installedPackCatalog, isPackEntry, readInstalledPackSkill } from './skill-pack-catalog.js'
 import { maxAgentsOf, maxAgentsSourceOf, saveMaxAgents, DEFAULT_MAX_AGENTS, MAX_AGENTS_LIMIT } from './settings.js'
 import {
   loadPlatformConfig, mergeConfigEnv, redteamRoot, envAdaptStatus, markEnvAdaptSkip,
@@ -115,19 +116,46 @@ function officialCatalogItems() {
   }))
 }
 
+/** 合并演练目录。参数 payload 为宿主或旧目录结果，返回红队、逆向及官方分类统计，索引每次读取以支持刷新。 */
 function withBothLibraries(payload) {
-  if (!payload || payload.ok === false || !Array.isArray(payload.items)) return payload
-  const redteam = payload.items.map((item) => Object.assign({ library: 'redteam' }, item, {
-    library: item.library === 'official' ? 'official' : 'redteam',
-  }))
+  const indexed = installedPackCatalog()
+  if ((!payload || payload.ok === false || !Array.isArray(payload.items)) && !indexed.packs.length) return payload
+  const base = payload && payload.ok !== false && Array.isArray(payload.items) ? payload : { ok: true, items: [] }
+  const redteam = base.items.filter(item => !isPackEntry(item) && !item.pack && !(indexed.packs.includes('redteam-skill') && item.library === 'redteam'))
+    .map(item => ({ ...item, library: ['official', 'reverse'].includes(item.library) ? item.library : 'redteam' }))
+  const env = mergeConfigEnv(process.env, loadPlatformConfig(redteamRoot()))
+  const verdicts = []
+  const packItems = indexed.items.map(item => {
+    const verdict = checkSkill(item, { env })
+    verdicts.push(verdict)
+    // 目录只发送摘要，避免一次向面板传输所有正文；正文由 skillRead 按需读取。
+    const summary = { ...item }
+    delete summary.content
+    return { ...summary, dir: item.resourceBase.path, fromPlugin: false, modelInvocable: false, userInvocable: true, availability: verdict.status, problems: verdict.problems, needs_user: verdict.needs_user }
+  })
   const seen = new Set(redteam.filter((item) => item.library === 'official').map((item) => item.name))
   const official = officialCatalogItems().filter((item) => !seen.has(item.name))
-  const items = redteam.concat(official)
-  return Object.assign({}, payload, {
+  const items = redteam.concat(packItems, official)
+  for (const item of redteam.filter(item => item.library !== 'official')) verdicts.push({ ...item, status: item.availability || 'unknown' })
+  const bySource = new Map(), byDir = new Map()
+  for (const item of items) {
+    const source = item.source || 'unknown', dir = item.dir || '(非文件系统来源)'
+    bySource.set(source, (bySource.get(source) || 0) + 1)
+    byDir.set(dir, (byDir.get(dir) || 0) + 1)
+  }
+  return Object.assign({}, base, {
     items,
     total: items.length,
+    fromPlugin: items.filter(item => item.fromPlugin).length,
+    fromPacks: packItems.length,
+    packErrors: indexed.errors,
+    bySource: Array.from(bySource, ([key, n]) => ({ key, n })),
+    byDir: Array.from(byDir, ([key, n]) => ({ key, n })),
+    availability: { summary: summarizeSkills(verdicts), checked_at: Date.now(), cached: false, broken: verdicts.filter(item => item.status === 'broken') },
+    note: '优先读取已安装技能包的分类索引；包内模块通过包入口或模块路径读取，不作为 DSH 顶层技能登记。工具/MCP 缺失仍需单独配置。',
     libraries: {
-      redteam: items.filter((item) => item.library !== 'official').length,
+      redteam: items.filter((item) => item.library === 'redteam').length,
+      reverse: items.filter((item) => item.library === 'reverse').length,
       official: items.filter((item) => item.library === 'official').length,
     },
   })
@@ -683,12 +711,13 @@ async function skillAvailabilityOf(skillsSvc, list, scope, force) {
   return { at: now, cached: false, byName }
 }
 
-/**
- * 技能目录：桌面端默认读本包 `skills/redteam/*.md`；
- * 仅当 skills + agentPresets 都可用时才走原生注册表。
- */
-async function handleSkillOp(ctx, request) {
+/** 处理技能请求。参数 ctx 为宿主上下文、request 为目录或读取请求，返回结果 Promise；包模块优先只读加载。 */
+export async function handleSkillOp(ctx, request) {
   if (request.op !== 'skillCatalog' && request.op !== 'skillRead') return undefined
+  if (request.op === 'skillRead' && request.library !== 'official') {
+    const packed = readInstalledPackSkill(request.name, request.library)
+    if (packed) return packed
+  }
 
   /* 桌面端绝不能让 "without inject" 冒泡：一律 softService + 文件兜底。 */
   const skillsSvc = softService(ctx, 'skills')
@@ -791,8 +820,12 @@ async function handleSkillOp(ctx, request) {
   return handleSkillOpFromPluginDir(request)
 }
 
-/** 从本包 skills/redteam 目录拼一份技能目录，并做真实可用性检查（不依赖宿主 skills 注入）。 */
+/** 文件后端兜底。参数 request 为技能请求，返回旧目录及安装包合并结果，不依赖宿主技能服务。 */
 function handleSkillOpFromPluginDir(request) {
+  if (request.op === 'skillRead' && request.library !== 'official') {
+    const packed = readInstalledPackSkill(request.name, request.library)
+    if (packed) return packed
+  }
   const dir = resolvePluginSkillsDir() || PLUGIN_SKILLS_DIR
   if (!dir || !existsSync(dir)) {
     return { ok: false, error: '本包 skills/redteam 目录不存在，且宿主 skills 服务不可用' }
@@ -876,6 +909,7 @@ function handleSkillOpFromPluginDir(request) {
   if (typeof request.name !== 'string' || request.name.length === 0) {
     return { ok: false, error: 'name required' }
   }
+  if (request.name.includes('/') || request.name.includes('\\') || request.name.includes(':') || request.name === '.' || request.name === '..') return { ok: false, error: '旧目录技能名称不能包含路径' }
   const file = join(dir, request.name.endsWith('.md') ? request.name : (request.name + '.md'))
   if (!existsSync(file)) return { ok: false, error: 'skill not found: ' + request.name }
   let content = ''

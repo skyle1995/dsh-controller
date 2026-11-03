@@ -1,9 +1,11 @@
 // 功能操作:破甲 / 技能包 / 插件 / 设置
-import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync, readdirSync, statSync, cpSync, renameSync, mkdtempSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync, readdirSync, statSync, lstatSync, cpSync, renameSync, mkdtempSync } from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
 import { execSync, spawn } from 'node:child_process'
 import * as core from './core.mjs'
+import { parseGitPluginSource, prepareGitPlugin } from './plugin-source.mjs'
+import { packConfig, scanPackModules, installPackDirectory, refreshPackEntry, removePackEntry, verifyPack } from './skill-packs.mjs'
 
 const { PLUGIN_DIR, DSH_HOME, SKILLS_DIR, HUB, RES } = core
 
@@ -71,94 +73,37 @@ export async function purgeSelfcheck() {
 }
 
 // ── 红队技能包(仓库分类目录 → 统一入口)───────────────────────
-const REDTEAM_DIR = path.join(SKILLS_DIR, 'redteam-skill')
-const REDTEAM_STATE = path.join(SKILLS_DIR, '.purge-redteam.json')
-async function redteamFiles() {
-  const top = await core.hubJson(HUB.api + '/contents/resources/redteam-skill?ref=main')
-  const isSkill = i => i.type === 'file' && i.name.endsWith('.md') && !/^(README|INDEX|CONTRIBUTING)\.md$/i.test(i.name)
-  const out = top.filter(isSkill).map(f => ({ name: f.name, url: f.download_url || f.url }))
-  for (const d of top.filter(i => i.type === 'dir')) {
-    try {
-      const sub = await core.hubJson(HUB.api + '/contents/resources/redteam-skill/' + d.name + '?ref=main')
-      for (const f of (Array.isArray(sub) ? sub : []).filter(isSkill)) out.push({ name: f.name, url: f.download_url || f.url, category: d.name })
-    } catch {}
-  }
-  return out
-}
-/** 读取技能 frontmatter。参数 md 为 Markdown 文本，返回字段对象，兼容 CRLF。 */
-function fm(md) {
-  md = md.replaceAll('\r\n', '\n')
-  const m = /^---\n([\s\S]*?)\n---/.exec(md)
-  const o = {}
-  if (m) for (const line of m[1].split('\n')) { const i = line.indexOf(':'); if (i > 0) o[line.slice(0, i).trim()] = line.slice(i + 1).trim() }
-  return o
-}
-export async function installRedteam({ version = 'repo' } = {}) {
-  let files = []
-  let src = 'repo'
-  try { files = await redteamFiles() } catch { files = [] }
-  const entries = []
-  for (const f of files) {
-    const r = await core.hubFetch(f.url)
-    if (!r.ok) continue
-    const md = await r.text()
-    entries.push({ name: fm(md).name || f.name.replace(/\.md$/, ''), md, meta: fm(md), category: f.category || '' })
-  }
-  if (!entries.length) {
-    // 回退:插件内 skills/redteam(平铺)
-    const srcDir = path.join(PLUGIN_DIR, 'skills', 'redteam')
-    src = 'plugin'
-    if (!existsSync(srcDir)) return { ok: false, error: '仓库与插件内均无红队技能' }
-    for (const n of readdirSync(srcDir)) {
-      if (!n.endsWith('.md') || n.startsWith('._') || n === 'README.md') continue
-      const md = readFileSync(path.join(srcDir, n), 'utf8')
-      entries.push({ name: fm(md).name || n.replace(/\.md$/, ''), md, meta: fm(md) })
-    }
-  }
-  const ver = await core.hubFileVersion('resources/redteam-skill')
-  rmSync(REDTEAM_DIR, { recursive: true, force: true })
-  mkdirSync(path.join(REDTEAM_DIR, 'SKILLS'), { recursive: true })
-  for (const e of entries) writeFileSync(path.join(REDTEAM_DIR, 'SKILLS', e.name + '.md'), e.md)
-  const idx = entries.map(e => '| ' + e.name + ' | ' + (e.meta.description || '').replace(/\|/g, '/').slice(0, 100) + ' |').join('\n')
-  writeFileSync(path.join(REDTEAM_DIR, 'SKILL.md'), [
-    '---', 'name: redteam-skill', 'description: 红队技能包统一入口(' + entries.length + ' 个子技能:侦察/漏洞/利用/内网/隧道/管理)', '---', '',
-    '# 红队技能包', '', '按需进入对应子技能(SKILLS/ 目录)。', '', '| 技能 | 说明 |', '| --- | --- |', idx, '',
-  ].join('\n'))
-  const reg = registerSubSkills('red')
-  let cur = {}
-  try { cur = JSON.parse(readFileSync(REDTEAM_STATE, 'utf8')) } catch {}
-  writeFileSync(REDTEAM_STATE, JSON.stringify({ ...cur, version: ver, source: src, skills: entries.map(e => e.name), installedAt: Date.now() }, null, 2))
-  return { ok: true, count: entries.length, version: ver, source: src, registered: reg.count }
+/** 从完整源包安装入口。参数 kind 为包类型，返回安装、版本和迁移结果；离线回退本地完整资源。 */
+async function installRepositoryPack(kind) {
+  const config = packConfig(kind)
+  const temp = mkdtempSync(path.join(os.tmpdir(), 'dshc-skill-pack-'))
+  try {
+    const repo = path.join(temp, 'repo')
+    const cloned = await core.cloneRepository(repo, temp)
+    let source = cloned.ok ? path.join(repo, 'resources', config.name) : path.join(core.REPO_ROOT, 'resources', config.name)
+    let origin = cloned.ok ? 'repo' : 'local'
+    if (!existsSync(source) && kind === 'red') { source = path.join(PLUGIN_DIR, 'skills', 'redteam'); origin = 'plugin' }
+    if (!existsSync(source)) return { ok: false, error: '完整技能源不可用: ' + cloned.output }
+    const r = installPackDirectory({ source, home: DSH_HOME, skillsDir: SKILLS_DIR, kind })
+    if (!r.ok) return r
+    let version = null
+    try { version = JSON.parse(readFileSync(path.join(source, 'package.json'), 'utf8')).version } catch {}
+    const file = path.join(SKILLS_DIR, config.state)
+    const state = JSON.parse(readFileSync(file, 'utf8'))
+    const names = scanPackModules(path.join(SKILLS_DIR, config.name), kind).map(module => module.name)
+    writeFileSync(file, JSON.stringify({ ...state, version, source: origin, ...(kind === 'red' ? { skills: names } : { modules: names }), installedAt: Date.now() }, null, 2))
+    return { ...r, version, source: origin, modules: r.count, registered: 0 }
+  } catch (error) { return { ok: false, error: error.message } }
+  finally { rmSync(temp, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 }) }
 }
 
+/** 安装完整红队包。无参数，返回版本、模块数及安全迁移结果，只登记包入口。 */
+export async function installRedteam() { return installRepositoryPack('red') }
+
 // ── 逆向技能包(仓库子目录 clone → 复制)────────────────────
-const REVERSE_DIR = path.join(SKILLS_DIR, 'reverse-skill')
-const REVERSE_STATE = path.join(SKILLS_DIR, '.reverse-skill.json')
 /** 安装逆向技能包。无参数，返回版本及模块数量，所有退出路径清理临时克隆目录。 */
 export async function installReverse() {
-  const tmp = mkdtempSync(path.join(os.tmpdir(), 'dshc-reverse-'))
-  try {
-  const repo = path.join(tmp, 'repo')
-  const r = await core.cloneRepository(repo, tmp)
-  if (!r.ok) return { ok: false, error: 'clone 失败:' + (r.output || '').slice(-200) }
-  const src = path.join(repo, 'resources', 'reverse-skill')
-  if (!existsSync(path.join(src, 'RULES.md'))) return { ok: false, error: '仓库中无 resources/reverse-skill' }
-  rmSync(REVERSE_DIR, { recursive: true, force: true })
-  mkdirSync(REVERSE_DIR, { recursive: true })
-  cpSync(src, REVERSE_DIR, { recursive: true }) // 跨平台复制(Node 内置,Windows 无 cp)
-  rmSync(path.join(REVERSE_DIR, '.git'), { recursive: true, force: true })
-  const ver = (() => { try { return JSON.parse(readFileSync(path.join(REVERSE_DIR, 'package.json'), 'utf8')).version } catch { return null } })()
-  const skills = []
-  const sk = path.join(REVERSE_DIR, 'skill')
-  if (existsSync(sk)) for (const d of readdirSync(sk)) if (existsSync(path.join(sk, d, 'SKILL.md'))) skills.push(d)
-  writeFileSync(path.join(REVERSE_DIR, 'SKILL.md'), [
-    '---', 'name: reverse-skill', 'description: 逆向工程 / CTF / 安全研究路由包(' + skills.length + ' 个模块)', '---', '',
-    '# 逆向技能包', '', '模块:' + skills.join(', '), '',
-  ].join('\n'))
-  registerSubSkills('reverse')
-  writeFileSync(REVERSE_STATE, JSON.stringify({ version: ver, modules: skills, installedAt: Date.now() }, null, 2))
-  return { ok: true, version: ver, modules: skills.length }
-  } finally { rmSync(tmp, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 }) }
+  return installRepositoryPack('reverse')
 }
 
 // ── 插件商店 ─────────────────────────────────────────────
@@ -203,6 +148,10 @@ export function stripProfileBom(file = path.join(DSH_HOME, 'profiles', 'desktop'
 
 /** 执行会修改 profile 的 CLI。参数 args 为命令参数，返回执行和前后清单校验结果。 */
 async function runProfileCommand(args) {
+  if (core.IS_WIN && core.dshRunning()) {
+    const error = '请保存会话并从托盘完全退出 DeepSeek 后再安装或修改插件，避免 Windows 文件占用。'
+    return { ok: false, output: error, error }
+  }
   const before = stripProfileBom()
   if (!before.ok) return { ok: false, output: before.error, error: before.error }
   const r = await core.runDsh(args, { stream: true })
@@ -211,21 +160,119 @@ async function runProfileCommand(args) {
   return r
 }
 
+/** 检查本地插件来源。参数 file 为 profile 清单路径，返回缺失或位于 node_modules 内的来源问题数组。 */
+export function localPluginSourceIssues(file = path.join(DSH_HOME, 'profiles', 'desktop', 'package.json')) {
+  try {
+    const text = readFileSync(file, 'utf8')
+    const pkg = JSON.parse(text.charCodeAt(0) === 0xfeff ? text.slice(1) : text)
+    const issues = []
+    for (const [name, spec] of Object.entries(pkg.dependencies || {})) {
+      if (typeof spec !== 'string' || (!spec.startsWith('file:') && !spec.startsWith('link:'))) continue
+      const source = path.resolve(path.dirname(file), spec.slice(5))
+      const managed = source.split(path.sep).some(part => part.toLowerCase() === 'node_modules')
+      if (managed || !existsSync(source)) issues.push({ name, spec, source, reason: managed ? '安装来源位于 node_modules，可能被包管理器清理' : '本地安装来源不存在' })
+    }
+    return issues
+  } catch { return [] }
+}
+
+/** 生成插件失败说明。参数 output 为命令输出，返回可操作的错误提示，不自动删改其他插件。 */
+function pluginFailureHint(output) {
+  if (String(output).includes('ERR_PNPM_EPERM')) return 'Windows 拒绝写入插件文件。请保存会话并从托盘完全退出 DeepSeek 后重试；若仍失败，再检查权限或安全软件。' + '\n' + String(output).slice(-300)
+  if (String(output).includes('ENOENT')) {
+    const issues = localPluginSourceIssues()
+    if (issues.length) return issues.map(i => i.name + ': ' + i.reason + '；可运行 dshc plugins repair ' + i.name).join('\n')
+    const firstError = String(output).split('\n').find(line => line.includes('ENOENT'))
+    return '包管理器找不到文件或安装来源: ' + firstError + '。这不是构建授权错误，不要根据附加提示修改 allowBuilds。'
+  }
+  return String(output || '').slice(-600) || '插件命令失败'
+}
+
+/** 将失效的本地插件重新登记为持久包。参数 name 为已安装包名，返回归档、配置备份及执行结果，版本不变。 */
+export async function repairLocalPlugin(name) {
+  if (typeof name !== 'string') return { ok: false, error: '无效插件名称' }
+  const parts = String(name || '').split('/')
+  const valid = parts.every(p => p && p !== '.' && p !== '..' && !p.includes('\\') && !p.includes(':'))
+  if (!valid || (name.startsWith('@') ? parts.length !== 2 : parts.length !== 1)) return { ok: false, error: '无效插件名称' }
+  if (core.IS_WIN && core.dshRunning()) return { ok: false, error: '请保存会话并从托盘完全退出 DeepSeek 后再修复插件来源。' }
+  const issue = localPluginSourceIssues().find(i => i.name === name)
+  if (!issue) return { ok: false, error: '该插件没有需要修复的本地来源' }
+  const installed = path.join(DSH_HOME, 'profiles', 'desktop', 'node_modules', name)
+  const pkgDir = path.join(DSH_HOME, 'dsh-controller', 'pkgs')
+  const temp = mkdtempSync(path.join(os.tmpdir(), 'dshc-repair-'))
+  try {
+    const pkg = JSON.parse(readFileSync(path.join(installed, 'package.json'), 'utf8'))
+    if (pkg.name !== name || !Array.isArray(pkg.files) || !pkg.files.length || typeof pkg.version !== 'string' || pkg.version.includes('/') || pkg.version.includes('\\')) throw new Error('缺少可靠的包名、版本或发布文件清单，未执行修复')
+    const stage = path.join(temp, 'package')
+    mkdirSync(stage)
+    cpSync(path.join(installed, 'package.json'), path.join(stage, 'package.json'))
+    for (const entry of pkg.files) {
+      if (typeof entry !== 'string' || entry.includes('*') || entry.includes('!') || path.isAbsolute(entry)) throw new Error('发布清单不是明确文件路径，未执行修复: ' + entry)
+      const src = path.resolve(installed, entry)
+      const relative = path.relative(installed, src)
+      if (!relative || relative.startsWith('..') || relative.split(path.sep).includes('node_modules')) throw new Error('发布清单路径不安全: ' + entry)
+      const dest = path.join(stage, relative)
+      mkdirSync(path.dirname(dest), { recursive: true })
+      cpSync(src, dest, { recursive: true, dereference: false, filter: source => {
+        if (path.relative(installed, source).split(path.sep).includes('node_modules')) return false
+        if (lstatSync(source).isSymbolicLink()) throw new Error('发布文件包含符号链接，未执行修复: ' + entry)
+        return true
+      } })
+    }
+    mkdirSync(pkgDir, { recursive: true })
+    const stamp = Date.now()
+    const tarball = path.join(pkgDir, name.replaceAll('/', '-') + '-' + pkg.version + '-recovered-' + stamp + '.tgz')
+    const packed = await core.run('tar', ['-czf', tarball, '-C', temp, 'package'])
+    if (!packed.ok) return { ok: false, error: '归档失败: ' + packed.output }
+    const file = path.join(DSH_HOME, 'profiles', 'desktop', 'package.json')
+    const backup = path.join(pkgDir, 'profile-before-repair-' + stamp + '.json')
+    const original = readFileSync(file)
+    writeFileSync(backup, original, { flag: 'wx', mode: 0o600 })
+    const text = original.toString('utf8')
+    const oldSpec = JSON.stringify(issue.spec)
+    const start = text.indexOf(oldSpec)
+    if (start < 0 || text.lastIndexOf(oldSpec) !== start) throw new Error('清单中的来源不是唯一值，未执行自动替换')
+    const prepared = text.slice(0, start) + JSON.stringify('file:' + tarball.split(path.sep).join('/')) + text.slice(start + oldSpec.length)
+    const swap = mkdtempSync(path.join(path.dirname(file), '.dshc-source-'))
+    try {
+      const staged = path.join(swap, 'package.json')
+      writeFileSync(staged, prepared, { mode: statSync(file).mode & 0o777 })
+      if (!readFileSync(file).equals(original)) throw new Error('profile 被其他进程修改，未覆盖')
+      renameSync(staged, file)
+    } finally { rmSync(swap, { recursive: true, force: true }) }
+    const r = await runProfileCommand(['plugin', '--profile', 'desktop', 'add', tarball])
+    const remaining = localPluginSourceIssues().some(i => i.name === name)
+    return { ok: r.ok && !remaining, version: pkg.version, tarball, backup, output: r.output, error: r.ok ? (remaining ? '命令完成但失效来源仍然存在，请保留备份并检查 profile' : '') : pluginFailureHint(r.output) }
+  } catch (e) { return { ok: false, error: e.message } }
+  finally { rmSync(temp, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 }) }
+}
+
 /** 安装插件。参数 spec 为包名、路径或来源，返回成功状态、输出及失败提示。 */
 export async function pluginInstall(spec) {
   if (typeof spec !== 'string' || !spec.trim() || spec.startsWith('-')) return { ok: false, output: '', hint: '请输入有效插件来源。' }
+  let prepared = null
+  try {
+    const source = parseGitPluginSource(spec)
+    if (source) {
+      if (core.IS_WIN && core.dshRunning()) return { ok: false, output: '', hint: '请保存会话并从托盘完全退出 DeepSeek 后再安装插件。' }
+      prepared = await prepareGitPlugin(source)
+      if (!prepared.ok) return { ok: false, output: '', hint: prepared.error }
+      spec = prepared.tarball
+    }
+  } catch (e) { return { ok: false, output: '', hint: e.message } }
   const r = await runProfileCommand(['plugin', '--profile', 'desktop', 'add', spec])
   let hint = ''
   const out = String(r.output || '')
   if (!r.ok) {
     switch (true) {
-      case out.includes('allowBuilds'): hint = '需在 ' + path.join(core.DSH_HOME, 'profiles', 'desktop', 'pnpm-workspace.yaml') + ' 的 allowBuilds 中加入 pnpm 提示的键后重试'; break
+      case out.includes('ENOENT') || out.includes('ERR_PNPM_EPERM'): hint = pluginFailureHint(out); break
       case out.includes('Repository not found') || out.includes('未找到'): hint = '仓库不可达:确认自建源密钥已配置且仓库名正确'; break
       case out.includes('ERR_PNPM_GIT_RESOLVE_FAILED'): hint = 'git 依赖解析失败:检查 spec 与网络/密钥'; break
-      default: hint = r.error || out.slice(-300)
+      case out.includes('allowBuilds'): hint = '请仅按 pnpm 实际输出的精确包键确认构建授权；未给出包键时，不修改 allowBuilds'; break
+      default: hint = r.error || pluginFailureHint(out)
     }
   }
-  return { ok: r.ok, output: r.output, hint }
+  return { ok: r.ok, output: r.output, hint, ...(prepared ? { tarball: prepared.tarball, version: prepared.version, commit: prepared.commit } : {}) }
 }
 /** 卸载指定插件。参数 name 为完整包名，返回执行结果并校验清单。 */
 export async function pluginRemove(name) {
@@ -237,6 +284,7 @@ export async function pluginRemove(name) {
 // ── 插件安装(仓库 tarball → dsh plugin add)───────────────────
 /** 下载并安装当前仓库插件。无参数，返回版本和持久包路径，清理临时目录但保留旧包引用。 */
 export async function installLatest() {
+  if (core.IS_WIN && core.dshRunning()) return { ok: false, error: '请保存会话并从托盘完全退出 DeepSeek 后再一键安装，避免 Windows 文件占用。' }
   // 注意:安装 spec 必须是**持久路径**。用 /tmp 打包后删除会让 profile 的 package.json
   // 留下 file:/var/folders/… 的死链,之后任何插件安装/更新都会因解析该依赖失败。
   const pkgDir = path.join(core.DSH_HOME, 'dsh-controller', 'pkgs')
@@ -260,7 +308,7 @@ export async function installLatest() {
   r = await runProfileCommand(['plugin', '--profile', 'desktop', 'add', tgz])
   let installed = null
   try { installed = JSON.parse(readFileSync(path.join(core.PLUGIN_DIR, 'package.json'), 'utf8')).version } catch {}
-  return { ok: r.ok, version: installed || ver, tarball: tgz, output: r.output }
+  return { ok: r.ok, version: installed || ver, tarball: tgz, output: r.output, error: r.ok ? '' : pluginFailureHint(r.output) }
   } finally { rmSync(tmp, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 }) }
 }
 
@@ -484,63 +532,51 @@ export function permissionPresetState() {
   } catch { return { configured: false } }
 }
 
-// ── 子技能注册:把包内子技能登记为独立 dsh 技能 ──────────────
-// dsh 只把 ~/.dsh/skills/<name>/SKILL.md 当技能,包内 SKILLS/ 子技能不单列。
-// 这里把每个子技能复制为独立技能目录,列表里就能逐个看到/命中。
-function clearRegistered(prev) {
-  if (!Array.isArray(prev)) return
-  for (const name of prev) {
-    try { rmSync(path.join(core.SKILLS_DIR, name), { recursive: true, force: true }) } catch {}
-  }
-}
-function registerOne(src, name) {
-  const dir = path.join(core.SKILLS_DIR, name)
-  try {
-    mkdirSync(dir, { recursive: true })
-    writeFileSync(path.join(dir, 'SKILL.md'), readFileSync(src))
-    return true
-  } catch { return false }
-}
+// ── 包级入口与旧版本迁移 ─────────────────────────────────
+/** 兼容旧调用：现在只刷新包入口。参数 kind 为包类型，返回模块数及迁移结果，不生成独立目录。 */
 export function registerSubSkills(kind) {
-  const statePath = path.join(core.SKILLS_DIR, kind === 'red' ? '.purge-redteam.json' : '.reverse-skill.json')
-  let st = {}
-  try { st = JSON.parse(readFileSync(statePath, 'utf8')) } catch {}
-  clearRegistered(st.registered)
-  const registered = []
-  let failed = 0
-  if (kind === 'red') {
-    const dir = path.join(core.SKILLS_DIR, 'redteam-skill', 'SKILLS')
-    if (existsSync(dir)) {
-      for (const f of readdirSync(dir)) {
-        if (!f.endsWith('.md') || f.startsWith('._')) continue
-        const name = f.replace(/\.md$/, '')
-        if (registerOne(path.join(dir, f), name)) registered.push(name); else failed++
-      }
-    }
-  } else {
-    const dir = path.join(core.SKILLS_DIR, 'reverse-skill', 'skill')
-    if (existsSync(dir)) {
-      for (const d of readdirSync(dir)) {
-        const src = path.join(dir, d, 'SKILL.md')
-        if (!existsSync(src)) continue
-        if (registerOne(src, d)) registered.push(d); else failed++
-      }
-    }
-  }
-  st.registered = registered
-  st.registeredAt = Date.now()
-  try { writeFileSync(statePath, JSON.stringify(st, null, 2)) } catch {}
-  return { ok: true, count: registered.length, failed }
+  try { return refreshPackEntry({ home: DSH_HOME, skillsDir: SKILLS_DIR, kind }) }
+  catch (error) { return { ok: false, error: error.message } }
 }
+/** 兼容旧清理调用。参数 kind 为包类型，返回归档数；只处理可确认的旧副本，不直接删除。 */
 export function unregisterSubSkills(kind) {
-  const statePath = path.join(core.SKILLS_DIR, kind === 'red' ? '.purge-redteam.json' : '.reverse-skill.json')
-  let st = {}
-  try { st = JSON.parse(readFileSync(statePath, 'utf8')) } catch {}
-  const n = (st.registered || []).length
-  clearRegistered(st.registered)
-  st.registered = []
-  try { writeFileSync(statePath, JSON.stringify(st, null, 2)) } catch {}
-  return { ok: true, removed: n }
+  const r = registerSubSkills(kind)
+  return { ...r, removed: r.archived?.length || 0 }
+}
+
+/** 迁移已安装的两个包。无参数，返回逐包结果；旧红队平铺包仅在版本和全部正文匹配时恢复完整分类资源。 */
+export function migrateSkillPacks() {
+  const results = []
+  for (const kind of ['red', 'reverse']) {
+    const config = packConfig(kind)
+    const root = path.join(SKILLS_DIR, config.name)
+    if (!existsSync(root)) continue
+    try {
+      let r
+      const source = path.join(core.REPO_ROOT, 'resources', config.name)
+      const state = JSON.parse(readFileSync(path.join(SKILLS_DIR, config.state), 'utf8'))
+      const legacy = kind === 'red' && readdirSync(root).every(name => ['SKILL.md', 'SKILLS'].includes(name))
+      if (legacy && existsSync(path.join(source, 'package.json'))) {
+        const pkg = JSON.parse(readFileSync(path.join(source, 'package.json'), 'utf8'))
+        const old = scanPackModules(root, kind), full = scanPackModules(source, kind)
+        const matches = old.length && old.every(module => full.some(item => item.name === module.name && item.normalizedSha256 === module.normalizedSha256))
+        if (pkg.version === state.version && matches) r = installPackDirectory({ source, home: DSH_HOME, skillsDir: SKILLS_DIR, kind })
+      }
+      r ||= refreshPackEntry({ home: DSH_HOME, skillsDir: SKILLS_DIR, kind })
+      results.push({ kind, ...r })
+    } catch (error) { results.push({ kind, ok: false, error: error.message }) }
+  }
+  return { ok: results.every(r => r.ok), packs: results }
+}
+
+/** 验证所有已安装入口。无参数，返回逐包模块加载结果；不执行模块脚本或连接 MCP。 */
+export function verifySkillPacks() {
+  const packs = []
+  for (const kind of ['red', 'reverse']) {
+    const root = path.join(SKILLS_DIR, packConfig(kind).name)
+    if (existsSync(root)) packs.push(verifyPack(root))
+  }
+  return { ok: true, packs }
 }
 /** 获取已安装技能清单。无参数，返回技能数组；目录尚未创建时返回空数组。 */
 export function skillsInventory() {
@@ -560,18 +596,8 @@ export function skillsInventory() {
   return out
 }
 
-// ── 卸载技能包(含独立注册目录)──────────────────────────────
+// ── 卸载技能包(可恢复归档)─────────────────────────────────
+/** 卸载指定入口及包内资源。参数 kind 为包类型，返回备份与保留项，不删用户自定义技能。 */
 export function uninstallPack(kind) {
-  const isRed = kind === 'red'
-  const dir = path.join(core.SKILLS_DIR, isRed ? 'redteam-skill' : 'reverse-skill')
-  const statePath = path.join(core.SKILLS_DIR, isRed ? '.purge-redteam.json' : '.reverse-skill.json')
-  let st = {}
-  try { st = JSON.parse(readFileSync(statePath, 'utf8')) } catch {}
-  let removed = 0
-  for (const n of st.registered || []) {
-    try { rmSync(path.join(core.SKILLS_DIR, n), { recursive: true, force: true }); removed++ } catch {}
-  }
-  try { rmSync(dir, { recursive: true, force: true }) } catch {}
-  try { rmSync(statePath, { force: true }) } catch {}
-  return { ok: true, removed, dir }
+  return removePackEntry({ home: DSH_HOME, skillsDir: SKILLS_DIR, kind })
 }
