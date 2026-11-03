@@ -5,12 +5,36 @@ DeepSeek Harness 的**纯命令行管理器**。管理破甲补丁、红队/逆�
 
 - 交互式 TUI:方向键移动、空格勾选、回车确认、q 返回,局部重绘不闪屏
 - 非交互命令:可脚本化、可管道、带退出码
-- 平台:macOS(管理 `/Applications/DeepSeek Harness.app`)
+- 平台:Windows(官方桌面安装)、macOS；Linux 可用 `DSH_APP_ROOT` 指定桌面安装
 - Node.js ≥ 18
 
 ---
 
 ## 一、安装
+
+### Windows 环境
+
+安装 Node.js 18 或以上版本及 Git，使用 PowerShell 或 Windows Terminal 运行上面的 Node/npm 命令。
+安装定位优先使用显式配置，其次读取 PATH 中的 `dsh.cmd`、卸载注册表及常见用户安装目录。
+中文、空格路径及插件来源中的 `&` 不会经过 shell 拼接。
+
+使用便携版、自定义目录或多实例时，可显式设置：
+
+```powershell
+$env:DSH_APP_ROOT = Join-Path $env:LOCALAPPDATA 'Programs\DeepSeek'
+# 可选：指定独立数据目录，未设置时使用用户目录下的 .dsh
+$env:DSH_HOME = Join-Path $env:USERPROFILE '.dsh'
+node cli/index.mjs status
+```
+
+请将 `DSH_APP_ROOT` 设置为实际安装根目录，其中应包含桌面 exe 和 `resources`。
+显式指定的目录无效时会报告未找到安装，不会自动操作另一个实例。
+Windows 卸载、换包前需要从托盘完全退出 DeepSeek；关闭窗口可能仅隐藏到托盘。
+控制器不会自动强杀桌面应用。权限不足时应使用有安装目录写权限的终端，换包的管理员授权需要用户确认。
+
+profile 的 `package.json` 若带 UTF-8 BOM，插件安装、卸载和版本豁免操作会在执行前后校验并修复。
+修复只去掉 BOM，保留原始字节备份 `package.json.bom-bak`；非法 JSON 不会被自动改写。
+这不能证明 BOM 一定由官方 CLI 产生，PowerShell、编辑器或其他脚本也可能写入 BOM。
 
 ### 方式 A:克隆 + 本地链接(推荐)
 
@@ -54,6 +78,9 @@ which dshc        # /opt/homebrew/bin/dshc(或 /usr/local/bin/dshc)
 dshc status       # 应输出插件/技能版本
 ```
 
+Windows 下用 `Get-Command dshc` 检查入口。PowerShell 执行策略阻止 `dshc.ps1` 时可运行
+`dshc.cmd` 或 `node cli/index.mjs`，不需要修改系统执行策略。
+
 升级(覆盖安装):
 
 ```bash
@@ -61,6 +88,17 @@ cd dsh-controller && git pull && npm install -g .
 ```
 
 安装内容只有 `cli/` 与 README(约 80KB);技能包与插件在运行时从仓库拉取,不占全局包体积。
+
+### 回归验证
+
+```powershell
+npm test
+npm pack --dry-run
+```
+
+测试均位于 `demo-test/`，运行夹具放在其隔离目录并自动清理，不修改真实 dsh 配置。
+Windows 用例覆盖安装定位、中文及特殊字符参数、官方 cmd 入口解析、BOM、失败退出码、
+子进程清理、换包备份和非 TTY 行为。管理员 UAC、真实插件下载及完整桌面更新流程需要实际环境验证。
 
 ### 卸载
 

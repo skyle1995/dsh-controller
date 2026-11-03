@@ -8,3 +8,4 @@ dist-win/
 文件/
 docs/*.exe
 dsh-purge-self-*.tgz
+demo-test/.runtime/

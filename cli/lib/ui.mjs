@@ -8,7 +8,7 @@ export const C = {
   red: '\x1b[31m', green: '\x1b[32m', yellow: '\x1b[33m',
   blue: '\x1b[34m', magenta: '\x1b[35m', cyan: '\x1b[36m', gray: '\x1b[90m',
 }
-export const c = (color, s) => C[color] ? C[color] + s + C.reset : s
+export const c = (color, s) => stdout.isTTY && !process.env.NO_COLOR && C[color] ? C[color] + s + C.reset : s
 export const ok = (s) => c('green', '✓ ' + s)
 export const bad = (s) => c('red', '✗ ' + s)
 export const warn = (s) => c('yellow', '! ' + s)
@@ -18,8 +18,13 @@ export const head = (s) => c('bold', s)
 let rl = null
 let stdinEnded = false
 export function stdinEndedQ() { return stdinEnded }
+/** 读取文本回答。参数 q 为提示，返回回答文本，输入已结束时返回空字符串。 */
 export async function ask(q) {
-  if (!rl) rl = readline.createInterface({ input: stdin, output: stdout })
+  if (stdinEnded || stdin.readableEnded || stdin.destroyed) return ''
+  if (!rl) {
+    rl = readline.createInterface({ input: stdin, output: stdout })
+    rl.once('close', () => { stdinEnded = stdin.readableEnded || stdin.destroyed })
+  }
   try { rl.resume() } catch {}
   try { return await rl.question(q) }
   catch (e) {
@@ -35,7 +40,8 @@ export function pauseAsk() { try { rl?.pause() } catch {} }
 export function resumeAsk() { try { rl?.resume() } catch {} }
 export function closeAsk() { try { rl?.close() } catch {} ; rl = null }
 
-export function clear() { try { process.stdout.write('\x1b[2J\x1b[3J\x1b[H') } catch {} }
+/** 清理交互终端显示。无参数或返回值，重定向输出时不写控制字符。 */
+export function clear() { if (stdout.isTTY) { try { process.stdout.write('\x1b[2J\x1b[3J\x1b[H') } catch {} } }
 
 export function banner(title) {
   const line = '─'.repeat(Math.max(10, title.length + 2))
@@ -85,7 +91,9 @@ const padEnd = (s, w) => {
   const width = [...String(s)].reduce((n, ch) => n + (/[\u4e00-\u9fff\uff00-\uffef]/.test(ch) ? 2 : 1), 0)
   return String(s) + ' '.repeat(Math.max(0, w - width))
 }
+/** 显示按键菜单。参数为菜单配置，返回选中索引或多选索引；非 TTY 和空菜单返回取消值。 */
 export function menuSelect({ title, subtitle = '', items, multi = false, checked: initial = [], footerTip = '' }) {
+  if (!stdin.isTTY || !stdout.isTTY || stdin.readableEnded || stdin.destroyed || !items.some(it => it && it.type !== 'group')) return Promise.resolve(multi ? null : -1)
   return new Promise((resolve) => {
     closeAsk()
     const stdin = process.stdin
@@ -135,7 +143,10 @@ export function menuSelect({ title, subtitle = '', items, multi = false, checked
       for (let i = L.length; i < printed; i++) process.stdout.write('\r\x1b[2K\n')
       printed = L.length
     }
+    let finished = false
     const finish = (v) => {
+      if (finished) return
+      finished = true
       stdin.removeListener('keypress', onKey)
       stdin.removeListener('end', onEnd)
       stdin.removeListener('close', onEnd)
@@ -171,7 +182,9 @@ export function menuSelect({ title, subtitle = '', items, multi = false, checked
 }
 
 // 等待任意按键(操作完成后的"回车继续")
+/** 等待交互终端按键。参数 msg 为提示，返回完成 Promise；非交互输入直接完成。 */
 export function waitKey(msg = '回车继续') {
+  if (!stdin.isTTY || stdin.readableEnded || stdin.destroyed) return Promise.resolve()
   return new Promise((resolve) => {
     closeAsk()
     const stdin = process.stdin

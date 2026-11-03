@@ -1,5 +1,5 @@
 // 功能操作:破甲 / 技能包 / 插件 / 设置
-import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync, readdirSync, statSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync, readdirSync, statSync, cpSync, renameSync, mkdtempSync } from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
 import { execSync, spawn } from 'node:child_process'
@@ -27,6 +27,7 @@ export async function purgeStatus() {
 }
 
 // ── 一键破甲:去隔离 → 解包 → 应用 → 换包改名 → 重启 ─────────
+/** 执行安装后的维护流程。参数 restart 控制是否重启，返回逐步结果，失败后停止后续换包。 */
 export async function oneClickPurge({ restart = true } = {}) {
   const steps = []
   const push = (name, r) => { steps.push({ name, ...r }) }
@@ -38,9 +39,16 @@ export async function oneClickPurge({ restart = true } = {}) {
   const ap = await core.cliText('dsh-purge.js', ['--apply'], { stream: true })
   push('应用补丁', { ok: ap.ok, note: ap.ok ? '退出码 0' : '退出码 ' + ap.code })
   if (!ap.ok) return { ok: false, steps }
+  if (core.IS_WIN && core.dshRunning()) {
+    core.quitDsh()
+    const exited = await core.waitDshExit(20000)
+    push('退出 dsh(换包前)', { ok: exited, note: exited ? '' : '请从托盘完全退出后重试' })
+    if (!exited) return { ok: false, steps, error: 'dsh 尚未退出，未执行换包。' }
+  }
   const rn = core.renameAsarToBak()
   push('换包改名', rn)
-  if (restart) { const rs = core.restartDsh(); push('重启 dsh', rs) }
+  if (!rn.ok) return { ok: false, steps, error: rn.error }
+  if (restart) { const rs = await core.restartDsh(); push('重启 dsh', rs) }
   return { ok: steps.every(s => s.ok !== false), steps }
 }
 
@@ -77,7 +85,9 @@ async function redteamFiles() {
   }
   return out
 }
+/** 读取技能 frontmatter。参数 md 为 Markdown 文本，返回字段对象，兼容 CRLF。 */
 function fm(md) {
+  md = md.replaceAll('\r\n', '\n')
   const m = /^---\n([\s\S]*?)\n---/.exec(md)
   const o = {}
   if (m) for (const line of m[1].split('\n')) { const i = line.indexOf(':'); if (i > 0) o[line.slice(0, i).trim()] = line.slice(i + 1).trim() }
@@ -124,19 +134,18 @@ export async function installRedteam({ version = 'repo' } = {}) {
 // ── 逆向技能包(仓库子目录 clone → 复制)────────────────────
 const REVERSE_DIR = path.join(SKILLS_DIR, 'reverse-skill')
 const REVERSE_STATE = path.join(SKILLS_DIR, '.reverse-skill.json')
+/** 安装逆向技能包。无参数，返回版本及模块数量，所有退出路径清理临时克隆目录。 */
 export async function installReverse() {
-  const tmp = path.join(os.tmpdir(), 'dshc-reverse-' + Date.now())
-  mkdirSync(tmp, { recursive: true })
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'dshc-reverse-'))
+  try {
   const repo = path.join(tmp, 'repo')
-  const tok = core.readToken()
-  const url = tok ? HUB.git.replace('https://hub.ifunx.com/', 'https://oauth2:' + tok + '@hub.ifunx.com/') : HUB.git
-  const r = await core.run('git', ['clone', '--depth', '1', url, repo], { cwd: tmp })
+  const r = await core.cloneRepository(repo, tmp)
   if (!r.ok) return { ok: false, error: 'clone 失败:' + (r.output || '').slice(-200) }
   const src = path.join(repo, 'resources', 'reverse-skill')
   if (!existsSync(path.join(src, 'RULES.md'))) return { ok: false, error: '仓库中无 resources/reverse-skill' }
   rmSync(REVERSE_DIR, { recursive: true, force: true })
   mkdirSync(REVERSE_DIR, { recursive: true })
-  execSync('cp -R "' + src + '/." "' + REVERSE_DIR + '/"')
+  cpSync(src, REVERSE_DIR, { recursive: true }) // 跨平台复制(Node 内置,Windows 无 cp)
   rmSync(path.join(REVERSE_DIR, '.git'), { recursive: true, force: true })
   const ver = (() => { try { return JSON.parse(readFileSync(path.join(REVERSE_DIR, 'package.json'), 'utf8')).version } catch { return null } })()
   const skills = []
@@ -148,8 +157,8 @@ export async function installReverse() {
   ].join('\n'))
   registerSubSkills('reverse')
   writeFileSync(REVERSE_STATE, JSON.stringify({ version: ver, modules: skills, installedAt: Date.now() }, null, 2))
-  rmSync(tmp, { recursive: true, force: true })
   return { ok: true, version: ver, modules: skills.length }
+  } finally { rmSync(tmp, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 }) }
 }
 
 // ── 插件商店 ─────────────────────────────────────────────
@@ -166,68 +175,105 @@ export async function pluginsInstalled() {
   } catch { return [] }
 }
 
+/** 校验 profile 清单并去掉 UTF-8 BOM。参数 file 为清单路径，返回修复状态或错误，保留配置内容。 */
+export function stripProfileBom(file = path.join(DSH_HOME, 'profiles', 'desktop', 'package.json')) {
+  try {
+    const b = readFileSync(file)
+    const hasBom = b.length >= 3 && b[0] === 0xef && b[1] === 0xbb && b[2] === 0xbf
+    const content = hasBom ? b.subarray(3) : b
+    const manifest = JSON.parse(content.toString('utf8'))
+    if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) throw new Error('profile 清单必须是 JSON 对象')
+    if (hasBom) {
+      const backup = file + '.bom-bak'
+      if (!existsSync(backup)) writeFileSync(backup, b, { flag: 'wx', mode: 0o600 })
+      const temp = mkdtempSync(path.join(path.dirname(file), '.dshc-bom-'))
+      try {
+        const stage = path.join(temp, 'package.json')
+        writeFileSync(stage, content, { mode: statSync(file).mode & 0o777 })
+        if (!readFileSync(file).equals(b)) throw new Error('清单被其他进程修改，未覆盖')
+        renameSync(stage, file)
+      } finally { rmSync(temp, { recursive: true, force: true }) }
+    }
+    return { ok: true, repaired: hasBom }
+  } catch (e) {
+    if (e.code === 'ENOENT') return { ok: true, missing: true }
+    return { ok: false, error: 'profile 清单校验失败: ' + e.message }
+  }
+}
+
+/** 执行会修改 profile 的 CLI。参数 args 为命令参数，返回执行和前后清单校验结果。 */
+async function runProfileCommand(args) {
+  const before = stripProfileBom()
+  if (!before.ok) return { ok: false, output: before.error, error: before.error }
+  const r = await core.runDsh(args, { stream: true })
+  const after = stripProfileBom()
+  if (!after.ok) return { ...r, ok: false, output: r.output + '\n' + after.error, error: after.error }
+  return r
+}
+
+/** 安装插件。参数 spec 为包名、路径或来源，返回成功状态、输出及失败提示。 */
 export async function pluginInstall(spec) {
-  const dshCli = RES + '/runtime/cli/bin/dsh'
-  const r = await core.run(dshCli, ['plugin', '--profile', 'desktop', 'add', spec], { stream: true })
+  if (typeof spec !== 'string' || !spec.trim() || spec.startsWith('-')) return { ok: false, output: '', hint: '请输入有效插件来源。' }
+  const r = await runProfileCommand(['plugin', '--profile', 'desktop', 'add', spec])
   let hint = ''
   const out = String(r.output || '')
   if (!r.ok) {
-    if (out.includes('allowBuilds')) hint = '需在 ' + path.join(core.DSH_HOME, 'profiles', 'desktop', 'pnpm-workspace.yaml') + ' 的 allowBuilds 中加入 pnpm 提示的键后重试'
-    else if (out.includes('Repository not found') || out.includes('未找到')) hint = '仓库不可达:确认自建源密钥已配置(设置 → 测试连接)且仓库名正确'
-    else if (out.includes('ERR_PNPM_GIT_RESOLVE_FAILED')) hint = 'git 依赖解析失败:检查 spec 与网络/密钥'
+    switch (true) {
+      case out.includes('allowBuilds'): hint = '需在 ' + path.join(core.DSH_HOME, 'profiles', 'desktop', 'pnpm-workspace.yaml') + ' 的 allowBuilds 中加入 pnpm 提示的键后重试'; break
+      case out.includes('Repository not found') || out.includes('未找到'): hint = '仓库不可达:确认自建源密钥已配置且仓库名正确'; break
+      case out.includes('ERR_PNPM_GIT_RESOLVE_FAILED'): hint = 'git 依赖解析失败:检查 spec 与网络/密钥'; break
+      default: hint = r.error || out.slice(-300)
+    }
   }
   return { ok: r.ok, output: r.output, hint }
 }
+/** 卸载指定插件。参数 name 为完整包名，返回执行结果并校验清单。 */
 export async function pluginRemove(name) {
-  const dshCli = RES + '/runtime/cli/bin/dsh'
-  const r = await core.run(dshCli, ['plugin', '--profile', 'desktop', 'remove', name], { stream: true })
+  if (typeof name !== 'string' || !name.trim() || name.startsWith('-')) return { ok: false, output: '请输入有效插件名称。' }
+  const r = await runProfileCommand(['plugin', '--profile', 'desktop', 'remove', name])
   return { ok: r.ok, output: r.output }
 }
 
 // ── 插件安装(仓库 tarball → dsh plugin add)───────────────────
+/** 下载并安装当前仓库插件。无参数，返回版本和持久包路径，清理临时目录但保留旧包引用。 */
 export async function installLatest() {
   // 注意:安装 spec 必须是**持久路径**。用 /tmp 打包后删除会让 profile 的 package.json
   // 留下 file:/var/folders/… 的死链,之后任何插件安装/更新都会因解析该依赖失败。
   const pkgDir = path.join(core.DSH_HOME, 'dsh-controller', 'pkgs')
   mkdirSync(pkgDir, { recursive: true })
-  const tmp = path.join(os.tmpdir(), 'dshc-purge-' + Date.now())
-  mkdirSync(tmp, { recursive: true })
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'dshc-purge-'))
+  try {
   const repo = path.join(tmp, 'repo')
-  const tok = core.readToken()
-  const url = tok ? core.HUB.git.replace('https://hub.ifunx.com/', 'https://oauth2:' + tok + '@hub.ifunx.com/') : core.HUB.git
-  let r = await core.run('git', ['clone', '--depth', '1', url, repo], { cwd: tmp })
+  let r = await core.cloneRepository(repo, tmp)
   if (!r.ok) return { ok: false, error: 'clone 失败:' + (r.output || '').slice(-200) }
   const src = path.join(repo, 'dsh-purge-self')
   if (!existsSync(path.join(src, 'package.json'))) return { ok: false, error: '仓库缺少 dsh-purge-self/' }
   let ver = null
   try { ver = JSON.parse(readFileSync(path.join(src, 'package.json'), 'utf8')).version } catch {}
   mkdirSync(path.join(tmp, 'package'), { recursive: true })
-  execSync('cp -R "' + src + '/." "' + tmp + '/package/"')
+  cpSync(src, path.join(tmp, 'package'), { recursive: true })
   rmSync(path.join(tmp, 'package', '.git'), { recursive: true, force: true })
   const tgz = path.join(pkgDir, 'dsh-purge-self-' + (ver || 'latest') + '.tgz')
   r = await core.run('tar', ['-czf', tgz, '-C', tmp, 'package'], { env: { COPYFILE_DISABLE: '1' } })
-  rmSync(tmp, { recursive: true, force: true })
   if (!r.ok) return { ok: false, error: 'tar 失败' }
-  // 只保留最近 3 个 tarball,避免无限增长
-  try {
-    const old = readdirSync(pkgDir).filter(f => /^dsh-purge-self-.*\.tgz$/.test(f)).sort()
-    while (old.length > 3) { rmSync(path.join(pkgDir, old.shift()), { force: true }) }
-  } catch {}
-  const dshCli = core.RES + '/runtime/cli/bin/dsh'
-  r = await core.run(dshCli, ['plugin', '--profile', 'desktop', 'add', tgz], { stream: true })
+  // profile 或备份可能继续引用旧 tarball，不自动删除持久安装来源。
+  r = await runProfileCommand(['plugin', '--profile', 'desktop', 'add', tgz])
   let installed = null
   try { installed = JSON.parse(readFileSync(path.join(core.PLUGIN_DIR, 'package.json'), 'utf8')).version } catch {}
   return { ok: r.ok, version: installed || ver, tarball: tgz, output: r.output }
+  } finally { rmSync(tmp, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 }) }
 }
 
 // ── 卸载(退出 dsh → CLI --uninstall;EPERM 回退管理员授权)────────
+/** 卸载插件及其宿主修改。无参数，返回卸载状态；Windows 等待完全退出，不调用 macOS 工具。 */
 export async function uninstallPurge() {
   core.quitDsh()
-  await core.waitDshExit(15000)
+  if (!await core.waitDshExit(15000)) return { ok: false, error: '请从托盘完全退出 dsh 后再卸载。' }
   const script = path.join(core.PLUGIN_DIR, 'bin', 'dsh-purge.js')
   let r = await core.run(process.execPath, [script, '--uninstall'], { env: core.purgeEnv(), stream: true })
   let via = 'user'
   if (!r.ok) {
+    if (process.platform !== 'darwin') return { ok: false, error: '卸载失败，请在有安装目录写权限的终端重试。', output: r.output }
     // 改名类操作被 App 管理拒绝 → 管理员授权重跑整条卸载
     try {
       const sh = path.join(os.tmpdir(), 'dshc-admin-uninstall.sh')
@@ -240,9 +286,8 @@ export async function uninstallPurge() {
       via = 'admin'
     } catch (e) { return { ok: false, error: '卸载失败:' + (e.message || e) + '（可尝试 sudo 重跑）' } }
   }
-  const dshCli = core.RES + '/runtime/cli/bin/dsh'
-  await core.run(dshCli, ['plugin', '--profile', 'desktop', 'remove', 'dsh-purge-self'])
-  return { ok: true, via, output: r.output }
+  const removed = await pluginRemove('dsh-purge-self')
+  return { ok: removed.ok, via, output: r.output + '\n' + removed.output }
 }
 
 // ── 运行开关(boost / retry / rewind / inject)─────────────────
@@ -375,18 +420,19 @@ export async function pluginsUpdateAll() {
 export function pluginExemptions() {
   try { return JSON.parse(readFileSync(path.join(core.DSH_HOME, 'profiles', 'desktop', 'compatibility.json'), 'utf8')) } catch { return {} }
 }
+/** 设置插件版本豁免。参数为完整包版本、宿主版本及启用标志，返回执行结果与现有规则。 */
 export async function setPluginExemption(nameWithVersion, dshVersion, enable) {
-  const dshCli = core.RES + '/runtime/cli/bin/dsh'
+  if (!nameWithVersion || !dshVersion || nameWithVersion.startsWith('-') || dshVersion.startsWith('-')) return { ok: false, output: '请提供插件及 dsh 版本。' }
   const args = ['plugin', '--profile', 'desktop', enable ? 'allow-version' : 'revoke-version', nameWithVersion, '--dsh-version', dshVersion]
   if (enable) args.push('--accept-risk')
-  const r = await core.run(dshCli, args, { stream: true })
+  const r = await runProfileCommand(args)
   return { ok: r.ok, output: r.output, exemptions: pluginExemptions() }
 }
 export async function restartDsh() { return core.restartDsh() }
 
 // ── 日志查看 / 清空 ───────────────────────────────────────
 export const auditFile = () => path.join(core.DSH_HOME, 'dsh-purge-community', 'audit.jsonl')
-export const handoffFile = () => '/tmp/dsh-controller-handoff.log'
+export const handoffFile = () => path.join(os.tmpdir(), 'dsh-controller-handoff.log')
 export function tailFile(file, n = 40) {
   try {
     const t = readFileSync(file, 'utf8').trimEnd().split('\n')
@@ -398,7 +444,7 @@ export function clearAudit() {
 }
 export function clearAllLogs() {
   let n = 0
-  for (const f of [auditFile(), handoffFile(), '/tmp/dsh-handoff-worker.log', '/tmp/dsh-rename-worker.log']) {
+  for (const f of [auditFile(), handoffFile(), path.join(os.tmpdir(), 'dsh-handoff-worker.log'), path.join(os.tmpdir(), 'dsh-rename-worker.log')] ) {
     try { if (existsSync(f)) { rmSync(f, { force: true }); n++ } } catch {}
   }
   return { ok: true, removed: n }
@@ -496,14 +542,16 @@ export function unregisterSubSkills(kind) {
   try { writeFileSync(statePath, JSON.stringify(st, null, 2)) } catch {}
   return { ok: true, removed: n }
 }
+/** 获取已安装技能清单。无参数，返回技能数组；目录尚未创建时返回空数组。 */
 export function skillsInventory() {
   const out = []
+  if (!existsSync(core.SKILLS_DIR)) return out
   for (const e of readdirSync(core.SKILLS_DIR, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
     if (!e.isDirectory()) continue
     const f = path.join(core.SKILLS_DIR, e.name, 'SKILL.md')
     let desc = ''
     try {
-      const md = readFileSync(f, 'utf8')
+      const md = readFileSync(f, 'utf8').replaceAll('\r\n', '\n')
       const m = /^---\n([\s\S]*?)\n---/.exec(md)
       if (m) { const d = /^description:\s*(.+)$/m.exec(m[1]); if (d) desc = d[1].slice(0, 60) }
     } catch {}

@@ -10,7 +10,8 @@
     "start": "node cli/index.mjs",
     "cli": "node cli/index.mjs",
     "status": "node cli/index.mjs status",
-    "link": "npm link"
+    "link": "npm link",
+    "test": "node --test demo-test/platform.test.mjs"
   },
   "files": [
     "cli",

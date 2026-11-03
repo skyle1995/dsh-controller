@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 // DSH Controller CLI —— 分组式交互 TUI(方向键 / 空格 / 回车)
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, rmSync } from 'node:fs'
 import path from 'node:path'
-import { execSync } from 'node:child_process'
 import * as ui from './lib/ui.mjs'
 import * as core from './lib/core.mjs'
 import * as ops from './lib/ops.mjs'
@@ -35,7 +34,7 @@ async function menuPurge() {
       { label: '回滚补丁', hint: '把 dsh 文件还原为补丁前(重启生效)' },
       { label: '卸载安装', hint: '退出 dsh,卸载插件与补丁(需管理员)' },
       { label: '还原签名', hint: '修官方更新失败(丢弃解包目录)' },
-      { label: '重启 dsh', hint: 'open -a DeepSeek Harness' },
+      { label: '重启 dsh', hint: '完全退出后启动当前桌面安装' },
       { type: 'group', label: '返回' },
       { label: '返回主菜单' },
     ]
@@ -425,9 +424,8 @@ async function menuPlugins() {
         let okN = 0, failN = 0
         for (const i of picks) {
           const key = rows[i][0]
-          const [pkg, ver] = key.split('@')
           const dv = String((cur[key] || [])[0] || '')
-          const r = await ops.setPluginExemption(pkg + '@' + ver, dv, false)
+          const r = await ops.setPluginExemption(key, dv, false)
           if (r.ok) { okN++; console.log('    ' + ok('已撤销 ' + key)) } else { failN++; console.log('    ' + bad(key + ' — 失败')) }
         }
         console.log('\n  ' + (failN ? warn('成功 ' + okN + ' · 失败 ' + failN) : ok('已撤销 ' + okN + ' 条豁免')))
@@ -485,7 +483,7 @@ async function menuSettings() {
       }
       console.log(c('gray', '  ' + '-'.repeat(60)))
       const more = await menuSelect({ title: '日志操作', items: [{ label: '返回' }, { label: '清空该日志' }] })
-      if (more === 1) { const c2 = isAudit ? ops.clearAudit() : (() => { try { execSync('rm -f "' + file + '"'); return { ok: true } } catch (e) { return { ok: false, error: e.message } } })(); console.log('  ' + (c2.ok ? ok('已清空') : bad(c2.error))) ; await waitKey() }
+      if (more === 1) { const c2 = isAudit ? ops.clearAudit() : (() => { try { rmSync(file, { force: true }); return { ok: true } } catch (e) { return { ok: false, error: e.message } } })(); console.log('  ' + (c2.ok ? ok('已清空') : bad(c2.error))) ; await waitKey() }
     } else if (chosen.label === '清空审计日志') {
       const r = ops.clearAudit()
       console.log('  ' + (r.ok ? ok('已清空审计日志') : bad(r.error || '失败')))
@@ -534,9 +532,13 @@ async function mainMenu() {
 function help() {
   console.log(head('DSH Controller CLI') + '\n\n用法: dshc [命令]   (不带命令 = 交互式 TUI)\n\n命令:\n  status\n  purge oneclick|apply|revert|reseal|backup|prune|selfcheck|rollback <id>\n  skills redteam|reverse\n  plugins list|install <spec>|remove <name>\n  settings token [值]|test\n  help')
 }
+/** 处理 CLI 参数。参数 argv 为命令参数数组，返回操作结果或完成交互；非 TTY 显示帮助。 */
 async function cli(argv) {
   const [cmd, sub, ...rest] = argv
-  if (!cmd || cmd === 'menu') return mainMenu()
+  if (!cmd || cmd === 'menu') {
+    if (!process.stdin.isTTY || !process.stdout.isTTY) return help()
+    return mainMenu()
+  }
   if (cmd === 'help' || cmd === '--help' || cmd === '-h') return help()
   if (cmd === 'status') {
     const st = await ops.purgeStatus(); const rt = readState(REDTEAM_STATE), rv = readState(REVERSE_STATE)
@@ -569,4 +571,7 @@ async function cli(argv) {
   }
   help()
 }
+process.once('exit', () => { core.stopRunningCommands(); ui.closeAsk() })
+process.once('SIGINT', () => process.exit(130))
+process.once('SIGTERM', () => process.exit(143))
 cli(process.argv.slice(2)).catch(e => { console.error(bad(String(e?.stack || e))); process.exit(1) })
