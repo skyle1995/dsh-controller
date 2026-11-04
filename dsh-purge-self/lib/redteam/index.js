@@ -11,6 +11,7 @@ import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { readPresetDefinition } from './preset-composition.js'
+import { migratePresetDefinition, backupPresetMigration, registerPresetDefinitions } from '../preset-compat.js'
 import { bundledSkillSummaries } from './skill-availability.js'
 import { installedPackCatalog } from './skill-pack-catalog.js'
 
@@ -535,8 +536,11 @@ export function apply(ctx) {
   }
   const registerOnce = (registry) => {
     let definition
+    let migrated
     try {
       definition = buildDefinition()
+      migrated = migratePresetDefinition(definition)
+      backupPresetMigration({ home: process.env.DSH_HOME || join(homedir(), '.dsh'), dir: result.dir, id: definition.id, policies: migrated.policies })
     } catch (error) {
       writeStatus({ ok: false, phase: 'read-failed', error: error?.message || String(error) })
       ctx.logger?.warn?.('redteam-mode: read preset failed: %s', error?.message || String(error))
@@ -552,7 +556,7 @@ export function apply(ctx) {
     Promise.resolve()
       .then(async () => {
         await undeclare()
-        releaseDeclared = await registry.register(definition)
+        releaseDeclared = await registerPresetDefinitions(registry, migrated.definitions)
         let broken = null
         try {
           const row = (await registry.list()).find((p) => p.id === REDTEAM_PRESET_ID)
@@ -564,6 +568,7 @@ export function apply(ctx) {
           id: definition.id,
           name: definition.name,
           plugins: Array.isArray(definition.plugins) ? definition.plugins.length : -1,
+          hostChanges: migrated.hostChanges,
           broken,
         })
         if (broken) ctx.logger?.warn?.('redteam-mode: declared but broken: %s', broken)

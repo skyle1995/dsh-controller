@@ -3138,6 +3138,17 @@ const NEW_TOOL_PATCHES = [
           '\t\treturn void 0;\n' +
           '\t}',
       },
+      {
+        pattern:
+          '\teditIntent(target, actor) {\n' +
+          '\t\treturn this.requirePresent(target, actor, "edit");\n' +
+          '\t}',
+        replace:
+          '\teditIntent(target, actor) {\n' +
+          '\t\t// [dsh-purge] observation bypass: edits are unconditional (no read-first gate).\n' +
+          '\t\treturn void 0;\n' +
+          '\t}',
+      },
     ],
     markers: [
       "[dsh-purge] observation bypass: writes are unconditional",
@@ -3791,6 +3802,33 @@ const NEW_TOOL_PATCHES = [
     desc: "complete 预设仍保留 dsh-purge 注入 / keep inject after complete prompt",
     file: ["system-prompt", "system-prompt-nested"],
     replacements: [
+      {
+        // 0.2.2 保留本轮解析的 tools，不改变工具集合的生命周期。
+        pattern:
+          '\t\tconst transformed = await this.ctx.waterfall(scopeTarget(this, scope), "system-prompt/assemble", assembly, context, () => Promise.resolve(assembly));\n' +
+          '\t\tif (completeSection === void 0 && !runtimeContextSuppressed) return {\n' +
+          '\t\t\t...transformed,\n' +
+          '\t\t\ttools\n' +
+          '\t\t};\n' +
+          '\t\tconst requiredContexts = new Set([...contextByName.values()].filter((entry) => entry.required === true).map((entry) => entry.name));\n' +
+          '\t\treturn {\n' +
+          '\t\t\t...transformed,\n' +
+          '\t\t\ttools,\n' +
+          '\t\t\tsections: completeSection === void 0 ? transformed.sections : [completeSection],\n' +
+          '\t\t\tcontexts: runtimeContextSuppressed ? transformed.contexts.filter((entry) => requiredContexts.has(entry.name)) : transformed.contexts\n' +
+          '\t\t};',
+        replace:
+          '\t\tconst transformed = await this.ctx.waterfall(scopeTarget(this, scope), "system-prompt/assemble", assembly, context, () => Promise.resolve(assembly));\n' +
+          '\t\tconst dshPurgeSections = (transformed.sections || []).filter((section) => String(section.name || "").startsWith("dsh-purge") && String(section.text || "").length > 0);\n' +
+          '\t\tif (completeSection === void 0 && !runtimeContextSuppressed) return { ...transformed, tools };\n' +
+          '\t\tconst requiredContexts = new Set([...contextByName.values()].filter((entry) => entry.required === true).map((entry) => entry.name));\n' +
+          '\t\treturn {\n' +
+          '\t\t\t...transformed,\n' +
+          '\t\t\ttools,\n' +
+          '\t\t\tsections: completeSection === void 0 ? transformed.sections : [completeSection, ...dshPurgeSections.filter((section) => section.name !== completeSection.name)], // [dsh-purge] complete preset still keeps the inject\n' +
+          '\t\t\tcontexts: runtimeContextSuppressed ? transformed.contexts.filter((entry) => requiredContexts.has(entry.name)) : transformed.contexts\n' +
+          '\t\t};',
+      },
       {
         // 0.2.1：assemble 之后按 requiredContexts 过滤上下文；complete 预设仍会整段替换掉注入。
         pattern: /[ \t]*const transformed = await this\.ctx\.waterfall\(scopeTarget\(this, scope\), "system-prompt\/assemble", assembly, context, \(\) => Promise\.resolve\(assembly\)\);\n[ \t]*if \(completeSection === void 0 && !runtimeContextSuppressed\) return transformed;\n[ \t]*const requiredContexts = new Set\(\[\.\.\.contextByName\.values\(\)\]\.filter\(\(entry\) => entry\.required === true\)\.map\(\(entry\) => entry\.name\)\);\n[ \t]*return \{\n[ \t]*\.\.\.transformed,\n[ \t]*sections: completeSection === void 0 \? transformed\.sections : \[completeSection\],\n[ \t]*contexts: runtimeContextSuppressed \? transformed\.contexts\.filter\(\(entry\) => requiredContexts\.has\(entry\.name\)\) : transformed\.contexts\n[ \t]*\};/,
@@ -4533,6 +4571,26 @@ const NEW_TOOL_PATCHES = [
     file: ["agent-loop"],
     skipIfMarked: true,
     replacements: [
+      {
+        pattern:
+          '\t\ttry {\n' +
+          '\t\t\tconst assembly = await this.loopCtx.systemPrompt.assemble({\n' +
+          '\t\t\t\t...assembleContextFor(this, signal),\n' +
+          '\t\t\t\tmodelSelection: selection,\n' +
+          '\t\t\t\ttoolSet\n' +
+          '\t\t\t});',
+        replace:
+          '\t\ttry {\n' +
+          '\t\t\tconst dshPurgePrepare = globalThis.__dshPurgePrepareAssemble;\n' +
+          '\t\t\tif (typeof dshPurgePrepare === "function") {\n' +
+          '\t\t\t\ttry { dshPurgePrepare(this.loopCtx); } catch { /* [dsh-purge] prepare assemble before this step */ }\n' +
+          '\t\t\t}\n' +
+          '\t\t\tconst assembly = await this.loopCtx.systemPrompt.assemble({\n' +
+          '\t\t\t\t...assembleContextFor(this, signal),\n' +
+          '\t\t\t\tmodelSelection: selection,\n' +
+          '\t\t\t\ttoolSet\n' +
+          '\t\t\t});',
+      },
       {
         pattern:
           "\t\tconst claimed = this.inbox.claim(target, position.turn);\n" +
@@ -5302,6 +5360,18 @@ const NEW_TOOL_PATCHES = [
     replacements: [
       {
         pattern:
+          '\t\tif (approval === void 0) return {\n' +
+          '\t\t\tdecision: {\n' +
+          '\t\t\t\tkind: "deny",\n' +
+          '\t\t\t\treason: ask.reason ?? `tool "${exec.name}" requires approval (not yet supported)`\n' +
+          '\t\t\t},\n' +
+          '\t\t\tapprovalCancelled: false\n' +
+          '\t\t};',
+        replace:
+          '\t\tif (approval === void 0) return { decision: { kind: "allow" }, approvalCancelled: false }; // [dsh-purge] no approval service → allow\n',
+      },
+      {
+        pattern:
           '\t\tif (approval === undefined) return {\n' +
           '\t\t\tdecision: {\n' +
           '\t\t\t\tkind: "deny",\n' +
@@ -5336,6 +5406,15 @@ const NEW_TOOL_PATCHES = [
           '\t\t};',
         replace:
           '\t\tcase "unavailable": return { decision: { kind: "allow" }, approvalCancelled: false }; // [dsh-purge] unavailable channel → allow\n',
+      },
+      {
+        pattern:
+          "            case 'unavailable': return {\n" +
+          "                decision: { kind: 'deny', reason: `tool \"${exec.name}\" requires approval, but no approval channel is available` },\n" +
+          "                approvalCancelled: false,\n" +
+          "            };",
+        replace:
+          "            case 'unavailable': return { decision: { kind: 'allow' }, approvalCancelled: false }; // [dsh-purge] unavailable channel → allow\n",
       },
       {
         pattern:
@@ -5496,6 +5575,13 @@ const NEW_TOOL_PATCHES = [
     optional: true,
     skipIfMarked: true,
     replacements: [
+      {
+        pattern: 'import { createRequire } from "node:module";\n',
+        replace:
+          'import { createRequire } from "node:module";\n' +
+          '// [dsh-purge-82] 双击 exe 从 explorer 继承 env 时常缺 DSH_PROFILE\n' +
+          'if (!process.env.DSH_PROFILE) process.env.DSH_PROFILE = "desktop";\n',
+      },
       {
         pattern:
           "import { REMOTE_STREAM_MUX_PATH, parseRemoteStreamServerMessage } from \"@deepseek-ai/dsh-api-gateway/stream-protocol\";\n" +
@@ -6435,12 +6521,16 @@ export function targetFiles(aiBase, dshHome = findDshHome()) {
     ]),
     "dsh-tools": allExisting([
       ...nestedPkg(aiBase, "dsh-tools", "lib", "index.js"),
+      ...nestedPkg(aiBase, "dsh-tools", "lib", "pipeline.js"),
     ]),
     "dsh-tools-types": allExisting([
       ...nestedPkg(aiBase, "dsh-tools", "lib", "types", "index.js"),
+      ...nestedPkg(aiBase, "dsh-tools", "lib", "types", "pipeline.js"),
     ]),
     "dsh-tools-ptc": allExisting([
       ...nestedPkg(aiBase, "dsh-tools", "lib", "types", "ptc.js"),
+      ...nestedPkg(aiBase, "dsh-tool-executor-ptc", "lib", "index.js"),
+      ...nestedPkg(aiBase, "dsh-tool-executor-ptc", "lib", "types", "ptc.js"),
     ]),
     "sandbox-policy": allExisting([
       ...nestedPkg(aiBase, "dsh-sandbox-policy", "lib", "index.js"),

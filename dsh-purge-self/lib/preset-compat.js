@@ -5,6 +5,7 @@ import { removeTreeNoFollowSync } from "./remove-tree.js";
 import fs from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
+import { currentHost } from "./instance.js";
 
 const SUBAGENT = "@deepseek-ai/dsh-tool-subagent";
 const TOOL_NAMES = new Map([
@@ -29,9 +30,43 @@ function rowAt(rows, at) {
   return at.reduce((value, key) => value[key], rows);
 }
 
-/** Build declarations without executing expressions or changing the input. */
-export function migratePresetDefinition(definition) {
+/**
+ * 按宿主发布文件核对合并后的子任务控制入口。参数为预设行、宿主根及文件读取器，返回迁移记录；不修改磁盘。
+ */
+function migrateControlRows(rows, hostBase, reader) {
+  const control = "@deepseek-ai/dsh-tool-subagent-control";
+  try {
+    const root = path.join(hostBase, "dsh-tool-subagent-control");
+    const pkg = JSON.parse(reader.readFileSync(path.join(root, "package.json"), "utf8"));
+    if (!pkg.exports?.["."] || pkg.exports["./list-agents"] || pkg.exports["./*"]) return [];
+    if (!reader.readFileSync(path.join(root, "lib", "index.js"), "utf8").includes("registerListAgents(ctx)")) return [];
+  } catch {
+    return [];
+  }
+  const changes = [];
+  /** 归一化同组的发现入口。参数为插件行数组，返回保留原顺序的兼容行。 */
+  const normalize = (items) => {
+    const ownsDiscovery = items.some((row) => row.name === control && row.disabled !== true);
+    return items.filter((row) => {
+      if (!ownsDiscovery || row.name !== control + "/list-agents") return true;
+      changes.push({ id: row.id, from: row.name, to: control });
+      return false;
+    }).map((row) => {
+      if (row.group === true) row.config = normalize(row.config);
+      return row;
+    });
+  };
+  const normalized = normalize(rows);
+  rows.splice(0, rows.length, ...normalized);
+  return changes;
+}
+
+/**
+ * 构建兼容预设声明。参数为原始定义及可选宿主根、读取器，返回声明和迁移记录；不执行表达式或修改原始输入。
+ */
+export function migratePresetDefinition(definition, { hostBase = currentHost(), reader = fs } = {}) {
   const parent = structuredClone(definition);
+  const hostChanges = [];
   const policies = [];
   visit(parent.plugins, (row, at) => {
     if (row.name !== SUBAGENT || !Object.hasOwn(row.config ?? {}, "toolFilter"))
@@ -80,7 +115,10 @@ export function migratePresetDefinition(definition) {
     throw Error(
       `${definition.id}: multiple legacy child policies require explicit migration; configuration retained`,
     );
-  if (!policies.length) return { definitions: [parent], policies };
+  if (!policies.length) {
+    if (hostBase) hostChanges.push(...migrateControlRows(parent.plugins, hostBase, reader));
+    return { definitions: [parent], policies, hostChanges };
+  }
 
   const policy = policies[0];
   const child = structuredClone(parent);
@@ -102,7 +140,12 @@ export function migratePresetDefinition(definition) {
   const config = rowAt(parent.plugins, policy.at).config;
   delete config.toolFilter;
   config.agentPreset = child.id;
-  return { definitions: [child, parent], policies };
+  // 先按旧行布局计算子预设 ID、绑定策略，再调整入口，保留已存子会话的身份及行定位。
+  if (hostBase) {
+    hostChanges.push(...migrateControlRows(parent.plugins, hostBase, reader));
+    migrateControlRows(child.plugins, hostBase, reader);
+  }
+  return { definitions: [child, parent], policies, hostChanges };
 }
 
 /** Immutable, content-addressed backup, made before registering the migration.

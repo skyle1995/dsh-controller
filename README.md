@@ -370,6 +370,29 @@ Gitea 对私有仓库的匿名请求返回 404(隐藏存在性),CLI 对 401/404 
 | 安装插件 `allowBuilds` 报错 | pnpm 阻止 git 插件 prepare | 按提示在 `~/.dsh/profiles/desktop/pnpm-workspace.yaml` 的 `allowBuilds` 加入对应键 |
 | `Repository not found` | 私有源未授权 | 设置 → 设置访问密钥 → 测试连接 |
 | 换包后 dsh 仍加载 asar | 改名未完成 | 查看 `/tmp/dsh-controller-handoff.log`,重跑一键安装 |
+| `Unknown agent preset: unrestricted`，旧会话无法恢复 | 预设未成功注册，崩溃可能损坏 `preset.yml` | 先备份损坏文件，再用已校验的原始备份恢复；不要删除会话。重开 DSH 重新注册预设 |
+| DSH 0.2.2 中红队预设报 `tool-subagent-list-agents: never started` | 发现工具已合并进主控制插件，旧子入口不再导出 | 更新控制器并重开 DSH；注册时按宿主文件证据迁移，保留自定义正文及原有子会话预设 ID |
+| 提示“未检测到 Kali，且工具未配置” | 红队环境检查尚未就绪，不是会话日志损坏 | 在弹窗选择“暂不配置”并确认，或填写真实工具路径；不安装 Kali 也可先进行对话 |
+
+本机链接安装的源码修改需要重开 DSH 才会载入。`purge selfcheck` 只核对补丁和配置，
+不等同于真实会话发送成功；涉及会话恢复的修复仍须验证旧会话恢复、新会话创建和发送。
+预设安装使用先刷盘后替换的单文件原子写入，不保证整套预设或所有会话数据在断电时都不受损。
+
+### macOS 兼容判断
+
+已只读对照官方仓库标签 `dsh-v0.2.1-rc.5`（`b830ec9`）与
+`dsh-v0.2.2-rc.1`（`66491b0`），不使用最新分支推断历史版本：
+
+- [子任务控制包](https://github.com/deepseek-ai/deepseek-harness/blob/66491b05e3f05ad35bcdd4f6cd7ed26041d9e3db/packages/subagent/tool-subagent-control/package.json) 移除了 `/list-agents` 导出，[主入口](https://github.com/deepseek-ai/deepseek-harness/blob/66491b05e3f05ad35bcdd4f6cd7ed26041d9e3db/packages/subagent/tool-subagent-control/src/index.ts) 直接注册发现工具，没有按操作系统区分。Mac 使用同版本组件和旧预设时也会遇到入口失效；现有注册迁移不限定 Windows。
+- 版本差异确认了编辑观察策略重构、提示词工具集合独立、Agent 首步使用本轮工具集合、PTC 独立执行器和拆分审批流水线；这些改动位于共用后端源码，不是 Windows 分支。
+- [依赖闭包选择](https://github.com/deepseek-ai/deepseek-harness/blob/66491b05e3f05ad35bcdd4f6cd7ed26041d9e3db/apps/desktop/scripts/prepare-package-set.ts) 为两端选择相同的必需后端包，仅按目标筛选可选原生依赖。[桌面打包工厂](https://github.com/deepseek-ai/deepseek-harness/blob/66491b05e3f05ad35bcdd4f6cd7ed26041d9e3db/apps/desktop/scripts/electron-builder-config.mjs) 共用 DSH 树与 `runtime` 资源，分别处理 Mac 签名和 Windows 安装/PE 解包。
+
+因此 Mac 同版本旧插件也存在这些源码级兼容问题，但源码核对不能替代对实际发行包的补丁命中验证。
+
+已在 Windows 上通过 Mac `.app/Contents/Resources` 布局、无扩展名 CLI、归档入口定位、
+两个预设迁移及 Kali 判断的模拟测试。未运行 macOS 实机，尚未验证真实 ASAR 读取、
+APFS 断电恢复、桌面启动和会话发送。全零元数据损坏目前仅在本机确认；
+`.cmd` 解析故障是 Windows 特有问题；Mac 没有 Kali 时仍可选择“暂不配置”并确认。
 
 ---
 

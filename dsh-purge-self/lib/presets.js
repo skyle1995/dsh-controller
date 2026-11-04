@@ -7,6 +7,27 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { findDshHome, ALL_PATCHES, applyReplacementsToText } from "./core.js";
+import { atomicFiles } from "./atomic-files.js";
+
+/** 刷新临时文件数据。参数 file 为文件路径，无返回值；刷盘失败则禁止发布。 */
+function syncPresetFile(file) {
+  const fd = fs.openSync(file, "r+");
+  try { fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+}
+
+const presetFiles = atomicFiles({
+  ...fs,
+  /** 写入并刷新临时文件。参数为路径、内容和文件选项，无返回值。 */
+  writeFileSync(file, content, options) {
+    fs.writeFileSync(file, content, options);
+    syncPresetFile(file);
+  },
+  /** 复制并刷新临时文件。参数为源路径、目标路径和复制标志，无返回值。 */
+  copyFileSync(source, destination, flags) {
+    fs.copyFileSync(source, destination, flags);
+    syncPresetFile(destination);
+  },
+});
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const UNRESTRICTED_PRESET = "unrestricted";
@@ -48,7 +69,7 @@ export function installPreset({ name = UNRESTRICTED_PRESET, force = false, home 
   for (const file of PRESET_FILES) {
     const from = path.join(src, file);
     if (!fs.existsSync(from)) continue;
-    fs.copyFileSync(from, path.join(dir, file));
+    presetFiles.atomicCopyFileSync(from, path.join(dir, file));
   }
   // 刚落盘的模板还是出厂值（web fetch: false）。这里顺手把补丁 #24 的替换应用上，
   // 否则用户会在自检里看到"#24 待应用"这条红线——它只是等着人点「应用」，容易误判成破甲失败。
@@ -57,7 +78,7 @@ export function installPreset({ name = UNRESTRICTED_PRESET, force = false, home 
     const agentFile = path.join(dir, "agent.cordis.yml");
     const text = fs.readFileSync(agentFile, "utf8");
     const applied = applyReplacementsToText(text, mergePatch, agentFile);
-    if (applied.changed) fs.writeFileSync(agentFile, applied.text);
+    if (applied.changed) presetFiles.atomicWriteSync(agentFile, applied.text);
   } catch {
     /* 补丁表不可用时保持模板原样，交给正常的「应用」流程 */
   }
