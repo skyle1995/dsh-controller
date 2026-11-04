@@ -13232,7 +13232,7 @@ var REWIND_CSS = `
 .dshp-rewind:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.12));color:var(--dsw-alias-label-primary,currentColor)}
 .dshp-rewind:disabled{opacity:.4;cursor:default}
 .dshp-rewind svg{display:block}
-.dshp-rewind-menu{position:fixed;z-index:2147483000;box-sizing:border-box;min-width:220px;padding:4px;border:0;border-radius:12px;background:var(--dsw-specific-menu, var(--dshpp-fb-menu));color:var(--dsw-alias-label-primary,#1a1a1a);--dsw-elevation-stroke-color:var(--dsw-alias-border-l1, var(--dshpp-fb-border-1));box-shadow:var(--dsw-elevation-prominent,0 8px 24px rgba(0,0,0,.16));transform:translateY(-100%)}
+.dshp-rewind-menu{position:fixed;z-index:2147483000;box-sizing:border-box;width:228px;min-width:0;max-width:calc(100vw - 16px);max-height:calc(100vh - 16px);overflow-y:auto;overflow-wrap:anywhere;padding:4px;border:0;border-radius:12px;background:var(--dsw-specific-menu, var(--dshpp-fb-menu));color:var(--dsw-alias-label-primary,#1a1a1a);--dsw-elevation-stroke-color:var(--dsw-alias-border-l1, var(--dshpp-fb-border-1));box-shadow:var(--dsw-elevation-prominent,0 8px 24px rgba(0,0,0,.16));transform:none}
 body[data-ds-dark-theme] .dshp-rewind-menu{background:var(--dsw-specific-menu,#32312d);color:var(--dsw-alias-label-primary, var(--dshpp-fb-label-1));--dsw-elevation-stroke-color:var(--dsw-alias-border-l1,#3f3d38);box-shadow:var(--dsw-elevation-prominent,0 10px 28px rgba(0,0,0,.45))}
 .dshp-rewind-item{display:flex;flex-direction:column;gap:2px;width:100%;padding:8px 10px;border:0;border-radius:8px;background:transparent;color:inherit;text-align:left;cursor:pointer;font:12px/1.3 var(--ds-font-sans,system-ui,sans-serif)}
 .dshp-rewind-item:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.12))}
@@ -13240,14 +13240,79 @@ body[data-ds-dark-theme] .dshp-rewind-menu{background:var(--dsw-specific-menu,#3
 .dshp-rewind-item span{color:var(--dsw-alias-label-tertiary,#9a958c);font-size:11px}
 body[data-ds-dark-theme] .dshp-rewind-item span{color:var(--dsw-alias-label-tertiary,#a8a39a)}
 `;
+/** 获取可视窗口边界。无参数，返回含缩放偏移的宽高与起点。 */
+function rewindViewport() {
+  const view = typeof window !== "undefined" ? window : {};
+  const visual = view.visualViewport;
+  return {
+    width: visual?.width || view.innerWidth || 1024,
+    height: visual?.height || view.innerHeight || 768,
+    left: visual?.offsetLeft || 0,
+    top: visual?.offsetTop || 0
+  };
+}
+/** 计算屏幕内的回退菜单位置。参数为按钮边界、菜单尺寸和窗口边界，返回像素位置与尺寸限制。 */
+function rewindMenuPosition(anchor, size = {}, viewport = rewindViewport()) {
+  const margin = 8;
+  const width = Math.min(size.width || 228, Math.max(1, viewport.width - margin * 2));
+  const maxHeight = Math.max(1, viewport.height - margin * 2);
+  const height = Math.min(size.height || 160, maxHeight);
+  const minLeft = (viewport.left || 0) + margin;
+  const minTop = (viewport.top || 0) + margin;
+  const maxTop = minTop + maxHeight - height;
+  const rect = anchor || { right: minLeft + width, top: minTop + height + margin, bottom: minTop };
+  const above = rect.top - margin - height;
+  const below = rect.bottom + margin;
+  let top;
+  switch (true) {
+    case above >= minTop && above <= maxTop: top = above; break;
+    case below >= minTop && below <= maxTop: top = below; break;
+    default: top = Math.min(maxTop, Math.max(minTop, above));
+  }
+  return {
+    left: Math.min(minLeft + viewport.width - margin * 2 - width, Math.max(minLeft, rect.right - width)),
+    top,
+    width,
+    maxHeight
+  };
+}
+/** 将计算结果转为 DOM 样式。参数为位置对象，返回像素样式。 */
+function rewindMenuStyle(position) {
+  return Object.fromEntries(Object.entries(position).map(([key, value]) => [key, value + "px"]));
+}
+/** 监听窗口变化并避开菜单内部滚动。参数为关闭回调及菜单读取函数，返回监听清理函数。 */
+function watchRewindViewport(close, readMenu) {
+  if (typeof window === "undefined") return () => {};
+  const onMove = (event) => {
+    const menu = readMenu();
+    if (event?.target?.nodeType && menu?.contains(event.target)) return;
+    close();
+  };
+  const listeners = [[window, "resize", false], [window, "scroll", true]];
+  if (window.visualViewport) listeners.push([window.visualViewport, "resize", false], [window.visualViewport, "scroll", false]);
+  for (const [target, name, capture] of listeners) target.addEventListener?.(name, onMove, capture);
+  return () => {
+    for (const [target, name, capture] of listeners) target.removeEventListener?.(name, onMove, capture);
+  };
+}
+/** 渲染顶层回退弹层。参数为翻译、按钮边界、元素引用与回退回调，返回 Portal 或兼容节点。 */
 function rewindMenuNode(t, menuPos, menuRef, runRewind) {
-  return h(
+  const node = h(
     "div",
     {
       className: "dshp-rewind-menu",
       role: "menu",
-      ref: menuRef,
-      style: menuPos ? { left: menuPos.left + "px", top: menuPos.top + "px" } : { left: "8px", bottom: "48px", transform: "none" }
+      ref: (element) => {
+        if (typeof menuRef === "function") menuRef(element);
+        else if (menuRef) menuRef.current = element;
+        if (element) {
+          Object.assign(element.style, rewindMenuStyle(rewindMenuPosition(menuPos, {
+            width: element.offsetWidth,
+            height: element.scrollHeight
+          })));
+        }
+      },
+      style: rewindMenuStyle(rewindMenuPosition(menuPos))
     },
     h(
       "button",
@@ -13302,6 +13367,8 @@ function rewindMenuNode(t, menuPos, menuRef, runRewind) {
       )
     )
   );
+  if (rd2?.createPortal && typeof document !== "undefined" && document.body) return rd2.createPortal(node, document.body);
+  return node;
 }
 var RewindFallback = class extends Component {
   constructor(p) {
@@ -13318,8 +13385,10 @@ var RewindFallback = class extends Component {
   componentDidMount() {
     if (typeof document !== "undefined" && document.addEventListener)
       document.addEventListener("mousedown", this.onDoc);
+    this.stopViewport = watchRewindViewport(() => this.setState({ menu: false }), () => this.menuEl);
   }
   componentWillUnmount() {
+    this.stopViewport?.();
     if (typeof document !== "undefined" && document.removeEventListener)
       document.removeEventListener("mousedown", this.onDoc);
   }
@@ -13353,10 +13422,7 @@ var RewindFallback = class extends Component {
     this.setState({
       menu: !this.state.menu,
       notice: "",
-      menuPos: rect ? {
-        left: Math.max(8, rect.right - 228),
-        top: Math.max(8, rect.top - 8)
-      } : null
+      menuPos: rect
     });
   }
   render() {
@@ -13467,7 +13533,11 @@ function RewindButton(props) {
       setMenu(false);
     };
     document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
+    const stopViewport = watchRewindViewport(() => setMenu(false), () => menuRef.current);
+    return () => {
+      stopViewport();
+      document.removeEventListener("mousedown", onDoc);
+    };
   }, [menu]);
   const runRewind = async (mode) => {
     if (!sessionId || busy) return;
@@ -13508,10 +13578,7 @@ function RewindButton(props) {
     }
     const rect = wrapRef.current?.getBoundingClientRect?.();
     if (rect) {
-      setMenuPos({
-        left: Math.max(8, rect.right - 228),
-        top: Math.max(8, rect.top - 8)
-      });
+      setMenuPos(rect);
     }
     setNotice("");
     setMenu(true);

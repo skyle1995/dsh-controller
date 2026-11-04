@@ -1,6 +1,6 @@
 {
   "name": "dsh-controller",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "DSH Controller CLI —— DeepSeek Harness 管理(一键破甲 / 技能包 / 插件 / 设置)",
   "type": "module",
   "bin": {
@@ -11,7 +11,7 @@
     "cli": "node cli/index.mjs",
     "status": "node cli/index.mjs status",
     "link": "npm link",
-    "test": "node --test demo-test/platform.test.mjs demo-test/skill-packs.test.mjs demo-test/purge-skill-packs.test.mjs demo-test/preset-recovery.test.mjs"
+    "test": "node --test demo-test/platform.test.mjs demo-test/skill-packs.test.mjs demo-test/purge-skill-packs.test.mjs demo-test/preset-recovery.test.mjs demo-test/rewind-menu.test.mjs"
   },
   "files": [
     "cli",

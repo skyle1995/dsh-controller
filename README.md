@@ -89,8 +89,8 @@ npm install -g .
 npm install -g git+https://hub.ifunx.com/skyle1995/dsh-controller.git
 
 # 3) 从 tarball 安装(离线/分发)
-cd dsh-controller && npm pack          # 产出 dsh-controller-0.2.0.tgz
-npm install -g ./dsh-controller-0.2.0.tgz
+cd dsh-controller && npm pack          # 产出 dsh-controller-0.2.1.tgz
+npm install -g ./dsh-controller-0.2.1.tgz
 ```
 
 验证:
@@ -373,6 +373,7 @@ Gitea 对私有仓库的匿名请求返回 404(隐藏存在性),CLI 对 401/404 
 | `Unknown agent preset: unrestricted`，旧会话无法恢复 | 预设未成功注册，崩溃可能损坏 `preset.yml` | 先备份损坏文件，再用已校验的原始备份恢复；不要删除会话。重开 DSH 重新注册预设 |
 | DSH 0.2.2 中红队预设报 `tool-subagent-list-agents: never started` | 发现工具已合并进主控制插件，旧子入口不再导出 | 更新控制器并重开 DSH；注册时按宿主文件证据迁移，保留自定义正文及原有子会话预设 ID |
 | 提示“未检测到 Kali，且工具未配置” | 红队环境检查尚未就绪，不是会话日志损坏 | 在弹窗选择“暂不配置”并确认，或填写真实工具路径；不安装 Kali 也可先进行对话 |
+| 点击对话“回退”后，选项落在屏幕外 | 输入框祖先的变换影响 fixed 定位，且旧菜单未约束窗口边界 | 更新客户端并重开 DSH；菜单挂到 body 并按实际尺寸选择上下位置，窗口或外部滚动时关闭 |
 
 本机链接安装的源码修改需要重开 DSH 才会载入。`purge selfcheck` 只核对补丁和配置，
 不等同于真实会话发送成功；涉及会话恢复的修复仍须验证旧会话恢复、新会话创建和发送。
