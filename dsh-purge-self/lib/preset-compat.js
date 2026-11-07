@@ -220,14 +220,15 @@ export function backupPresetMigration({ home, dir, id, policies }) {
   return target;
 }
 
-/** Register helpers before their parent; unwind all declarations on failure. */
+/** 先注册子预设及父预设再统一诊断。参数为注册服务和有序声明，返回幂等释放函数；失败时撤销全部声明。 */
 export async function registerPresetDefinitions(registry, definitions) {
   const releases = [];
   try {
     for (const definition of definitions) {
       releases.push(await registry.register(definition));
-      // register() may succeed with a broken record. Do not equate its disposer
-      // with successful activation. resolve() audits the actual Loader tree.
+    }
+    // resolve 可能等待整个 Host Loader；关联预设必须先全部登记，避免阻塞后续父预设注册。
+    for (const definition of definitions) {
       if (typeof registry.resolve === "function") {
         const state = await registry.resolve(definition.id);
         if (state.broken) throw Error(`${definition.id}: ${state.broken}`);

@@ -47,7 +47,7 @@ export function userPresetDir(home, name = UNRESTRICTED_PRESET) {
 
 /**
  * 把自带预设落到用户目录。
- * 已存在且没给 force 时**不覆盖**（用户可能改过），只报告 kept。
+ * 已存在的用户自定义文件不覆盖；托管文件内容相同时不写入，force 时强制发布。
  * @returns {{ action: 'installed'|'updated'|'kept', dir: string, files: string[] }}
  */
 export function installPreset({ name = UNRESTRICTED_PRESET, force = false, home } = {}) {
@@ -66,23 +66,29 @@ export function installPreset({ name = UNRESTRICTED_PRESET, force = false, home 
   }
   if (exists && !force && !managed) return { action: "kept", dir, files: PRESET_FILES.slice() };
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  let changed = false;
   for (const file of PRESET_FILES) {
     const from = path.join(src, file);
     if (!fs.existsSync(from)) continue;
-    presetFiles.atomicCopyFileSync(from, path.join(dir, file));
+    const target = path.join(dir, file);
+    const original = fs.readFileSync(from);
+    let wanted = original;
+    // 先算出应用 #24 后的目标内容，用于对比；内容未变时不再发布和刷盘。
+    if (file === "agent.cordis.yml") {
+      try {
+        const patch = ALL_PATCHES.find((p) => p.id === 24);
+        const applied = applyReplacementsToText(original.toString("utf8"), patch, target);
+        if (applied.changed) wanted = Buffer.from(applied.text);
+      } catch { /* 补丁表不可用时保留模板，交给正常应用流程。 */ }
+    }
+    if (!force) {
+      try { if (fs.readFileSync(target).equals(wanted)) continue; } catch { /* 缺失文件需要发布。 */ }
+    }
+    presetFiles.atomicCopyFileSync(from, target);
+    if (wanted !== original) presetFiles.atomicWriteSync(target, wanted);
+    changed = true;
   }
-  // 刚落盘的模板还是出厂值（web fetch: false）。这里顺手把补丁 #24 的替换应用上，
-  // 否则用户会在自检里看到"#24 待应用"这条红线——它只是等着人点「应用」，容易误判成破甲失败。
-  try {
-    const mergePatch = ALL_PATCHES.find((p) => p.id === 24);
-    const agentFile = path.join(dir, "agent.cordis.yml");
-    const text = fs.readFileSync(agentFile, "utf8");
-    const applied = applyReplacementsToText(text, mergePatch, agentFile);
-    if (applied.changed) presetFiles.atomicWriteSync(agentFile, applied.text);
-  } catch {
-    /* 补丁表不可用时保持模板原样，交给正常的「应用」流程 */
-  }
-  return { action: exists ? "updated" : "installed", dir, files: PRESET_FILES.slice() };
+  return { action: exists ? (changed ? "updated" : "kept") : "installed", dir, files: PRESET_FILES.slice() };
 }
 
 export function presetStatus(home, name = UNRESTRICTED_PRESET) {
