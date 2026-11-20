@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## 1.1.36 (2026-11-20)
+* **移植**: 同步上游 1.7.20 拒绝重试 (Refusal Retry) 逻辑：
+  * 支持 `outcome=partial_refused` 与 `empty_after_retry` 检测，识别模型“先给部分背景再拒绝”的假成功。
+  * 引入 `retryStream` 全新数据流建立机制，修复因旧 stream 引用导致的重试异常及假失败。
+  * 支持 seed 臂（预填提示词骨架）并兼容 DSH 最新消息组装逻辑。
+* **移植**: 修复 DSH 手机本机引擎 (dsh-go) 锚点断裂：
+  * `#74 ASSEMBLE_BEFORE_PRESTEP` 支持跨 `dshGoRecall` 行的锚点挂载。
+  * `#90 RESTORE_NATIVE_STEERING` 支持解析带 `dshGoDeletion` 生命周期闸门的原生 steer 队列分支。
+
 [2026-11-07] [修复] 适配 DSH 0.2.2-rc.3：#13 增加 SandboxEscalationError 变体锚点，#14 改为整函数正则替换（一次授信，不依赖函数体细节），#35 因 switch 已被 #14 覆盖改按不适用结算，#62 改为锚定取审批服务的单行语句并就地放行，#67 用正则捕获缩进兼容 try 包裹，#56/#77 追加压缩 bundle 锚点；控制器升级至 0.2.2，破甲插件升级至 1.1.35；界面版本收敛为 client.js 单一常量 `__dshPurgeVersion`，由 `npm run sync-version` 从 package.json 同步。
 
 [2026-11-06] [清理] 按用户要求停止整机冷启动与退出性能排查，撤销主进程、Host 与订阅插件临时观测并按原始字节恢复，停止调试服务并删除临时证据；组件级假设尚未验证，未确认 DSH 本体为根因，保留此前已通过回归的局部优化。

@@ -1529,14 +1529,32 @@ export function apply(ctx, config) {
   const cfg = { ...DEFAULTS, ...(config || {}) };
   // 拒绝检测 + 单次重试：默认关闭，只有 tuning.refusalRetry === true 才接管。
   ctx.on("llm/stream", (options, next) => {
-    let on = false;
-    try {
-      on = readTuning().refusalRetry === true;
-    } catch {
-      on = false;
+    const RETRY_MARK = "__purgeRefusalRetry";
+    if (options && options[RETRY_MARK]) {
+      const { [RETRY_MARK]: _marked, ...clean } = options;
+      return next(clean);
     }
-    if (!on || !injectAllowedNow(cfg, requestInjectionContext(ctx, options))) return next();
-    return streamWithRefusalRetry((opts) => next(opts), options);
+    let tuning = null;
+    try {
+      tuning = readTuning();
+    } catch {
+      tuning = null;
+    }
+    if (!cfg.enabled || tuning?.refusalRetry !== true || !injectAllowedNow(cfg, requestInjectionContext(ctx, options))) return next();
+    return streamWithRefusalRetry((opts) => next(opts), options, {
+      decompose: tuning.refusalDecompose !== false,
+      seed: tuning.refusalSeed !== false,
+      retryStream: (opts) => {
+        let llm = null;
+        try {
+          llm = ctx.reflect?.get?.("llm", false) || null;
+        } catch {
+          llm = null;
+        }
+        if (!llm || typeof llm.stream !== "function") return null;
+        return llm.stream({ ...opts, [RETRY_MARK]: true });
+      },
+    });
   });
   const updateHome = core.findDshHome();
   /* [dsh-controller] 在线更新控制器已移除(私有部署) */
