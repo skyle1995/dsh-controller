@@ -4,7 +4,7 @@
 window.__ModuleLoader__.load({id:"dsh-purge-self",factory:(require)=>{
 var module={exports:{}};var exports=module.exports;
 // 界面版本唯一来源：升级时只改这里，并与 package.json 的 version 保持一致。
-var __dshPurgeVersion = "1.1.37";
+var __dshPurgeVersion = "1.1.38";
 var __create = Object.create;
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;

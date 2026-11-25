@@ -1,6 +1,6 @@
 {
   "name": "dsh-purge-self",
-  "version": "1.1.37",
+  "version": "1.1.38",
   "description": "自研破甲插件:提示词注入、宿主补丁、自检与备份(基于 MIT 上游,见 LICENSE/NOTICE)。",
   "type": "module",
   "main": "lib/index.js",
@@ -22,21 +22,14 @@
   },
   "files": [
     "lib",
-    "!lib/default-prompt-inject.md",
     "bin",
-    "docs",
     "presets",
     "skills",
     "scripts",
     "client.js",
     "cordis.patch.yml",
-    "screenshots.json",
-    "README.md",
-    "README.zh-CN.md",
     "LICENSE",
-    "NOTICE.md",
-    "CONTRIBUTORS.md",
-    "AGENTS.md"
+    "NOTICE.md"
   ],
   "scripts": {
     "sync-version": "node scripts/sync-client-version.mjs",

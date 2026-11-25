@@ -92,8 +92,8 @@ npm install -g .
 npm install -g git+https://github.com/skyle1995/dsh-controller.git
 
 # 3) 从 tarball 安装(离线/分发)
-cd dsh-controller && npm pack          # 产出 dsh-controller-0.2.5.tgz
-npm install -g ./dsh-controller-0.2.5.tgz
+cd dsh-controller && npm pack          # 产出 dsh-controller-0.2.6.tgz
+npm install -g ./dsh-controller-0.2.6.tgz
 ```
 
 验证:

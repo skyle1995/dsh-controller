@@ -1,5 +1,8 @@
 # CHANGELOG
 
+## 0.2.6 (2026-11-26)
+* **插件发布清单对齐**: `dsh-purge-self` 的 `files` 移除仓库中不存在的 docs/README 等 6 项，以及已无对应文件的 `!lib/default-prompt-inject.md`。此前控制器按清单打包 Git 子目录插件会报“发布文件缺失”，`dshc plugins repair` 也无法修复；现在暂存、打包与修复路径一致。插件版本 1.1.38。
+
 ## 0.2.5 (2026-11-26)
 * **更新通道适配 GitHub 单仓**:
   * `dshc plugins update` 与插件商店「更新全部插件」对破甲插件不再原样重装旧的持久 tarball，改为从 GitHub `main` 重新检出 `dsh-purge-self/` 并打包安装；其它插件仍按在线目录来源更新。

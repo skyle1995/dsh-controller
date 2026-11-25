@@ -1,6 +1,6 @@
 {
   "name": "dsh-controller",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "description": "DSH Controller CLI —— DeepSeek Harness 管理(一键破甲 / 技能包 / 插件 / 设置)",
   "type": "module",
   "bin": {
