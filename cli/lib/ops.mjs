@@ -110,7 +110,8 @@ export async function installReverse() {
 export async function pluginsInstalled() {
   const f = path.join(DSH_HOME, 'profiles', 'desktop', 'package.json')
   try {
-    const pkg = JSON.parse(readFileSync(f, 'utf8'))
+    const text = readFileSync(f, 'utf8')
+    const pkg = JSON.parse(text.charCodeAt(0) === 0xfeff ? text.slice(1) : text)
     const deps = pkg.dependencies || {}
     return Object.keys(deps).map(name => {
       let version = '?'
@@ -118,6 +119,23 @@ export async function pluginsInstalled() {
       return { name, version, spec: deps[name] }
     })
   } catch { return [] }
+}
+
+/** 比较版本号（只比较数字段）。参数 a、b 为版本字符串，返回 a 是否比 b 新。 */
+export function versionIsNewer(a, b) {
+  const split = (v) => {
+    const [core, ...pre] = String(v || '').split('-')
+    return { nums: core.split('.').map((x) => Number(x) || 0), pre: pre.join('-') }
+  }
+  const x = split(a), y = split(b)
+  for (let i = 0; i < Math.max(x.nums.length, y.nums.length); i += 1) {
+    if ((x.nums[i] || 0) !== (y.nums[i] || 0)) return (x.nums[i] || 0) > (y.nums[i] || 0)
+  }
+  // 数字段相同：正式版比同号预发布版新；同为预发布时按字典序兜底。
+  if (x.pre === y.pre) return false
+  if (!x.pre) return true
+  if (!y.pre) return false
+  return x.pre > y.pre
 }
 
 /** 校验 profile 清单并去掉 UTF-8 BOM。参数 file 为清单路径，返回修复状态或错误，保留配置内容。 */
@@ -178,6 +196,7 @@ export function localPluginSourceIssues(file = path.join(DSH_HOME, 'profiles', '
 
 /** 生成插件失败说明。参数 output 为命令输出，返回可操作的错误提示，不自动删改其他插件。 */
 function pluginFailureHint(output) {
+  if (String(output).includes('ERR_PNPM_IGNORED_BUILDS')) return 'pnpm 跳过了依赖的构建脚本（Windows 常见）。如果目标插件已出现在已安装列表，可忽略这条报错；否则在 profile 目录执行 pnpm approve-builds 后重试。' + '\n' + String(output).slice(-300)
   if (String(output).includes('ERR_PNPM_EPERM')) return 'Windows 拒绝写入插件文件。请保存会话并从托盘完全退出 DeepSeek 后重试；若仍失败，再检查权限或安全软件。' + '\n' + String(output).slice(-300)
   if (String(output).includes('ENOENT')) {
     const issues = localPluginSourceIssues()
@@ -261,24 +280,65 @@ export async function pluginInstall(spec) {
     }
   } catch (e) { return { ok: false, output: '', hint: e.message } }
   const r = await runProfileCommand(['plugin', '--profile', 'desktop', 'add', spec])
-  let hint = ''
   const out = String(r.output || '')
-  if (!r.ok) {
+  const after = await pluginsInstalled()
+  const installed = prepared
+    ? after.find(p => p.name === prepared.name && (!prepared.version || p.version === prepared.version))
+    : null
+  // pnpm 11 会因为被忽略的构建脚本返回非 0，但依赖其实已经写入 profile；以清单结果为准。
+  const ok = r.ok || Boolean(installed)
+  let hint = ''
+  if (!r.ok && installed) {
+    hint = '命令退出码非 0，但 ' + installed.name + ' v' + installed.version + ' 已写入 profile，按安装成功处理：' + (r.error || out.slice(-200))
+  } else if (!r.ok) {
     switch (true) {
       case out.includes('ENOENT') || out.includes('ERR_PNPM_EPERM'): hint = pluginFailureHint(out); break
       case out.includes('Repository not found') || out.includes('未找到'): hint = '仓库不可达:确认托管源密钥已配置且仓库名正确'; break
       case out.includes('ERR_PNPM_GIT_RESOLVE_FAILED'): hint = 'git 依赖解析失败:检查 spec 与网络/密钥'; break
+      case out.includes('ERR_PNPM_IGNORED_BUILDS'): hint = pluginFailureHint(out); break
       case out.includes('allowBuilds'): hint = '请仅按 pnpm 实际输出的精确包键确认构建授权；未给出包键时，不修改 allowBuilds'; break
       default: hint = r.error || pluginFailureHint(out)
     }
+  } else if (prepared && !installed) {
+    hint = '命令返回成功，但 profile 清单里没有 ' + prepared.name + '，请检查安装来源。'
+    return { ok: false, output: r.output, hint, tarball: prepared.tarball, version: prepared.version, commit: prepared.commit }
   }
-  return { ok: r.ok, output: r.output, hint, ...(prepared ? { tarball: prepared.tarball, version: prepared.version, commit: prepared.commit } : {}) }
+  return { ok, output: r.output, hint, ...(prepared ? { tarball: prepared.tarball, version: prepared.version, commit: prepared.commit } : {}) }
 }
-/** 卸载指定插件。参数 name 为完整包名，返回执行结果并校验清单。 */
-export async function pluginRemove(name) {
+/** 从 profile 的 bundles 中移除插件名，避免卸载后残留导致下次启动找不到 bundle。 */
+function stripProfileBundle(name) {
+  const f = path.join(DSH_HOME, 'profiles', 'desktop', 'package.json')
+  try {
+    const text = readFileSync(f, 'utf8')
+    const pkg = JSON.parse(text.charCodeAt(0) === 0xfeff ? text.slice(1) : text)
+    const bundles = pkg?.dsh?.profile?.bundles
+    if (!Array.isArray(bundles) || !bundles.includes(name)) return false
+    pkg.dsh.profile.bundles = bundles.filter(x => x !== name)
+    writeFileSync(f, JSON.stringify(pkg, null, 2) + '\n')
+    return true
+  } catch { return false }
+}
+
+/** 只执行官方 remove，不处理破甲插件的宿主还原；返回命令结果并核对清单。 */
+async function pluginRemoveOnly(name) {
   if (typeof name !== 'string' || !name.trim() || name.startsWith('-')) return { ok: false, output: '请输入有效插件名称。' }
   const r = await runProfileCommand(['plugin', '--profile', 'desktop', 'remove', name])
-  return { ok: r.ok, output: r.output }
+  const still = (await pluginsInstalled()).some(p => p.name === name)
+  if (!still) stripProfileBundle(name)
+  const ok = r.ok && !still
+  const hint = !r.ok
+    ? (r.error || String(r.output || '').slice(-300))
+    : (still ? '命令返回成功，但 profile 清单里仍存在 ' + name : '')
+  return { ok, output: r.output, hint }
+}
+/** 卸载指定插件。参数 name 为完整包名，返回执行结果并校验清单；破甲插件走完整宿主还原。 */
+export async function pluginRemove(name) {
+  if (typeof name !== 'string' || !name.trim() || name.startsWith('-')) return { ok: false, output: '请输入有效插件名称。' }
+  if (name === 'dsh-purge-self') {
+    const r = await uninstallPurge()
+    return { ok: r.ok, output: r.output || '', hint: r.ok ? '' : (r.error || String(r.output || '').slice(-300)) }
+  }
+  return pluginRemoveOnly(name)
 }
 
 // ── 插件安装(仓库 tarball → dsh plugin add)───────────────────
@@ -301,14 +361,24 @@ export async function installLatest() {
   mkdirSync(path.join(tmp, 'package'), { recursive: true })
   cpSync(src, path.join(tmp, 'package'), { recursive: true })
   rmSync(path.join(tmp, 'package', '.git'), { recursive: true, force: true })
-  const tgz = path.join(pkgDir, 'dsh-purge-self-' + (ver || 'latest') + '.tgz')
+  // 每次安装用独立 tarball 名：覆盖同名旧包会让 pnpm 的锁文件完整性校验对不上，
+  // 重新安装/回滚时容易报 tarball integrity 错误。旧包保留，profile 或备份可能仍在引用。
+  const tgz = path.join(pkgDir, 'dsh-purge-self-' + (ver || 'latest') + '-' + Date.now() + '.tgz')
   r = await core.run('tar', ['-czf', tgz, '-C', tmp, 'package'], { env: { COPYFILE_DISABLE: '1' } })
   if (!r.ok) return { ok: false, error: 'tar 失败' }
-  // profile 或备份可能继续引用旧 tarball，不自动删除持久安装来源。
   r = await runProfileCommand(['plugin', '--profile', 'desktop', 'add', tgz])
   let installed = null
   try { installed = JSON.parse(readFileSync(path.join(core.PLUGIN_DIR, 'package.json'), 'utf8')).version } catch {}
-  return { ok: r.ok, version: installed || ver, tarball: tgz, output: r.output, error: r.ok ? '' : pluginFailureHint(r.output) }
+  const recorded = (await pluginsInstalled()).find(p => p.name === 'dsh-purge-self')
+  const ok = r.ok || Boolean(recorded)
+  return {
+    ok,
+    version: installed || ver,
+    tarball: tgz,
+    output: r.output,
+    error: ok ? '' : pluginFailureHint(r.output),
+    warning: !r.ok && recorded ? '命令退出码非 0，但插件已写入 profile，按安装成功处理。' : '',
+  }
   } finally { rmSync(tmp, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 }) }
 }
 
@@ -334,8 +404,15 @@ export async function uninstallPurge() {
       via = 'admin'
     } catch (e) { return { ok: false, error: '卸载失败:' + (e.message || e) + '（可尝试 sudo 重跑）' } }
   }
-  const removed = await pluginRemove('dsh-purge-self')
-  return { ok: removed.ok, via, output: r.output + '\n' + removed.output }
+  // --uninstall 已经会从 profile 摘掉依赖并删除包目录；只有残留时才再调用官方 remove。
+  const still = (await pluginsInstalled()).some(p => p.name === 'dsh-purge-self')
+  const removed = still ? await pluginRemoveOnly('dsh-purge-self') : { ok: true, output: '插件依赖已由 --uninstall 清理' }
+  return {
+    ok: removed.ok,
+    via,
+    output: r.output + '\n' + removed.output,
+    error: removed.ok ? '' : (removed.hint || '卸载未完成，请检查插件目录权限'),
+  }
 }
 
 // ── 运行开关(boost / retry / rewind / inject)─────────────────

@@ -330,7 +330,7 @@ async function menuPlugins() {
       { type: 'group', label: '操作' },
       { label: '安装插件', hint: '输入包名 / 路径 / tarball' },
       { label: '卸载插件', hint: '多选' },
-      { label: '更新全部插件', hint: '默认全选 · 空格取消' },
+      { label: '更新已安装插件', hint: '默认选中可更新项' },
       { type: 'group', label: '兼容性' },
       { label: '版本豁免', hint: exCount ? exCount + ' 条规则' : '无' },
       { type: 'group', label: '维护' },
@@ -346,11 +346,16 @@ async function menuPlugins() {
       const catRes = await ops.pluginsCatalogDetailed()
       const cat = catRes.items
       if (!cat.length) { console.log('  ' + warn('在线目录不可用: ' + (catRes.error || '未知原因'))); await waitKey(); continue }
-      const names = new Set(inst.map(p => p.name))
+      const instVer = new Map(inst.map(p => [p.name, p.version]))
       const picks = await menuSelect({
         title: '在线插件目录', subtitle: cat.length + ' 个可用 · 空格多选安装',
         multi: true,
-        items: cat.map(p => ({ label: p.name + ' v' + p.version, hint: (names.has(p.name) ? c('green', '已装 · ') : '') + (p.description || '').slice(0, 44) })),
+        items: cat.map(p => {
+          const cur = instVer.get(p.name)
+          const newer = cur && ops.versionIsNewer(p.version, cur)
+          const state = cur ? (newer ? c('yellow', '可更新 ' + cur + ' → ' + p.version) : c('green', '已装 v' + cur)) : ''
+          return { label: p.name + ' v' + p.version, hint: (state ? state + ' · ' : '') + (p.description || '').slice(0, 40) }
+        }),
       })
       if (picks === null || picks.length === 0) continue
       let okN = 0, failN = 0
@@ -364,10 +369,16 @@ async function menuPlugins() {
       console.log('\n  ' + (failN ? warn('安装完成:成功 ' + okN + ' · 失败 ' + failN) : ok('已安装 ' + okN + ' 个插件(重启 dsh 生效)')))
       await waitKey()
     } else if (chosen.label === '已安装插件') {
+      let latestMap = new Map()
+      try { latestMap = new Map((await ops.pluginsCatalogDetailed()).items.map(p => [p.name, p.version])) } catch {}
       for (const p of inst) {
         const spec = String(p.spec || '')
         const short = spec.replace(/^https?:\/\/[^/]+\//, '').slice(0, 52)
-        console.log('  · ' + padName(p.name) + dim(' v' + p.version) + (short ? dim('  ← ' + short) : ''))
+        const latest = latestMap.get(p.name)
+        const tag = p.name === 'dsh-purge-self'
+          ? c('cyan', ' 跟随仓库 main')
+          : (latest && ops.versionIsNewer(latest, p.version) ? c('yellow', ' 可更新 v' + latest) : (latest ? dim(' 已是最新') : ''))
+        console.log('  · ' + padName(p.name) + dim(' v' + p.version) + tag + (short ? dim('  ← ' + short) : ''))
       }
       await waitKey()
     } else if (chosen.label === '安装插件') {
@@ -390,21 +401,26 @@ async function menuPlugins() {
       for (const i of picks) {
         const r = await ops.pluginRemove(inst[i].name)
         if (r.ok) { okN++; console.log('    ' + ok('已卸载 ' + inst[i].name)) }
-        else { failN++; console.log('    ' + bad(inst[i].name + ' — 失败')) }
+        else { failN++; console.log('    ' + bad(inst[i].name + ' — 失败' + (r.hint || r.output ? ' ' + String(r.hint || r.output).slice(0, 200) : ''))) }
       }
       console.log('\n  ' + (failN ? warn('成功 ' + okN + ' · 失败 ' + failN) : ok('已卸载 ' + okN + ' 个(重启 dsh 生效)')))
       await waitKey()
-    } else if (chosen.label === '更新全部插件') {
+    } else if (chosen.label === '更新已安装插件') {
       if (!inst.length) { console.log('  ' + warn('没有已安装插件')); await waitKey(); continue }
-      const picks = await menuSelect({
-        title: '更新插件', subtitle: '默认全选 · 空格取消不需要的',
-        multi: true, checked: inst.map((_, i) => i),
-        items: inst.map(p => ({ label: p.name, hint: 'v' + p.version })),
-      })
-      if (picks === null || picks.length === 0) continue
       let cat2 = []
       try { cat2 = (await ops.pluginsCatalogDetailed()).items } catch {}
       const byName = new Map(cat2.map(p => [p.name, p]))
+      const updatable = inst.map(p => p.name === 'dsh-purge-self' || Boolean(byName.get(p.name) && ops.versionIsNewer(byName.get(p.name).version, p.version)))
+      const picks = await menuSelect({
+        title: '更新插件', subtitle: '默认选中可更新项 · 空格取消',
+        multi: true, checked: updatable.map((u, i) => (u ? i : -1)).filter(i => i >= 0),
+        items: inst.map(p => {
+          const latest = byName.get(p.name)?.version
+          const upd = p.name === 'dsh-purge-self' || (latest && ops.versionIsNewer(latest, p.version))
+          return { label: p.name, hint: 'v' + p.version + (upd ? (p.name === 'dsh-purge-self' ? ' · 跟随仓库 main' : ' → v' + latest) : ' 已是最新') }
+        }),
+      })
+      if (picks === null || picks.length === 0) continue
       let okN = 0, failN = 0
       for (const i of picks) {
         const p = inst[i]
