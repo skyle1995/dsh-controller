@@ -25,7 +25,7 @@ export function locateDesktop({ platform = process.platform, env = process.env, 
   if (!candidates.length) switch (platform) {
     case 'win32': {
       try {
-        const found = exec('where.exe', ['dsh'], { encoding: 'utf8', timeout: 5000, windowsHide: true })
+        const found = exec('where.exe', ['dsh'], { encoding: 'utf8', timeout: 5000, windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] })
         for (const line of found.split(/\r?\n/)) {
           const cli = line.trim()
           if (path.basename(cli).toLowerCase() === 'dsh.cmd') candidates.push(path.resolve(path.dirname(cli), '../../../..'))
@@ -33,7 +33,7 @@ export function locateDesktop({ platform = process.platform, env = process.env, 
       } catch {}
       try {
         const script = "$ProgressPreference='SilentlyContinue'; [Console]::OutputEncoding=[Text.UTF8Encoding]::new($false); $ErrorActionPreference='SilentlyContinue'; Get-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*','HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*','HKLM:\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*' | Where-Object { $_.DisplayName -like '*DeepSeek*' } | ForEach-Object { $_.InstallLocation }"
-        const found = exec('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', encodePowerShell(script)], { encoding: 'utf8', timeout: 8000, windowsHide: true })
+        const found = exec('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', encodePowerShell(script)], { encoding: 'utf8', timeout: 8000, windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] })
         candidates.push(...found.split(/\r?\n/).map(s => s.trim()).filter(Boolean))
       } catch {}
       for (const base of [env.LOCALAPPDATA && path.join(env.LOCALAPPDATA, 'Programs'), env.LOCALAPPDATA, env.ProgramFiles, env['ProgramFiles(x86)']].filter(Boolean)) {

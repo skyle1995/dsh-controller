@@ -81,19 +81,19 @@ node cli/index.mjs status   # 单条命令
 
 ### 方式 C:安装到 Node.js 全局(推荐日常使用)
 
-装进 Node 全局目录(`npm prefix -g`),是复制而非软链,可脱离仓库独立运行:
+装进 Node 全局目录(`npm prefix -g`)。用本地目录安装时 npm 会建立目录链接(Windows 为 junction),仓库改动立即生效;需要脱离仓库独立运行请用下面的 tarball 方式:
 
 ```bash
 # 1) 从本地目录安装
 cd dsh-controller
 npm install -g .
 
-# 2) 直接从私有 Git 安装(需先配好 git 凭证)
+# 2) 直接从 GitHub 安装(公开仓库无需凭证)
 npm install -g git+https://github.com/skyle1995/dsh-controller.git
 
 # 3) 从 tarball 安装(离线/分发)
-cd dsh-controller && npm pack          # 产出 dsh-controller-0.2.3.tgz
-npm install -g ./dsh-controller-0.2.3.tgz
+cd dsh-controller && npm pack          # 产出 dsh-controller-0.2.4.tgz
+npm install -g ./dsh-controller-0.2.4.tgz
 ```
 
 验证:
@@ -135,7 +135,7 @@ Windows 用例覆盖安装定位、中文及特殊字符参数、官方 cmd 入�
 npm unlink -g dsh-controller
 ```
 
-> 私有仓库需要权限:首次 `git clone` 输入 GitHub 用户名 + 个人访问令牌(密码位填 PAT,勾选钥匙串保存),之后 CLI 自动复用该凭证。
+> 本仓库公开,克隆与匿名拉取不需要令牌。只有访问私有源或遇到 GitHub API 限流时,才需要在「设置 → 设置访问密钥」填入有 `repo` 读权限的 PAT;CLI 也会复用本机 github.com 的 git 凭证。
 
 ---
 
@@ -147,7 +147,7 @@ dshc                    # 进入交互菜单
 
 首次使用建议顺序:
 
-1. **设置 → 设置访问密钥**:粘贴 GitHub 访问令牌(私有源拉取插件/技能用;需要 `repo` 读权限)
+1. **设置 → 设置访问密钥**(可选):公开仓库无需令牌;访问私有源或 API 限流时再填有 `repo` 读权限的 PAT
 2. **设置 → 测试连接**:确认显示「连接正常 · v1.10.0」
 3. **一键破甲 → 一键安装**:安装插件 → 解包 → 打补丁 → 换包 → 重启 dsh
 4. **红队技能 / 逆向技能 → 更新**:拉取技能包到 `~/.dsh/skills/`
@@ -299,7 +299,7 @@ dshc plugins remove <name>                   # 卸载
 # 设置
 dshc settings token                          # 查询密钥状态
 dshc settings token <令牌>                    # 设置密钥
-dshc settings test                           # 测试自建源连接
+dshc settings test                           # 测试托管源连接
 ```
 
 ### 退出码
@@ -315,7 +315,7 @@ dshc settings test                           # 测试自建源连接
 
 | 路径 | 用途 |
 |---|---|
-| `~/.dsh/dsh-controller/hub.json` | 自建源访问密钥(600) |
+| `~/.dsh/dsh-controller/hub.json` | 托管源访问密钥(600,可选) |
 | `~/.dsh/dsh-purge/tuning.json` | 运行开关(boost / refusalRetry / rewind / injectPosition) |
 | `~/.dsh/dsh-purge/drill-grant.json` | 演练台授权 |
 | `~/.dsh/dsh-purge-community/backups/` | 插件备份目录 |
@@ -355,10 +355,11 @@ openSealedDesktopHost({ forApply: true })
 
 dsh 升级包通常带 `com.apple.quarantine`,会导致 dsh 二进制执行失败(表现为诡异的 `ENOENT`)。CLI 在每次操作前自动 `xattr -dr` 去除。
 
-### 私有源认证
+### 托管源认证
 
+默认托管源是公开的 GitHub 仓库,匿名即可读取;令牌只用于私有源、私有 fork 或更高的 API 配额。
 三级顺序:显式密钥(`hub.json`)→ 本机 git 凭证(keychain)→ 匿名。
-托管源对私有仓库的匿名请求返回 404(隐藏存在性),CLI 对 401/404 都会尝试凭证重试。
+私有仓库的匿名请求返回 404(隐藏存在性),CLI 对 401/404 都会尝试凭证重试。
 
 ---
 

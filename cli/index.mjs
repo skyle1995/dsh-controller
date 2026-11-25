@@ -325,7 +325,7 @@ async function menuPlugins() {
     ui.clear()
     const items = [
       { type: 'group', label: '目录' },
-      { label: '在线插件目录', hint: '从自建源拉取 · 多选安装' },
+      { label: '在线插件目录', hint: '从 GitHub 拉取 · 多选安装' },
       { label: '已安装插件', hint: inst.length + ' 个' },
       { type: 'group', label: '操作' },
       { label: '安装插件', hint: '输入包名 / 路径 / tarball' },
@@ -344,7 +344,7 @@ async function menuPlugins() {
     if (chosen.label === '在线插件目录') {
       console.log(dim('\n  正在拉取在线目录…'))
       const cat = await ops.pluginsCatalog()
-      if (!cat.length) { console.log('  ' + warn('目录为空或自建源不可达(检查密钥)')); await waitKey(); continue }
+      if (!cat.length) { console.log('  ' + warn('目录为空或托管源不可达(检查密钥)')); await waitKey(); continue }
       const names = new Set(inst.map(p => p.name))
       const picks = await menuSelect({
         title: '在线插件目录', subtitle: cat.length + ' 个可用 · 空格多选安装',
@@ -472,7 +472,7 @@ async function menuSettings() {
     const tok = core.readToken()
     ui.clear()
     const items = [
-      { type: 'group', label: '自建源' },
+      { type: 'group', label: '托管源' },
       { label: '设置访问密钥', hint: tok ? '已配置' : '未配置' },
       { label: '测试连接' },
       { type: 'group', label: '日志' },
@@ -483,7 +483,7 @@ async function menuSettings() {
       { type: 'group', label: '返回' },
       { label: '返回主菜单' },
     ]
-    const sel = await menuSelect({ title: '设置', subtitle: '自建源 · 日志', items })
+    const sel = await menuSelect({ title: '设置', subtitle: '托管源 · 日志', items })
     if (sel < 0 || sel === items.length - 1) return
     const chosen = items[sel]
     if (chosen.label === '设置访问密钥') {

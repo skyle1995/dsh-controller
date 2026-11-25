@@ -1,6 +1,6 @@
 {
   "name": "dsh-controller",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "DSH Controller CLI —— DeepSeek Harness 管理(一键破甲 / 技能包 / 插件 / 设置)",
   "type": "module",
   "bin": {
@@ -30,5 +30,9 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/skyle1995/dsh-controller.git"
+  },
+  "homepage": "https://github.com/skyle1995/dsh-controller",
+  "bugs": {
+    "url": "https://github.com/skyle1995/dsh-controller/issues"
   }
 }

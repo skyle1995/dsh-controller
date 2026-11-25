@@ -1,7 +1,14 @@
 # CHANGELOG
 
+## 0.2.4 (2026-11-26)
+* **迁移收尾**: 按公开 GitHub 源与迁移后的实际行为校正表述,不改变功能:
+  * README 去掉“私有仓库必须先配令牌”的误导,改为公开仓库匿名可用、令牌仅用于私有源或 API 限流;本地目录安装的“复制而非软链”说明改为与 npm 实际行为一致。
+  * 界面、日志与错误提示中的“自建源”统一改为“托管源”,在线插件目录提示改指 GitHub。
+  * 根包补全 `homepage` 与 `bugs` 元数据。
+  * Windows 安装定位不再让 `where.exe` / PowerShell 探测的 stderr 泄漏到终端。
+
 ## 0.2.3 (2026-11-26)
-* **迁移**: 仓库整体迁至 GitHub `skyle1995/dsh-controller`(私有),远端描述同步迁移为「DeepSeek Harness 桌面控制器」:
+* **迁移**: 仓库整体迁至 GitHub `skyle1995/dsh-controller`(现为公开仓库),远端描述同步迁移为「DeepSeek Harness 桌面控制器」:
   * 140 个历史提交与 tag `v0.1.0` 原样推送,提交 SHA 未改写;旧自建 Gitea 源退役,不再接收推送。
   * 新建 GitHub 仓库后先关闭 Actions(推送前完成),仓库内无任何工作流文件,迁移不触发 CI。
   * `cli/lib/core.mjs` 托管源常量 `HUB` 改为 GitHub HTTPS 与 `api.github.com`;认证头由 `token`/`oauth2:` 改为 `Bearer`/`x-access-token:`。

@@ -1,5 +1,5 @@
 import { fileURLToPath, pathToFileURL } from 'node:url'
-// 核心:环境探测 / 执行 / 自建源认证 / 宿主解包 / 换包改名
+// 核心:环境探测 / 执行 / 托管源认证 / 宿主解包 / 换包改名
 import { spawn, execFileSync, execSync } from 'node:child_process'
 import { existsSync, readFileSync, writeFileSync, mkdirSync, renameSync, rmSync, mkdtempSync } from 'node:fs'
 import path from 'node:path'
@@ -56,7 +56,7 @@ export async function hubFetch(url) {
 }
 export async function hubJson(url) {
   const r = await hubFetch(url)
-  if (!r.ok) throw new Error('自建源 HTTP ' + r.status)
+  if (!r.ok) throw new Error('托管源 HTTP ' + r.status)
   return r.json()
 }
 export async function hubFileVersion(p) {
@@ -101,7 +101,7 @@ export function stopRunningCommands() {
   }
   runningCommands.clear()
 }
-/** 克隆仓库。参数为目标目录、工作目录及可选 URL/分支，返回结果；只向自建源发送认证且不写入 URL。 */
+/** 克隆仓库。参数为目标目录、工作目录及可选 URL/分支，返回结果；只向托管源发送认证且不写入 URL。 */
 export async function cloneRepository(destination, cwd, { url = HUB.git, ref } = {}) {
   const remote = new URL(url)
   if (remote.protocol !== 'https:' || remote.username || remote.password) return { ok: false, output: '仓库必须使用无内嵌凭据的 HTTPS URL' }

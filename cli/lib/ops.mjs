@@ -266,7 +266,7 @@ export async function pluginInstall(spec) {
   if (!r.ok) {
     switch (true) {
       case out.includes('ENOENT') || out.includes('ERR_PNPM_EPERM'): hint = pluginFailureHint(out); break
-      case out.includes('Repository not found') || out.includes('未找到'): hint = '仓库不可达:确认自建源密钥已配置且仓库名正确'; break
+      case out.includes('Repository not found') || out.includes('未找到'): hint = '仓库不可达:确认托管源密钥已配置且仓库名正确'; break
       case out.includes('ERR_PNPM_GIT_RESOLVE_FAILED'): hint = 'git 依赖解析失败:检查 spec 与网络/密钥'; break
       case out.includes('allowBuilds'): hint = '请仅按 pnpm 实际输出的精确包键确认构建授权；未给出包键时，不修改 allowBuilds'; break
       default: hint = r.error || pluginFailureHint(out)
