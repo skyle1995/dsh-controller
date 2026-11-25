@@ -92,8 +92,8 @@ npm install -g .
 npm install -g git+https://github.com/skyle1995/dsh-controller.git
 
 # 3) 从 tarball 安装(离线/分发)
-cd dsh-controller && npm pack          # 产出 dsh-controller-0.2.1.tgz
-npm install -g ./dsh-controller-0.2.1.tgz
+cd dsh-controller && npm pack          # 产出 dsh-controller-0.2.3.tgz
+npm install -g ./dsh-controller-0.2.3.tgz
 ```
 
 验证:
@@ -148,7 +148,7 @@ dshc                    # 进入交互菜单
 首次使用建议顺序:
 
 1. **设置 → 设置访问密钥**:粘贴 GitHub 访问令牌(私有源拉取插件/技能用;需要 `repo` 读权限)
-2. **设置 → 测试连接**:确认显示「连接正常 · 红队包 v1.7.0」
+2. **设置 → 测试连接**:确认显示「连接正常 · v1.10.0」
 3. **一键破甲 → 一键安装**:安装插件 → 解包 → 打补丁 → 换包 → 重启 dsh
 4. **红队技能 / 逆向技能 → 更新**:拉取技能包到 `~/.dsh/skills/`
 
@@ -248,7 +248,7 @@ skills/
 
 | 项 | 作用 |
 |---|---|
-| 在线插件目录 | 从自建源 `dsh-plugins/packages` 拉取,显示版本/说明/是否已装 |
+| 在线插件目录 | 从同源 `dsh-plugins/packages`(GitHub)拉取,显示版本/说明/是否已装 |
 | 已安装插件 | 列表含来源 spec |
 | 安装插件 | 输入包名 / 本地路径 / tarball(`dsh plugin add`) |
 | 卸载插件 | `dsh plugin remove` |
