@@ -343,8 +343,9 @@ async function menuPlugins() {
     const chosen = items[sel]
     if (chosen.label === '在线插件目录') {
       console.log(dim('\n  正在拉取在线目录…'))
-      const cat = await ops.pluginsCatalog()
-      if (!cat.length) { console.log('  ' + warn('目录为空或托管源不可达(检查密钥)')); await waitKey(); continue }
+      const catRes = await ops.pluginsCatalogDetailed()
+      const cat = catRes.items
+      if (!cat.length) { console.log('  ' + warn('在线目录不可用: ' + (catRes.error || '未知原因'))); await waitKey(); continue }
       const names = new Set(inst.map(p => p.name))
       const picks = await menuSelect({
         title: '在线插件目录', subtitle: cat.length + ' 个可用 · 空格多选安装',
@@ -402,7 +403,7 @@ async function menuPlugins() {
       })
       if (picks === null || picks.length === 0) continue
       let cat2 = []
-      try { cat2 = await ops.pluginsCatalog() } catch {}
+      try { cat2 = (await ops.pluginsCatalogDetailed()).items } catch {}
       const byName = new Map(cat2.map(p => [p.name, p]))
       let okN = 0, failN = 0
       for (const i of picks) {

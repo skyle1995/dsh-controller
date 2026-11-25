@@ -399,20 +399,64 @@ export function setRegionGate(disabled) {
 }
 
 // ── 在线插件目录(托管源 packages/)──────────────────────────
-export async function pluginsCatalog() {
+const PLUGINS_CACHE = path.join(DSH_HOME, 'dsh-controller', 'cache', 'dsh-plugins')
+let pluginsCacheAt = 0
+
+/** 用 git 浅克隆读取在线目录。GitHub API 匿名额度只有 60 次/小时，目录接口很容易 403。 */
+async function pluginsCatalogFromGit() {
+  const dir = PLUGINS_CACHE
+  const gitDir = path.join(dir, '.git')
+  if (!existsSync(gitDir) || Date.now() - pluginsCacheAt > 60_000) {
+    if (!existsSync(gitDir)) {
+      rmSync(dir, { recursive: true, force: true })
+      mkdirSync(path.dirname(dir), { recursive: true })
+      const clone = await core.run('git', ['clone', '--depth', '1', '--branch', 'main', core.PLUGINS_HUB.git, dir], { timeout: 120000 })
+      if (!clone.ok && !existsSync(gitDir)) throw new Error(clone.output || 'git clone 失败')
+    } else {
+      const fetch = await core.run('git', ['-C', dir, 'fetch', '--depth', '1', 'origin', 'main'], { timeout: 120000 })
+      if (fetch.ok) await core.run('git', ['-C', dir, 'reset', '--hard', 'FETCH_HEAD'], { timeout: 60000 })
+    }
+    pluginsCacheAt = Date.now()
+  }
+  const packages = path.join(dir, 'packages')
+  const out = []
+  for (const entry of readdirSync(packages, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue
+    try {
+      const pkg = JSON.parse(readFileSync(path.join(packages, entry.name, 'package.json'), 'utf8'))
+      out.push({ name: pkg.name, version: pkg.version || '', description: pkg.description || '', spec: core.PLUGINS_HUB.git + '#main&path:packages/' + entry.name })
+    } catch {}
+  }
+  return out
+}
+
+/** 读取在线插件目录，返回条目与失败原因；优先 git（不占 API 额度），失败再退回 API。 */
+export async function pluginsCatalogDetailed() {
+  const errors = []
+  try {
+    const items = await pluginsCatalogFromGit()
+    if (items.length) return { ok: true, items, source: 'git' }
+    errors.push('git 目录里没有 packages')
+  } catch (e) { errors.push('git: ' + e.message) }
   try {
     const top = await core.hubJson(core.PLUGINS_HUB.api + '/contents/packages?ref=main')
-    const out = []
+    const items = []
     for (const d of (Array.isArray(top) ? top : [])) {
       if (d?.type !== 'dir') continue
       try {
         const meta = await core.hubJson(core.PLUGINS_HUB.api + '/contents/' + d.path + '/package.json?ref=main')
         const pkg = JSON.parse(Buffer.from(meta.content, 'base64').toString())
-        out.push({ name: pkg.name, version: pkg.version || '', description: pkg.description || '', spec: core.PLUGINS_HUB.git + '#main&path:' + d.path })
+        items.push({ name: pkg.name, version: pkg.version || '', description: pkg.description || '', spec: core.PLUGINS_HUB.git + '#main&path:' + d.path })
       } catch {}
     }
-    return out
-  } catch { return [] }
+    if (items.length) return { ok: true, items, source: 'api' }
+    errors.push('API 返回空目录')
+  } catch (e) { errors.push('API: ' + e.message) }
+  return { ok: false, items: [], error: errors.join('；') }
+}
+
+export async function pluginsCatalog() {
+  return (await pluginsCatalogDetailed()).items
 }
 
 // ── 备份详情 / 删除 / 占用 ────────────────────────────────

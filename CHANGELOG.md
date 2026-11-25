@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 0.2.7 (2026-11-26)
+* **在线插件目录改为 git 优先**: GitHub API 匿名额度（60 次/小时）耗尽时目录接口返回 403，界面只提示“检查密钥”。现在先用 `git clone --depth 1` 读 `dsh-plugins` 并缓存 60 秒，API 只作回退；失败时显示具体原因。
+* README 补充目录读取方式与 403 的排查说明。
+
 ## 0.2.6 (2026-11-26)
 * **插件发布清单对齐**: `dsh-purge-self` 的 `files` 移除仓库中不存在的 docs/README 等 6 项，以及已无对应文件的 `!lib/default-prompt-inject.md`。此前控制器按清单打包 Git 子目录插件会报“发布文件缺失”，`dshc plugins repair` 也无法修复；现在暂存、打包与修复路径一致。插件版本 1.1.38。
 

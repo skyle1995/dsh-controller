@@ -92,8 +92,8 @@ npm install -g .
 npm install -g git+https://github.com/skyle1995/dsh-controller.git
 
 # 3) 从 tarball 安装(离线/分发)
-cd dsh-controller && npm pack          # 产出 dsh-controller-0.2.6.tgz
-npm install -g ./dsh-controller-0.2.6.tgz
+cd dsh-controller && npm pack          # 产出 dsh-controller-0.2.7.tgz
+npm install -g ./dsh-controller-0.2.7.tgz
 ```
 
 验证:
@@ -248,7 +248,7 @@ skills/
 
 | 项 | 作用 |
 |---|---|
-| 在线插件目录 | 从同源 `dsh-plugins/packages`(GitHub)拉取,显示版本/说明/是否已装 |
+| 在线插件目录 | 从同源 `dsh-plugins/packages`(GitHub)拉取,显示版本/说明/是否已装;优先 git 浅克隆(缓存 60 秒),不占 API 额度 |
 | 已安装插件 | 列表含来源 spec |
 | 安装插件 | 输入包名 / 本地路径 / tarball(`dsh plugin add`) |
 | 卸载插件 | `dsh plugin remove` |
@@ -377,6 +377,7 @@ dsh 升级包通常带 `com.apple.quarantine`,会导致 dsh 二进制执行失�
 | `spawn ... ENOENT` / dsh 起不来 | bundle 带 quarantine | `xattr -dr com.apple.quarantine "/Applications/DeepSeek Harness.app"` |
 | 「插件根未找到」 | 缺 `DSH_SURFACE=desktop` | 已内置,若手动调插件 CLI 需自行加 |
 | 安装插件 `allowBuilds` 报错 | pnpm 阻止 git 插件 prepare | 按提示在 `~/.dsh/profiles/desktop/pnpm-workspace.yaml` 的 `allowBuilds` 加入对应键 |
+| 在线目录为空 / 403 | GitHub API 匿名限流(60 次/小时) | 已自动回退 git 浅克隆;若仍失败,检查 git/网络,或配置访问密钥 |
 | `Repository not found` | 私有源未授权 | 设置 → 设置访问密钥 → 测试连接 |
 | 换包后 dsh 仍加载 asar | 改名未完成 | 查看 `/tmp/dsh-controller-handoff.log`,重跑一键安装 |
 | `Unknown agent preset: unrestricted`，旧会话无法恢复 | 预设未成功注册，崩溃可能损坏 `preset.yml` | 先备份损坏文件，再用已校验的原始备份恢复；不要删除会话。重开 DSH 重新注册预设 |
