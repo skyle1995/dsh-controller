@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 0.2.3 (2026-11-26)
+* **迁移**: 仓库整体迁至 GitHub `skyle1995/dsh-controller`(私有),远端描述同步迁移为「DeepSeek Harness 桌面控制器」:
+  * 140 个历史提交与 tag `v0.1.0` 原样推送,提交 SHA 未改写;旧自建 Gitea 源退役,不再接收推送。
+  * 新建 GitHub 仓库后先关闭 Actions(推送前完成),仓库内无任何工作流文件,迁移不触发 CI。
+  * `cli/lib/core.mjs` 托管源常量 `HUB` 改为 GitHub HTTPS 与 `api.github.com`;认证头由 `token`/`oauth2:` 改为 `Bearer`/`x-access-token:`。
+  * 在线插件目录来源拆为 `PLUGINS_HUB`,默认同源 `dsh-plugins`,可用 `DSHC_PLUGINS_API` / `DSHC_PLUGINS_GIT` 覆盖其它实例。
+  * README、`docs/`、包元数据、插件面板欢迎页链接与「设置访问密钥」提示统一指向 GitHub;Gitea 端点与令牌提示全部移除。
+
 ## 1.1.36 (2026-11-20)
 * **移植**: 同步上游 1.7.20 拒绝重试 (Refusal Retry) 逻辑：
   * 支持 `outcome=partial_refused` 与 `empty_after_retry` 检测，识别模型“先给部分背景再拒绝”的假成功。

@@ -3,6 +3,9 @@
 DeepSeek Harness 的**纯命令行管理器**。管理破甲补丁、红队/逆向技能包、dsh 插件与私有源访问。
 零第三方依赖,只用 Node.js 内置模块。
 
+仓库: <https://github.com/skyle1995/dsh-controller>(2026-11 由自建 Gitea 迁入,历史提交与 tag 完整保留;
+克隆、安装与 issue 一律使用该地址,旧 Gitea 地址不再维护)
+
 - 交互式 TUI:方向键移动、空格勾选、回车确认、q 返回,局部重绘不闪屏
 - 非交互命令:可脚本化、可管道、带退出码
 - 平台:Windows(官方桌面安装)、macOS；Linux 可用 `DSH_APP_ROOT` 指定桌面安装
@@ -61,7 +64,7 @@ Windows 下控制器会在插件安装、卸载或修复前检查桌面进程，
 ### 方式 A:克隆 + 本地链接(推荐)
 
 ```bash
-git clone https://hub.ifunx.com/skyle1995/dsh-controller.git
+git clone https://github.com/skyle1995/dsh-controller.git
 cd dsh-controller
 npm link            # 注册 dshc 命令到 PATH
 dshc                # 启动
@@ -70,7 +73,7 @@ dshc                # 启动
 ### 方式 B:不安装,直接用
 
 ```bash
-git clone https://hub.ifunx.com/skyle1995/dsh-controller.git
+git clone https://github.com/skyle1995/dsh-controller.git
 cd dsh-controller
 node cli/index.mjs          # 交互界面
 node cli/index.mjs status   # 单条命令
@@ -86,7 +89,7 @@ cd dsh-controller
 npm install -g .
 
 # 2) 直接从私有 Git 安装(需先配好 git 凭证)
-npm install -g git+https://hub.ifunx.com/skyle1995/dsh-controller.git
+npm install -g git+https://github.com/skyle1995/dsh-controller.git
 
 # 3) 从 tarball 安装(离线/分发)
 cd dsh-controller && npm pack          # 产出 dsh-controller-0.2.1.tgz
@@ -132,7 +135,7 @@ Windows 用例覆盖安装定位、中文及特殊字符参数、官方 cmd 入�
 npm unlink -g dsh-controller
 ```
 
-> 私有仓库需要权限:首次 `git clone` 输入 Gitea 账号密码(勾选钥匙串保存),之后 CLI 自动复用该凭证。
+> 私有仓库需要权限:首次 `git clone` 输入 GitHub 用户名 + 个人访问令牌(密码位填 PAT,勾选钥匙串保存),之后 CLI 自动复用该凭证。
 
 ---
 
@@ -144,7 +147,7 @@ dshc                    # 进入交互菜单
 
 首次使用建议顺序:
 
-1. **设置 → 设置访问密钥**:粘贴 Gitea 访问令牌(私有源拉取插件/技能用)
+1. **设置 → 设置访问密钥**:粘贴 GitHub 访问令牌(私有源拉取插件/技能用;需要 `repo` 读权限)
 2. **设置 → 测试连接**:确认显示「连接正常 · 红队包 v1.7.0」
 3. **一键破甲 → 一键安装**:安装插件 → 解包 → 打补丁 → 换包 → 重启 dsh
 4. **红队技能 / 逆向技能 → 更新**:拉取技能包到 `~/.dsh/skills/`
@@ -355,7 +358,7 @@ dsh 升级包通常带 `com.apple.quarantine`,会导致 dsh 二进制执行失�
 ### 私有源认证
 
 三级顺序:显式密钥(`hub.json`)→ 本机 git 凭证(keychain)→ 匿名。
-Gitea 对私有仓库的匿名请求返回 404(隐藏存在性),CLI 对 401/404 都会尝试凭证重试。
+托管源对私有仓库的匿名请求返回 404(隐藏存在性),CLI 对 401/404 都会尝试凭证重试。
 
 ---
 
@@ -438,5 +441,5 @@ npm link                       # 本地链接测试
 - 仅支持 macOS + 桌面版 DeepSeek Harness(路径固定 `/Applications/DeepSeek Harness.app`)
 - 换包改名依赖系统管理员授权(弹密码框);无 GUI 管理员权限的环境需手动 sudo
 - 技能包内容体积较大(克隆仓库约 600MB)
-- 在线插件目录来自自建源 `hub.ifunx.com`;该源不可达时只能装本地/tarball
+- 在线插件目录来自同源 `dsh-plugins` 仓库(默认 `github.com/skyle1995/dsh-plugins`,可用 `DSHC_PLUGINS_API`/`DSHC_PLUGINS_GIT` 改指);该源不可达时只能装本地/tarball
 

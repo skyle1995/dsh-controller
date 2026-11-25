@@ -1,6 +1,6 @@
 {
   "name": "dsh-controller",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "DSH Controller CLI —— DeepSeek Harness 管理(一键破甲 / 技能包 / 插件 / 设置)",
   "type": "module",
   "bin": {
@@ -29,6 +29,6 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://hub.ifunx.com/skyle1995/dsh-controller.git"
+    "url": "git+https://github.com/skyle1995/dsh-controller.git"
   }
 }

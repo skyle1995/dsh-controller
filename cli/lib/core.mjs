@@ -20,7 +20,13 @@ export const RES = desktop.resources
 export const DSH_CLI = process.env.PURGE_DSH_CLI || desktop.cli
 export const PLUGIN_DIR = path.join(DSH_HOME, 'profiles', 'desktop', 'node_modules', 'dsh-purge-self')
 export const SKILLS_DIR = path.join(DSH_HOME, 'skills')
-export const HUB = { git: 'https://hub.ifunx.com/skyle1995/dsh-controller.git', api: 'https://hub.ifunx.com/api/v1/repos/skyle1995/dsh-controller' }
+// 代码托管源:GitHub(2026-11 起;原自建 Gitea 源已退役)
+export const HUB = { git: 'https://github.com/skyle1995/dsh-controller.git', api: 'https://api.github.com/repos/skyle1995/dsh-controller' }
+// 在线插件目录宿主:默认与本仓库同源,可用 DSHC_PLUGINS_GIT / DSHC_PLUGINS_API 覆盖
+export const PLUGINS_HUB = {
+  git: process.env.DSHC_PLUGINS_GIT || HUB.git.replace('dsh-controller', 'dsh-plugins'),
+  api: process.env.DSHC_PLUGINS_API || HUB.api.replace('dsh-controller', 'dsh-plugins'),
+}
 export const HUB_AUTH_FILE = path.join(DSH_HOME, 'dsh-controller', 'hub.json')
 const runningCommands = new Set()
 
@@ -31,14 +37,14 @@ export function saveToken(token) {
 }
 export function gitCred() {
   try {
-    const out = execFileSync('git', ['credential', 'fill'], { input: 'protocol=https\nhost=hub.ifunx.com\n\n', encoding: 'utf8', timeout: 3000 })
+    const out = execFileSync('git', ['credential', 'fill'], { input: 'protocol=https\nhost=github.com\n\n', encoding: 'utf8', timeout: 3000 })
     const u = /username=(.+)/.exec(out), p = /password=(.+)/.exec(out)
     return u && p ? { user: u[1].trim(), pass: p[1].trim() } : null
   } catch { return null }
 }
 export async function hubFetch(url) {
   const t = readToken()
-  if (t) { try { const r = await fetch(url, { headers: { Authorization: 'token ' + t } }); if (r.ok) return r } catch {} }
+  if (t) { try { const r = await fetch(url, { headers: { Authorization: 'Bearer ' + t } }); if (r.ok) return r } catch {} }
   const anon = await fetch(url)
   if (anon.status !== 401 && anon.status !== 404) return anon
   const c = gitCred()
@@ -103,7 +109,7 @@ export async function cloneRepository(destination, cwd, { url = HUB.git, ref } =
   const env = token && remote.origin === new URL(HUB.git).origin ? {
     GIT_CONFIG_COUNT: '1',
     GIT_CONFIG_KEY_0: 'http.' + new URL(HUB.git).origin + '/.extraHeader',
-    GIT_CONFIG_VALUE_0: 'Authorization: Basic ' + Buffer.from('oauth2:' + token).toString('base64'),
+    GIT_CONFIG_VALUE_0: 'Authorization: Basic ' + Buffer.from('x-access-token:' + token).toString('base64'),
     GIT_TERMINAL_PROMPT: '0',
   } : { GIT_TERMINAL_PROMPT: '0' }
   const commitRef = ref && ref.length === 40 && [...ref.toLowerCase()].every(ch => '0123456789abcdef'.includes(ch))

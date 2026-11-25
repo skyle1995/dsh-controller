@@ -62,11 +62,12 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://hub.ifunx.com/skyle1995/dsh-purge-self.git"
+    "url": "https://github.com/skyle1995/dsh-controller.git",
+    "directory": "dsh-purge-self"
   },
-  "homepage": "https://hub.ifunx.com/skyle1995/dsh-purge-self",
+  "homepage": "https://github.com/skyle1995/dsh-controller/tree/main/dsh-purge-self",
   "bugs": {
-    "url": "https://hub.ifunx.com/skyle1995/dsh-purge-self/issues"
+    "url": "https://github.com/skyle1995/dsh-controller/issues"
   },
   "dsh": {
     "bundle": {
@@ -85,7 +86,7 @@
     },
     "install": {
       "preferred": "git",
-      "git": "https://hub.ifunx.com/skyle1995/dsh-purge-self.git"
+      "git": "https://github.com/skyle1995/dsh-controller.git#main&path:dsh-purge-self"
     }
   },
   "peerDependencies": {

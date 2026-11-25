@@ -487,7 +487,7 @@ async function menuSettings() {
     if (sel < 0 || sel === items.length - 1) return
     const chosen = items[sel]
     if (chosen.label === '设置访问密钥') {
-      const t = await promptText('Gitea 令牌(输入 - 清除,回车取消)')
+      const t = await promptText('GitHub 访问令牌(输入 - 清除,回车取消)')
       if (t === '-') { core.saveToken(''); console.log('  ' + ok('已清除')) }
       else if (t) { core.saveToken(t); console.log('  ' + ok('已保存')) }
       await waitKey()

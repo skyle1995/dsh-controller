@@ -57,7 +57,7 @@ dsh-purge 不是控制器这类独立应用,而是一个 **DSH 插件**(跑在 d
 ### A3. DSH 市场索引 format 1 支持(升级「插件中心」)⭐ 战略价值最高
 - **搬什么**:`scripts/build-market.mjs` 里的 format 1 结构:
   `{ format: 1, plugins: [{ name, versions: [{ version, source: { type: "git", url, commit }, engines }] }] }`
-- **控制器落地**:插件中心目前硬编码抓 Gitea `contents/packages` 遍历;增加
+- **控制器落地**:插件中心目前硬编码抓托管源 `contents/packages` 遍历(GitHub: `api.github.com/repos/<owner>/<repo>/contents`);增加
   「自定义市场源」页签,可添加任意 format 1 索引(如 purge 官方源
   `https://kingcharleslzy-ai.github.io/dsh-purge/index.json`),
   **控制器从此能一键安装破甲、Qwen Studio 等 GitHub 生态插件**
@@ -256,7 +256,7 @@ reverse-skill 逆向技能包并回「破甲技能包」页签,与红队技能�
 - **fork 源码**:项目内 `dsh-purge-self/`(自社区版 v1.6.50,MIT;LICENSE/NOTICE 保留)
 - **改名去标识**:package name `dsh-purge-self`、面板/CLI 显示 "Purge Self"、界面与源码 kingcharleslzy 零残留
 - **外部依赖移除**:GitHub 更新源源码级禁用(releasedVersions → []);面板「检查社区版更新」按钮与「发行记录」链接删除;region gate **源码级禁用**(不再需要控制器补丁);用户须知链接清理进包
-- **安装源**:自建 git `hub.ifunx.com/skyle1995/dsh-purge-self`(Gitea contents API 读版本 + git spec 安装);tarball 兜底 `dsh-purge-self-1.0.0.tgz`
+- **安装源**:本仓库 `dsh-purge-self/` 子目录(2026-11 迁至 `github.com/skyle1995/dsh-controller`,contents API 读版本 + git spec 安装);tarball 兜底 `dsh-purge-self-1.0.0.tgz`
 - **控制器**:PURGE_PACKAGES 优先 self;detectDshBase 新增桌面版宿主路径(app/ 解包目录与 app.asar,修「未定位宿主」);界面改「自建源最新」
 - **已换装**:desktop profile 移除 community → 装入 self 1.0.0,tuning/提示词/演练台授权数据全继承,宿主 63 条补丁不受影响
 

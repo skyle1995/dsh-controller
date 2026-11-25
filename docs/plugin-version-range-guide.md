@@ -1,6 +1,6 @@
 # 插件版本范围适配指南(服务器端)
 
-适用于:托管在 Gitea / 自建 Git 上的 DSH 插件仓库。目标是把插件对 dsh 运行时的
+适用于:托管在 GitHub / 自建 Git 上的 DSH 插件仓库。目标是把插件对 dsh 运行时的
 **精确版本要求**放宽为 **semver 范围**(如 `>=0.2.0-rc.2`),避免 dsh 小版本升级后
 插件被 profile 拒绝挂载。
 
@@ -69,7 +69,7 @@
 
 ## 3. 手动修改(少量插件)
 
-1. 在 Gitea 打开 `packages/<插件名>/package.json` → 「编辑」
+1. 在 GitHub 打开 `packages/<插件名>/package.json` → 「编辑」
 2. 按上面的 diff 修改 `peerDependencies`(和版本号)
 3. 提交信息建议:`chore: 放宽 @deepseek-ai/dsh peer 版本范围为 >=0.2.0-rc.2`
 4. 同样方式更新其它插件包和 README
@@ -83,14 +83,14 @@
 
 ```bash
 # 1) 先 dry-run 扫描服务器上还有哪些插件钉着精确版本(不提交)
-GITEA_TOKEN=你的令牌 node scripts/relax-plugin-ranges.mjs \
-  --api https://hub.ifunx.com \
+GITHUB_TOKEN=你的令牌 node scripts/relax-plugin-ranges.mjs \
+  --api https://api.github.com \
   --owner skyle1995 --repo dsh-plugins --branch main \
   --bump-patch
 
 # 2) 确认无误后加 --apply 真正提交
-GITEA_TOKEN=你的令牌 node scripts/relax-plugin-ranges.mjs \
-  --api https://hub.ifunx.com \
+GITHUB_TOKEN=你的令牌 node scripts/relax-plugin-ranges.mjs \
+  --api https://api.github.com \
   --owner skyle1995 --repo dsh-plugins --branch main \
   --bump-patch --apply
 ```
@@ -99,14 +99,14 @@ GITEA_TOKEN=你的令牌 node scripts/relax-plugin-ranges.mjs \
 
 | 参数 | 说明 |
 |---|---|
-| `--api` | Gitea 地址(其它服务器换成自己的域名) |
+| `--api` | 托管源 REST 根(GitHub 为 `https://api.github.com`;自建实例换成自己的地址) |
 | `--owner` / `--repo` | 仓库坐标;其它仓库直接换 |
 | `--branch` | 默认 `main` |
 | `--range` | 可选。不填时按 `>=<原版本>` 放宽(保留原版本作下限);填了则把精确版本统一改成该范围 |
 | `--paths` | 只处理指定文件(可多个/逗号分隔),默认自动遍历 `packages/*/package.json` |
 | `--bump-patch` | 改动后 patch +1(推荐) |
 | `--apply` | 真正提交;不加则 dry-run |
-| 环境变量 | `GITEA_TOKEN`(推荐),或 `GITEA_USER` + `GITEA_PASSWORD` |
+| 环境变量 | `GITHUB_TOKEN`(推荐),或 `GITEA_USER` + `GITEA_PASSWORD`(Gitea 兼容实例) |
 
 脚本行为:
 
@@ -129,7 +129,7 @@ GITEA_TOKEN=你的令牌 node scripts/relax-plugin-ranges.mjs \
 
 ```bash
 # 1) 确认 manifest 已更新
-curl -s "https://你的服务器/api/v1/repos/<owner>/<repo>/contents/packages/<插件>/package.json?ref=main" \
+curl -s "https://api.github.com/repos/<owner>/<repo>/contents/packages/<插件>/package.json?ref=main" \
   | python3 -c 'import json,sys,base64; p=json.loads(base64.b64decode(json.load(sys.stdin)["content"])); print(p["version"], p["peerDependencies"].get("@deepseek-ai/dsh"))'
 
 # 2) 用当前 dsh 版本实测(WEB profile)
@@ -172,7 +172,7 @@ dsh plugin --profile web add "<插件 git spec>"
 插件仓库是普通 git,直接 revert 对应 commit 即可:
 
 ```bash
-git revert <commit>   # 或 Gitea 网页 Revert
+git revert <commit>   # 或 GitHub 网页 Revert
 ```
 
 控制器侧不需要为"放宽范围"做回滚(范围本身向后兼容)。

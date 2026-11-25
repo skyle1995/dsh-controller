@@ -398,17 +398,17 @@ export function setRegionGate(disabled) {
   } catch (e) { return { ok: false, error: e.message } }
 }
 
-// ── 在线插件目录(自建源 packages/)──────────────────────────
+// ── 在线插件目录(托管源 packages/)──────────────────────────
 export async function pluginsCatalog() {
   try {
-    const top = await core.hubJson(core.HUB.api.replace('dsh-controller', 'dsh-plugins') + '/contents/packages?ref=main')
+    const top = await core.hubJson(core.PLUGINS_HUB.api + '/contents/packages?ref=main')
     const out = []
     for (const d of (Array.isArray(top) ? top : [])) {
       if (d?.type !== 'dir') continue
       try {
-        const meta = await core.hubJson(core.HUB.api.replace('dsh-controller', 'dsh-plugins') + '/contents/' + d.path + '/package.json?ref=main')
+        const meta = await core.hubJson(core.PLUGINS_HUB.api + '/contents/' + d.path + '/package.json?ref=main')
         const pkg = JSON.parse(Buffer.from(meta.content, 'base64').toString())
-        out.push({ name: pkg.name, version: pkg.version || '', description: pkg.description || '', spec: core.HUB.git.replace('dsh-controller', 'dsh-plugins') + '#main&path:' + d.path })
+        out.push({ name: pkg.name, version: pkg.version || '', description: pkg.description || '', spec: core.PLUGINS_HUB.git + '#main&path:' + d.path })
       } catch {}
     }
     return out
