@@ -388,6 +388,10 @@ function githubRepoOf(homepage) {
   return 'dsh-purge-self'
 }
 
+const CONTROLLER_REPO = 'skyle1995/dsh-controller'
+const CONTROLLER_MANAGED_UPDATE =
+  '破甲插件已随 GitHub 仓库 skyle1995/dsh-controller 发布，更新由 dshc 管理：请在终端运行 dshc → 插件商店 → 更新全部插件（或一键安装）。'
+
 /** 简陋 JSON 抓取（10 秒超时，30xx 不自动跳转——api.github.com 不会跳）。 */
 function fetchJsonFromGithub(url) {
   return new Promise((resolveP) => {
@@ -464,6 +468,11 @@ async function checkLatestFromGithub(homepage) {
 /** 到 npm registry 查最新版本（走包管理器，避免自带网络栈）。dsh-purge 不在 npm → 直接走 GitHub。 */
 async function checkLatest(ctx, dir, name) {
   const pkg = pluginIdentity(ctx)
+  /* 2026-11 迁移到 GitHub 单仓后，插件不再单独打 tag/发 npm；控制器仓库的 v0.2.x
+     tag 不能代表插件版本。更新统一由 dshc 完成，这里只负责把用户引到正确入口。 */
+  if (!pkg.homepage || githubRepoOf(pkg.homepage) === CONTROLLER_REPO) {
+    return { ok: false, error: CONTROLLER_MANAGED_UPDATE }
+  }
   const pm = packageManagerOf(dir)
   const args = ['view', name, 'version', '--json']
   const r = await run(pm, args, { cwd: dir, timeoutMs: 60000 })
@@ -582,6 +591,10 @@ function restartScript(pid, port, command, args, logPath, cwd) {
 
 /** 应用更新：装新版本 + 生成重启脚本 + 让当前进程退出。 */
 async function applyUpdate(ctx, dir, name, targetVersion) {
+  const identity = pluginIdentity(ctx)
+  if (!identity.homepage || githubRepoOf(identity.homepage) === CONTROLLER_REPO) {
+    return { ok: false, error: CONTROLLER_MANAGED_UPDATE }
+  }
   const pm = packageManagerOf(dir)
   const spec = targetVersion ? name + '@' + targetVersion : name
   const args = pm === 'pnpm' ? ['add', spec] : ['install', spec, '--save']

@@ -92,8 +92,8 @@ npm install -g .
 npm install -g git+https://github.com/skyle1995/dsh-controller.git
 
 # 3) 从 tarball 安装(离线/分发)
-cd dsh-controller && npm pack          # 产出 dsh-controller-0.2.4.tgz
-npm install -g ./dsh-controller-0.2.4.tgz
+cd dsh-controller && npm pack          # 产出 dsh-controller-0.2.5.tgz
+npm install -g ./dsh-controller-0.2.5.tgz
 ```
 
 验证:
@@ -252,9 +252,13 @@ skills/
 | 已安装插件 | 列表含来源 spec |
 | 安装插件 | 输入包名 / 本地路径 / tarball(`dsh plugin add`) |
 | 卸载插件 | `dsh plugin remove` |
-| 更新全部插件 | 按在线目录最新 spec 逐个重装 |
+| 更新全部插件 | 按在线目录最新 spec 逐个重装;破甲插件从仓库 `main` 重新检出打包 |
 | 版本豁免 | 查看 / 授权 / 撤销(`dsh plugin allow-version`、`revoke-version`) |
 | 重启 dsh | 拉起重启 |
+
+> 更新通道：控制器、技能包和插件都从 GitHub 仓库 `main` 拉取，Gitea 源下线后无需改配置。
+> 破甲插件随 `dsh-controller` 单仓发布，不再单独打 tag；面板「检查更新」只提示入口，
+> 更新请用 `dshc plugins update dsh-purge-self` 或「一键安装」。Windows 上更新前需从托盘完全退出 DSH。
 
 ### 设置
 
@@ -295,6 +299,7 @@ dshc skills verify                           # 验证全部模块正文及资源
 dshc plugins list                            # 已安装列表
 dshc plugins install <spec>                  # 安装(包名/路径/tarball/git spec)
 dshc plugins remove <name>                   # 卸载
+dshc plugins update [all|name]               # 更新(破甲插件跟随仓库 main)
 
 # 设置
 dshc settings token                          # 查询密钥状态

@@ -4,7 +4,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { atomicWriteSync, findDshHome } from "./core.js";
 
-export const STABLE_REF = "master";
+// 2026-11 迁移：默认分支为 GitHub 单仓的 main；beta 分支在单仓中不存在。
+export const STABLE_REF = "main";
 export const BETA_REF = "beta";
 
 function home() {

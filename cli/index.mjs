@@ -407,12 +407,10 @@ async function menuPlugins() {
       let okN = 0, failN = 0
       for (const i of picks) {
         const p = inst[i]
-        const spec = byName.get(p.name)?.spec || p.spec
-        if (!spec) { failN++; console.log('    ' + bad(p.name + ' — 无安装来源')); continue }
         console.log(dim('  → 更新 ' + p.name))
-        const r = await ops.pluginInstall(spec)
-        if (r.ok) { okN++; console.log('    ' + ok(p.name)) }
-        else { failN++; console.log('    ' + bad(p.name + ' — 失败' + (r.hint ? ' ' + r.hint : ''))) }
+        const r = await ops.pluginUpdate(p, byName.get(p.name)?.spec || '')
+        if (r.ok) { okN++; console.log('    ' + ok(p.name + (r.version ? ' v' + r.version : ''))) }
+        else { failN++; console.log('    ' + bad(p.name + ' — 失败' + (r.hint || r.error ? ' ' + (r.hint || r.error) : ''))) }
       }
       console.log('\n  ' + (failN ? warn('成功 ' + okN + ' · 失败 ' + failN) : ok('已更新 ' + okN + ' 个(重启 dsh 生效)')))
       await waitKey()
@@ -557,7 +555,7 @@ async function mainMenu() {
 // ═══ 非交互命令 ═════════════════════════════════════════
 /** 输出命令帮助。无参数，无返回值。 */
 function help() {
-  console.log(head('DSH Controller CLI') + '\n\n用法: dshc [命令]   (不带命令 = 交互式 TUI)\n\n命令:\n  status\n  purge oneclick|apply|revert|reseal|backup|prune|selfcheck|rollback <id>\n  skills redteam|reverse|migrate|verify\n  plugins list|install <spec>|remove <name>|repair <name>\n  settings token [值]|test\n  help')
+  console.log(head('DSH Controller CLI') + '\n\n用法: dshc [命令]   (不带命令 = 交互式 TUI)\n\n命令:\n  status\n  purge oneclick|apply|revert|reseal|backup|prune|selfcheck|rollback <id>\n  skills redteam|reverse|migrate|verify\n  plugins list|install <spec>|remove <name>|repair <name>|update [all|name]\n  settings token [值]|test\n  help')
 }
 /** 处理 CLI 参数。参数 argv 为命令参数数组，返回操作结果或完成交互；非 TTY 显示帮助。 */
 /** 执行命令入口。参数 argv 为命令参数数组，返回分派完成的 Promise；未捕获异常由顶层处理。 */
@@ -602,6 +600,24 @@ async function cli(argv) {
     if (sub === 'repair') { const r = await ops.repairLocalPlugin(rest[0]); console.log(r.ok ? ok('安装来源已修复 v' + r.version + '\n配置备份: ' + r.backup) : bad(r.error || '修复失败')); process.exit(r.ok ? 0 : 1) }
     if (sub === 'install') { const r = await ops.pluginInstall(rest[0]); console.log(r.ok ? ok('已安装') : bad(r.hint || '失败')); process.exit(r.ok ? 0 : 1) }
     if (sub === 'remove') { const r = await ops.pluginRemove(rest[0]); console.log(r.ok ? ok('已卸载') : bad('失败')); process.exit(r.ok ? 0 : 1) }
+    if (sub === 'update') {
+      const target = rest[0] || 'all'
+      let results = []
+      if (target === 'all') {
+        results = (await ops.pluginsUpdateAll()).results
+      } else {
+        const found = (await ops.pluginsInstalled()).find(p => p.name === target)
+        if (!found) { console.log(bad('未安装: ' + target)); process.exit(1) }
+        let cat = []
+        try { cat = await ops.pluginsCatalog() } catch {}
+        results = [{ name: target, ...(await ops.pluginUpdate(found, cat.find(p => p.name === target)?.spec || '')) }]
+      }
+      if (!results.length) { console.log(warn('没有已安装插件')); process.exit(1) }
+      for (const r of results) {
+        console.log(r.ok ? ok(r.name + (r.version ? ' v' + r.version : '') + ' 已更新') : bad(r.name + ' — ' + (r.hint || r.error || '失败')))
+      }
+      process.exit(results.every(r => r.ok) ? 0 : 1)
+    }
     return help()
   }
   if (cmd === 'settings') {

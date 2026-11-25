@@ -451,6 +451,20 @@ export function backupUsage() {
 export function fmtSize(n) { return n > 1024 * 1024 ? (n / 1024 / 1024).toFixed(1) + ' MB' : n > 1024 ? (n / 1024).toFixed(0) + ' KB' : n + ' B' }
 
 // ── 插件:更新全部 / 版本豁免 / 重启 ───────────────────────
+/** 更新单个插件。参数为已安装插件及在线目录命中的来源，返回结果；破甲插件跟随控制器仓库重新打包。 */
+export async function pluginUpdate(p, catalogSpec = '') {
+  // 破甲插件不在 dsh-plugins 目录里，安装来源是持久 tarball；原样重装不会前进版本。
+  // 它随 dsh-controller 单仓发布，这里直接走 installLatest：检出 main → 整目录打包 → dsh plugin add。
+  if (p?.name === 'dsh-purge-self') {
+    const r = await installLatest()
+    return { ok: r.ok, hint: r.ok ? '' : (r.error || ''), version: r.version, tarball: r.tarball }
+  }
+  const spec = catalogSpec || p?.spec
+  if (!spec) return { ok: false, error: '无安装来源' }
+  const r = await pluginInstall(spec)
+  return { ok: r.ok, hint: r.hint || '', version: r.version, tarball: r.tarball }
+}
+
 export async function pluginsUpdateAll() {
   const inst = await pluginsInstalled()
   let cat = []
@@ -458,10 +472,8 @@ export async function pluginsUpdateAll() {
   const byName = new Map(cat.map(p => [p.name, p]))
   const results = []
   for (const p of inst) {
-    const spec = byName.get(p.name)?.spec || p.spec
-    if (!spec) { results.push({ name: p.name, ok: false, error: '无安装来源' }); continue }
-    const r = await pluginInstall(spec)
-    results.push({ name: p.name, ok: r.ok, hint: r.hint || '' })
+    const r = await pluginUpdate(p, byName.get(p.name)?.spec || '')
+    results.push({ name: p.name, ...r })
   }
   return { ok: results.every(x => x.ok), results }
 }

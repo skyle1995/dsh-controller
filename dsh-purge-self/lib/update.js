@@ -107,6 +107,10 @@ export const CHANNELS = {
   beta: { id: "beta", ref: BETA_REF, label: "测试版（上游）", source: "upstream", legacy: true },
 };
 
+export const CONTROLLER_MANAGED_UPDATE =
+  "破甲插件已随 GitHub 仓库 skyle1995/dsh-controller 发布，更新由 dshc 管理：" +
+  "请在终端运行 dshc → 插件商店 → 更新全部插件（或一键安装）。";
+
 export const UPSTREAM_WARNING =
   "上游 dsh-purge-self 已停止维护，且上游版本在新版 DSH 上不兼容（旧宿主补丁表与当前运行时不一致）。" +
   "本次安装只写入独立目录，不覆盖当前已安装的社区版；如需启用需自行切换依赖 spec。";
@@ -632,6 +636,32 @@ function upstreamHeadItem(ref, sha, version) {
 }
 
 export async function listRemoteVersions() {
+  // 2026-11 迁移：插件不再是独立仓库，也没有独立 tag/Release。更新统一交给 dshc
+  //（停宿主 → 检出 main → 打 tarball → 留备份），这里不再发网络请求，避免拿控制器
+  // 仓库的 v0.2.x tag 去比对插件版本、得出“本地版本更新”之类的错误结论。
+  return {
+    versions: [],
+    releases: [],
+    error: CONTROLLER_MANAGED_UPDATE,
+    degraded: "",
+    stale: false,
+    managedByController: true,
+    hasBeta: false,
+    stableSha: "",
+    betaSha: "",
+    upstream: {
+      repo: UPSTREAM_REPO,
+      masterSha: "",
+      betaSha: "",
+      tags: 0,
+      available: false,
+      warning: CONTROLLER_MANAGED_UPDATE,
+    },
+  };
+}
+
+// 旧独立仓库时代的版本枚举实现。迁移到单仓后不再调用，保留供以后若恢复独立发布时参考。
+async function listRemoteVersionsLegacy() {
   const state = safeChannelState();
   const seen = new Set();
   const out = [];
@@ -790,11 +820,11 @@ export async function checkUpdate(services = {}) {
   const lane = lanes[state.channel] || lanes.stable;
 
   const warnings = [];
-  if (listed.error) warnings.push(`无法读取社区发行列表：${listed.error}`);
+  if (listed.error && !listed.managedByController) warnings.push(`无法读取社区发行列表：${listed.error}`);
   if (listed.degraded) warnings.push(listed.degraded);
-  else if (!(listed.releases || []).length) warnings.push("尚未发布可安装的社区正式版本");
+  else if (!listed.managedByController && !(listed.releases || []).length) warnings.push("尚未发布可安装的社区正式版本");
   if (state.channel === "beta") warnings.push(UPSTREAM_WARNING);
-  if (!listed.upstream?.available) {
+  if (!listed.managedByController && !listed.upstream?.available) {
     warnings.push("上游 dsh-purge-self 列表不可用（legacy 通道不可选，不影响正式发行包更新）");
   }
 
@@ -834,8 +864,11 @@ export async function checkUpdate(services = {}) {
     checkedAt: new Date().toISOString(),
   };
   // 面板只渲染 error / notice：上游通道和断网都把说明放进 error，避免"看起来一切正常"。
-  if (listed.error) result.error = `无法读取社区发行列表：${listed.error}${listed.degraded ? "；" + listed.degraded : ""}`;
-  else if (state.channel === "beta") result.error = UPSTREAM_WARNING;
+  if (listed.error) {
+    result.error = listed.managedByController
+      ? listed.error
+      : `无法读取社区发行列表：${listed.error}${listed.degraded ? "；" + listed.degraded : ""}`;
+  } else if (state.channel === "beta") result.error = UPSTREAM_WARNING;
   return rememberUpdate(result);
 }
 

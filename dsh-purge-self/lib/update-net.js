@@ -5,11 +5,13 @@
 // so a blocked network degrades to ok:false instead of hanging the host.
 import { requestUpdate, UPDATE_HOSTS } from "./update-http.js";
 
-// 上游仓库（dsh-purge-self）已被删除并换成无关项目，beta/zip 通道曾因此 404。
-// 本 fork 现在以自己为发布源；UPSTREAM_REPO 保留旧名字，避免外部脚本引用失效。
-export const SOURCE_REPO = "skyle1995/dsh-purge-self";
+// 2026-11 迁移：插件随 GitHub 单仓 skyle1995/dsh-controller 发布，默认分支 main。
+// 旧的独立仓库 skyle1995/dsh-purge-self 只存在于已下线的 Gitea，GitHub 上不存在。
+// UPSTREAM_REPO 保留旧名字，避免外部脚本引用失效。
+export const SOURCE_REPO = "skyle1995/dsh-controller";
 export const UPSTREAM_REPO = SOURCE_REPO;
-export const STABLE_REF = "master";
+export const STABLE_REF = "main";
+// 单仓没有 beta 分支；legacy 通道默认关闭，仅显式指定时才可能被调用。
 export const BETA_REF = "beta";
 export const MAX_UPDATE_BYTES = 50 * 1024 * 1024;
 export const NET_TIMEOUT_MS = 12_000;

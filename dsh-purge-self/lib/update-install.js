@@ -106,7 +106,7 @@ export function runGit(dir, args, timeout = 20000) {
   }
 }
 
-export function gitResetTo(dir, ref, { force = false, fallbackRef = "master" } = {}) {
+export function gitResetTo(dir, ref, { force = false, fallbackRef = "main" } = {}) {
   if (!force && gitTrackedDirty(dir)) {
     throw new Error("本地插件文件有未提交改动，未覆盖");
   }
@@ -116,7 +116,7 @@ export function gitResetTo(dir, ref, { force = false, fallbackRef = "master" } =
   } catch {
     runGit(dir, ["fetch", "origin", "--tags", target], 60000);
   }
-  if (target === "master" || target === "beta") {
+  if (target === "main" || target === "master" || target === "beta") {
     try {
       runGit(dir, ["checkout", "-B", target, `origin/${target}`]);
       return;

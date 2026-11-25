@@ -15,7 +15,8 @@ import { fileURLToPath } from "node:url";
 import { installWithRegistryRecovery } from "./install-registry.js";
 import { packRestoredPackage, verifyInstalledPackage, checkpointProfile } from "./rollback-transaction.js";
 const exec = promisify(execFile);
-export const REPOSITORY = "skyle1995/dsh-purge-self";
+// 2026-11 起插件随 GitHub 单仓发布；旧独立仓库已不在 GitHub（原 Gitea 地址已下线）。
+export const REPOSITORY = "skyle1995/dsh-controller";
 export const PACKAGE = "dsh-purge-self";
 export const ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -829,13 +830,17 @@ export async function validateArchive(file, version) {
     { cwd, maxBuffer: 65536 },
   );
   const pkg = JSON.parse(meta);
+  // 兼容迁移前从旧独立仓库打出的归档，同时接受单仓的新仓库地址。
+  const repoUrls = [
+    "git+https://github.com/" + REPOSITORY + ".git",
+    "https://github.com/" + REPOSITORY + ".git",
+    "git+https://github.com/skyle1995/dsh-purge-self.git",
+    "https://github.com/skyle1995/dsh-purge-self.git",
+  ];
   if (
     pkg.name !== PACKAGE ||
     (version !== undefined && pkg.version !== version) ||
-    ![
-      "git+https://github.com/" + REPOSITORY + ".git",
-      "https://github.com/" + REPOSITORY + ".git",
-    ].includes(pkg.repository?.url)
+    !repoUrls.includes(pkg.repository?.url)
   )
     throw Error("安装包身份与发行版本不一致");
   return pkg;
